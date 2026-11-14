@@ -30,7 +30,7 @@ header .ver{font:italic 14px "IM Fell English",serif;color:#47301a}
 .stat b{font-weight:600;font-size:21px;color:#1c1006;font-variant-numeric:tabular-nums}
 .stat span{color:#47301a;font:400 15px "IM Fell English",serif}
 .mapwrap{position:relative;background:var(--sea);overflow:hidden;border-left:2px solid #000;grid-column:2;grid-row:2}
-#map{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#map{width:100%;height:100%;display:block;touch-action:none;cursor:grab;transform-origin:0 0;will-change:transform}
 #map.drag{cursor:grabbing}
 .place{cursor:pointer}
 .place text{font:600 10px Spectral,serif;fill:#2a1d12;paint-order:stroke;stroke:#efe2c4;stroke-width:3px;pointer-events:none}
@@ -177,7 +177,7 @@ aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:f
 </script>
 <script>
 {
-const VERSION = "pre-alpha v0.0.7";
+const VERSION = "pre-alpha v0.0.8";
 const SAVE_KEY = "crown-dynasty-save-v7";
 const $ = id => document.getElementById(id);
 const R = (a,b) => a + Math.random()*(b-a);
@@ -918,12 +918,28 @@ function renderCard(){
 }
 
 /* ---------- map ---------- */
+function noiseURL(size, cells, octaves, rgb, aMin, aMax, seed){
+ let sd=seed; const rnd=()=>{ sd=(sd*16807)%2147483647; return sd/2147483647; };
+ const cv=document.createElement("canvas"); cv.width=cv.height=size; const cx=cv.getContext("2d"); const img=cx.createImageData(size,size);
+ const layers=[]; for(let o=0;o<octaves;o++){ const n=cells*(1<<o); const g=Array.from({length:n*n},rnd); layers.push([n,g]); }
+ const sm=t=>t*t*(3-2*t);
+ for(let y=0;y<size;y++) for(let x=0;x<size;x++){
+  let v=0, amp=1, tot=0;
+  for(const [n,g] of layers){ const fx=x/size*n, fy=y/size*n, x0=Math.floor(fx), y0=Math.floor(fy), tx=sm(fx-x0), ty=sm(fy-y0);
+   const G=(i,j)=>g[((j+n)%n)*n+((i+n)%n)];
+   const a=G(x0,y0)+(G(x0+1,y0)-G(x0,y0))*tx, b=G(x0,y0+1)+(G(x0+1,y0+1)-G(x0,y0+1))*tx;
+   v+=(a+(b-a)*ty)*amp; tot+=amp; amp*=0.5; }
+  v/=tot; const k=(y*size+x)*4; img.data[k]=rgb[0]; img.data[k+1]=rgb[1]; img.data[k+2]=rgb[2]; img.data[k+3]=Math.round(255*(aMin+(aMax-aMin)*clamp((v-0.25)/0.5,0,1)));
+ }
+ cx.putImageData(img,0,0); return cv.toDataURL();
+}
 let CELLEL=[];
 function buildMap(){
+ const seaN = noiseURL(256, 4, 3, [2,10,14], 0, .7, 7), paperN = noiseURL(256, 6, 4, [60,38,15], 0, .32, 3), fogN = noiseURL(256, 5, 4, [214,210,196], 0, .8, 9);
  const svg=$("map");
  const cells = CELLS.map((c,i)=>`<path class="cell" data-i="${i}" data-t="${c[1]}" d="${c[0]}"/>`).join("");
  svg.innerHTML = `<defs>
-  <clipPath id="landclip"><path d="${LAND_PATH}"/></clipPath>
+  <clipPath id="landclip"><path id="lclip" d="${LAND_LO}"/></clipPath>
   <filter id="paper" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".02" numOctaves="4" seed="3" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 .2  0 0 0 0 .12  0 0 0 0 .05  1.3 0 0 0 -.3" result="m"/><feComposite in="m" in2="SourceGraphic" operator="in" result="mm"/><feMerge><feMergeNode in="SourceGraphic"/><feMergeNode in="mm"/></feMerge></filter>
   <filter id="seadark" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".004 .007" numOctaves="2" seed="7"/><feColorMatrix type="matrix" values="0 0 0 0 .01  0 0 0 0 .04  0 0 0 0 .06  1.1 0 0 0 -.38"/></filter>
   <filter id="seafine" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".035 .11" numOctaves="2" seed="11"/><feColorMatrix type="matrix" values="0 0 0 0 .75  0 0 0 0 .92  0 0 0 0 .9  1.1 0 0 0 -.42"/></filter>
@@ -932,23 +948,32 @@ function buildMap(){
   <linearGradient id="gy" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="800"><stop offset=".02" stop-color="#000"/><stop offset=".13" stop-color="#fff"/><stop offset=".87" stop-color="#fff"/><stop offset=".98" stop-color="#000"/></linearGradient>
   <mask id="fadex" maskUnits="userSpaceOnUse" x="-400" y="-400" width="1800" height="1600"><rect x="-400" y="-400" width="1800" height="1600" fill="url(#gx)"/></mask>
   <mask id="fadey" maskUnits="userSpaceOnUse" x="-400" y="-400" width="1800" height="1600"><rect x="-400" y="-400" width="1800" height="1600" fill="url(#gy)"/></mask>
-  <clipPath id="fogclip"></clipPath>
+  <pattern id="seapat" patternUnits="userSpaceOnUse" width="520" height="520"><image href="${seaN}" width="520" height="520" preserveAspectRatio="none"/></pattern>
+  <pattern id="paperpat" patternUnits="userSpaceOnUse" width="300" height="300"><image href="${paperN}" width="300" height="300" preserveAspectRatio="none"/></pattern>
+  <pattern id="fogpat" patternUnits="userSpaceOnUse" width="260" height="260"><rect width="260" height="260" fill="#6f6b5d"/><image href="${fogN}" width="260" height="260" preserveAspectRatio="none"/></pattern>
+  <linearGradient id="fl" x1="0" x2="1"><stop offset="0" style="stop-color:var(--sea)"/><stop offset="1" style="stop-color:var(--sea)" stop-opacity="0"/></linearGradient>
+  <linearGradient id="ft" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--sea)"/><stop offset="1" style="stop-color:var(--sea)" stop-opacity="0"/></linearGradient>
   <filter id="clouds" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".012" numOctaves="4" seed="9"/><feColorMatrix type="matrix" values="0 0 0 0 .8  0 0 0 0 .79  0 0 0 0 .74  1.2 0 0 0 -.42"/></filter>
   <filter id="fogf" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".025" numOctaves="3" seed="5" result="t"/><feDisplacementMap in="SourceGraphic" in2="t" scale="12" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="3"/></filter>
   <radialGradient id="vig" cx="50%" cy="50%" r="72%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".4"/></radialGradient>
  </defs>
  <rect x="-300" y="-300" width="1600" height="1400" style="fill:var(--sea)"/>
- <rect x="-150" y="-150" width="1300" height="1100" fill="#000" filter="url(#seadark)"/>
+ <rect x="-150" y="-150" width="1300" height="1100" fill="url(#seapat)"/>
  <path d="${GRAT_PATH}" fill="none" stroke="#d6e6dd" stroke-opacity=".12" stroke-width=".8" stroke-dasharray="2 4"/>
- <g mask="url(#fadex)"><g mask="url(#fadey)">
+ <g>
   <g fill="none" stroke="#a9d0c6" stroke-linejoin="round">
-   <path d="${LAND_PATH}" stroke-width="22" stroke-opacity=".05"/><path d="${LAND_PATH}" stroke-width="9" stroke-opacity=".08"/>
+   <path d="${LAND_LO}" stroke-width="12" stroke-opacity=".07"/>
   </g>
-  <path d="${LAND_PATH}" style="fill:var(--land)" filter="url(#paper)"/>
+  <path id="lfill" d="${LAND_LO}" style="fill:var(--land)"/><path id="lpaper" d="${LAND_LO}" fill="url(#paperpat)"/>
   <g clip-path="url(#landclip)">${cells}</g>
-  <path d="${LAND_PATH}" fill="none" style="stroke:var(--coast)" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-  <g clip-path="url(#landclip)"><rect x="-200" y="-200" width="1400" height="1200" fill="#fff" filter="url(#clouds)" clip-path="url(#fogclip)" pointer-events="none"/></g>
- </g></g>
+  <path id="lcoast" d="${LAND_LO}" fill="none" style="stroke:var(--coast)" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+ </g>
+ <g pointer-events="none">
+  <rect x="-400" y="-400" width="1800" height="400" style="fill:var(--sea)"/><rect x="-400" y="800" width="1800" height="400" style="fill:var(--sea)"/>
+  <rect x="-400" y="-400" width="400" height="1600" style="fill:var(--sea)"/><rect x="1000" y="-400" width="400" height="1600" style="fill:var(--sea)"/>
+  <rect x="0" y="0" width="140" height="800" fill="url(#fl)"/><rect x="860" y="0" width="140" height="800" fill="url(#fl)" transform="rotate(180 930 400)"/>
+  <rect x="0" y="0" width="1000" height="110" fill="url(#ft)"/><rect x="0" y="690" width="1000" height="110" fill="url(#ft)" transform="rotate(180 500 745)"/>
+ </g>
  <text class="sealabel" x="120" y="590">The Western Ocean</text>
  <text class="sealabel" x="205" y="455" font-size="17">The Narrow Sea</text>
  <text class="sealabel" x="585" y="215" font-size="20">Mare Septentrionale</text>
@@ -957,7 +982,7 @@ function buildMap(){
  <g opacity=".8"><path d="M60,430 l-40,0 m0,0 l10,-7 m-10,7 l10,7" stroke="#d6e6dd" stroke-width="2" fill="none"/><text x="20" y="455" font-family="IM Fell English" font-style="italic" font-size="13" fill="#d6e6dd">to the New World</text></g>
  <g id="places"></g>
  <rect x="-500" y="-500" width="2000" height="1800" fill="url(#vig)" pointer-events="none"/>`;
- CELLEL=[]; FOGEL=[]; FOGKEY='';
+ CELLEL=[]; FOGEL=[]; FOGKEY=''; LODK=-1;
 }
 let FOGKEY='';
 const FOGC=["#7d796a","#868272","#767264","#8d8977"];
@@ -969,7 +994,7 @@ function renderCells(){
  const war = pr().atWar, fogList=[];
  for(const el of CELLEL){
   const i=+el.dataset.i, o=S.tiles[i];
-  if(fogged(i)){ el.setAttribute("fill",FOGC[CELLS[i][2]%4]); el.setAttribute("fill-opacity","1"); el.setAttribute("stroke","none"); el.classList.remove("sel","tgt"); fogList.push(i); continue; }
+  if(fogged(i)){ el.setAttribute("fill","url(#fogpat)"); el.setAttribute("fill-opacity","1"); el.setAttribute("stroke","none"); el.classList.remove("sel","tgt"); fogList.push(i); continue; }
   el.removeAttribute("stroke");
   if(!o){ el.setAttribute("fill","#3b2a16"); el.setAttribute("fill-opacity",(CELLS[i][2]*0.012).toFixed(3)); }
   else { el.setAttribute("fill",S.realms[o].color); el.setAttribute("fill-opacity", TOWNAT.has(i) ? "0.92" : (0.36+CELLS[i][2]*0.026).toFixed(3)); }
@@ -977,11 +1002,22 @@ function renderCells(){
   el.classList.toggle("tgt", !!o && war.includes(o) && !TOWNAT.has(i) && tileAdj(S.player,i));
  }
  const key=fogList.join(",");
- if(key!==FOGKEY){ FOGKEY=key; $("fogclip").innerHTML = fogList.map(i=>`<path d="${CELLS[i][0]}"/>`).join(""); }
 }
 let anim=null;
 const PS = () => Math.min(1, Math.pow(vb.w/1000, .85)).toFixed(3);
-function setVB(){ $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const k=PS(); for(const g of document.querySelectorAll("#places .place")) g.setAttribute("transform",`translate(${g.dataset.x},${g.dataset.y}) scale(${k})`); }
+let LODK=-1, vbPending=false;
+function setLOD(){ const k = vb.w>620?0 : vb.w>260?1 : 2; if(k===LODK) return; LODK=k; const d=[LAND_LO,LAND_MID,LAND_PATH][k]; for(const id of ["lclip","lfill","lpaper","lcoast"]){ const el=$(id); if(el) el.setAttribute("d",d); } }
+let vbC=null, commitT=0;
+function fitOf(b, cw, ch){ const s=Math.min(cw/b.w, ch/b.h); return {s, ox:(cw-b.w*s)/2, oy:(ch-b.h*s)/2}; }
+function applyLive(){
+ const svg=$("map"); if(!vbC) return setVB();
+ const cw=svg.clientWidth, ch=svg.clientHeight; if(!cw||!ch) return setVB();
+ const a=fitOf(vbC,cw,ch), b=fitOf(vb,cw,ch), k=b.s/a.s;
+ const tx=b.ox - k*a.ox + (vbC.x-vb.x)*b.s, ty=b.oy - k*a.oy + (vbC.y-vb.y)*b.s;
+ svg.style.transform=`translate(${tx}px,${ty}px) scale(${k})`;
+}
+function setVBsoon(delay=170){ applyLive(); clearTimeout(commitT); if(delay>=0) commitT=setTimeout(setVB, delay); }
+function setVB(){ clearTimeout(commitT); setLOD(); vbC={...vb}; $("map").style.transform=""; $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const k=PS(); for(const g of document.querySelectorAll("#places .place")) g.setAttribute("transform",`translate(${g.dataset.x},${g.dataset.y}) scale(${k})`); }
 function aspect(){ const r=$("map").getBoundingClientRect(); return (r.width>10&&r.height>10)? r.width/r.height : 1.25; }
 const maxW = () => Math.max(1000, 800*aspect());
 function clampBox(b){ if(b.w>=1300) b.x=(1000-b.w)/2; else b.x=clamp(b.x,-150,1150-b.w); if(b.h>=1000) b.y=(800-b.h)/2; else b.y=clamp(b.y,-100,900-b.h); return b; }
@@ -989,7 +1025,7 @@ function clampVB(){ clampBox(vb); }
 function zoom(f, cx, cy){
  const A=aspect(), nw = clamp(vb.w*f, 90, maxW()), nh = nw/A;
  cx = cx ?? vb.x+vb.w/2; cy = cy ?? vb.y+vb.h/2;
- vb.x = cx - (cx-vb.x)*(nw/vb.w); vb.y = cy - (cy-vb.y)*(nh/vb.h); vb.w=nw; vb.h=nh; clampVB(); setVB();
+ vb.x = cx - (cx-vb.x)*(nw/vb.w); vb.y = cy - (cy-vb.y)*(nh/vb.h); vb.w=nw; vb.h=nh; clampVB(); setVBsoon();
 }
 function fitAspect(){ const A=aspect(), cx=vb.x+vb.w/2, cy=vb.y+vb.h/2; vb.w=clamp(vb.w,90,maxW()); vb.h=vb.w/A; vb.x=cx-vb.w/2; vb.y=cy-vb.h/2; clampVB(); setVB(); }
 function homeTarget(){
@@ -1006,8 +1042,8 @@ function animateTo(t, ms=850){
  const step=now=>{ const u=Math.min(1,(now-t0)/ms), e=ease(u), A=aspect();
   const lw=Math.exp(Math.log(f.w)+(Math.log(t.w)-Math.log(f.w))*e);
   const cx=(f.x+f.w/2)+((t.x+t.w/2)-(f.x+f.w/2))*e, cy=(f.y+f.h/2)+((t.y+t.h/2)-(f.y+f.h/2))*e;
-  vb.w=lw; vb.h=lw/A; vb.x=cx-vb.w/2; vb.y=cy-vb.h/2; clampVB(); setVB();
-  if(u<1) anim=requestAnimationFrame(step); };
+  vb.w=lw; vb.h=lw/A; vb.x=cx-vb.w/2; vb.y=cy-vb.h/2; clampVB();
+  if(u<1){ setVBsoon(-1); anim=requestAnimationFrame(step); } else setVB(); };
  anim=requestAnimationFrame(step);
 }
 function goHome(animated=true){ animateTo(homeTarget(), animated?850:0); }
@@ -1016,9 +1052,9 @@ function bindMap(){
  const svg=$("map"); let drag=null, moved=0;
  svg.addEventListener("wheel", e=>{ e.preventDefault(); cancelAnimationFrame(anim); const p=svgPoint(e); zoom(e.deltaY>0?1.15:0.87, p.x, p.y); }, {passive:false});
  svg.addEventListener("pointerdown", e=>{ cancelAnimationFrame(anim); drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y}; moved=0; });
- window.addEventListener("pointermove", e=>{ if(!drag) return; const r=svg.getBoundingClientRect(); const s=Math.max(vb.w/r.width, vb.h/r.height);
-  const dx=e.clientX-drag.x, dy=e.clientY-drag.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); if(moved>4){ svg.classList.add("drag"); vb.x=drag.vx-dx*s; vb.y=drag.vy-dy*s; clampVB(); setVB(); } });
- window.addEventListener("pointerup", e=>{ if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell"); if(g){ selected=g.dataset.id; render(); } else if(cl){ const ci=+cl.dataset.i; if(fogged(ci)) selected="fog:"+ci; else if(TOWNAT.has(ci)) selected=S.places[TOWNAT.get(ci)].id; else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
+ window.addEventListener("pointermove", e=>{ if(!drag) return; const s=Math.max(vb.w/svg.clientWidth, vb.h/svg.clientHeight);
+  const dx=e.clientX-drag.x, dy=e.clientY-drag.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); if(moved>4){ svg.classList.add("drag"); vb.x=drag.vx-dx*s; vb.y=drag.vy-dy*s; clampVB(); setVBsoon(-1); } });
+ window.addEventListener("pointerup", e=>{ if(drag && moved>4) setVB(); if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell"); if(g){ selected=g.dataset.id; render(); } else if(cl){ const ci=+cl.dataset.i; if(fogged(ci)) selected="fog:"+ci; else if(TOWNAT.has(ci)) selected=S.places[TOWNAT.get(ci)].id; else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
  $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>goHome(true);
  $("sidetog").onclick=()=>{ const c=$("app").classList.toggle("collapsed"); $("sidetog").textContent=c?"▸":"◂"; $("sidetog").setAttribute("aria-label",c?"Show side panel":"Hide side panel"); $("sidetog").title=c?"Show side panel":"Hide side panel"; };
  new ResizeObserver(()=>fitAspect()).observe($("map").parentElement); fitAspect();

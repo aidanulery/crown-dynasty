@@ -44,5 +44,14 @@ const CELLS=cells.map(c=>['M'+c.poly.slice(0,-1).map(v=>v[0].toFixed(1)+' '+v[1]
 const NEI=cells.map(c=>[...del.neighbors(c.i)].filter(j=>pos.has(j)&&byIdx.get(j).ring===c.ring).map(j=>pos.get(j)));
 const TOWNCELL=townCell.map(i=>pos.get(i));
 const out=places.map(({ring,...p})=>p);
-fs.writeFileSync('mapdata.js',`const LAND_PATH=${JSON.stringify(LAND)};\nconst GRAT_PATH=${JSON.stringify(GRAT)};\nconst PLACES_RAW=${JSON.stringify(out)};\nconst CELLS=${JSON.stringify(CELLS)};\nconst TOWNCELL=${JSON.stringify(TOWNCELL)};\nconst NEI=${JSON.stringify(NEI)};\n`);
+// ---- level-of-detail coastlines (simplified in screen space)
+function rdp(pts,eps){ if(pts.length<4) return pts; const keep=new Uint8Array(pts.length); keep[0]=keep[pts.length-1]=1; const st=[[0,pts.length-1]];
+ while(st.length){ const [a,b]=st.pop(); let md=0,mi=-1; const [x1,y1]=pts[a],[x2,y2]=pts[b]; const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy)||1e-9;
+  for(let i=a+1;i<b;i++){ const d=Math.abs(dy*pts[i][0]-dx*pts[i][1]+x2*y1-y2*x1)/L; if(d>md){md=d;mi=i;} }
+  if(md>eps){ keep[mi]=1; st.push([a,mi],[mi,b]); } }
+ return pts.filter((_,i)=>keep[i]); }
+const area=p=>{let a=0;for(let i=0,j=p.length-1;i<p.length;j=i++)a+=(p[j][0]+p[i][0])*(p[j][1]-p[i][1]);return Math.abs(a/2);};
+function lod(eps,minA){ let n=0; const out=rings.map(r=>{ if(area(r.pts)<minA) return ''; const q=rdp(r.pts,eps); if(q.length<3) return ''; n+=q.length; return 'M'+q.map(v=>v[0].toFixed(1)+','+v[1].toFixed(1)).join('L')+'Z'; }).join(''); console.log('lod',eps,minA,'pts',n,'bytes',out.length); return out; }
+const LAND_LO=lod(0.7,4), LAND_MID=lod(0.25,0.6), LAND_HI=lod(0.08,0.05);
+fs.writeFileSync('mapdata.js',`const LAND_PATH=${JSON.stringify(LAND_HI)};\nconst LAND_MID=${JSON.stringify(LAND_MID)};\nconst LAND_LO=${JSON.stringify(LAND_LO)};\nconst GRAT_PATH=${JSON.stringify(GRAT)};\nconst PLACES_RAW=${JSON.stringify(out)};\nconst CELLS=${JSON.stringify(CELLS)};\nconst TOWNCELL=${JSON.stringify(TOWNCELL)};\nconst NEI=${JSON.stringify(NEI)};\n`);
 console.log('rings',rings.length,'cells',CELLS.length,'owned',CELLS.filter(c=>c[1]>=0).length,'bytes',fs.statSync('mapdata.js').size,out.filter(p=>p.x<80||p.x>920||p.y<70||p.y>730).map(p=>p.id));
