@@ -82,14 +82,17 @@ aside{grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-directi
 .modal h4{color:#8a1f1f}
 .modal .btn{background:linear-gradient(90deg,transparent,#c9a45a33 20%,#c9a45a33 80%,transparent);border:0;border-top:1px solid #9a6a1f;border-bottom:1px solid #9a6a1f;border-radius:0;text-align:center;font:400 19px "IM Fell English",serif;color:#3b2210;margin:8px 0}
 .modal .btn:hover:not(:disabled){background:linear-gradient(90deg,transparent,#c9a45a77 20%,#c9a45a77 80%,transparent)}
-.modal .btn small{font:italic 14px Spectral,serif;color:#6b4a28}
+.modal .btn small{font:italic 14px Spectral,serif;color:#5a3d1e}
+.modal .realmgrid .note{color:#6b4a28;font-family:Spectral,serif;font-size:13px}
 .modal .btn.red{color:#8a1f1f}
 .seal{position:absolute;right:-4px;bottom:-14px;width:58px;height:58px;border-radius:50%;z-index:3;background:radial-gradient(circle at 35% 30%,#d24a3a,#8a1f1f 55%,#4a0f0f);box-shadow:0 5px 10px #000a,inset 0 0 0 4px #7a1818,inset 0 0 0 6px #b13a2c;display:flex;align-items:center;justify-content:center;font:400 26px "IM Fell English SC",serif;color:#e9b9a8;pointer-events:none}
 
 .modal input,.modal select{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--coast);border-radius:6px;background:#fffaf0;width:100%;min-height:44px}
-.modal label{display:block;margin:10px 0 4px;font-size:14px;color:var(--muted)}
+.modal label{display:block;margin:10px 0 4px;font-size:15px;color:#5a3d1e}
+.modal input,.modal select,.modal option{color:#3b2210}
+.modal .note{color:#5a3d1e}
 .realmgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
-.realmgrid button{padding:6px 8px;border:2px solid var(--line);border-radius:6px;background:#fff6;text-align:left;min-height:44px}
+.realmgrid button{color:#3b2210;font-family:"IM Fell English",serif;font-size:18px;padding:6px 8px;border:2px solid var(--line);border-radius:6px;background:#fff6;text-align:left;min-height:44px}
 .realmgrid button.on{border-color:var(--accent);background:#fff}
 .realmgrid i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
 .note{font-size:13px;color:var(--muted)}
@@ -156,7 +159,7 @@ aside{grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-directi
 </script>
 <script>
 {
-const VERSION = "pre-alpha v0.0.3";
+const VERSION = "pre-alpha v0.0.4";
 const SAVE_KEY = "crown-dynasty-save";
 const $ = id => document.getElementById(id);
 const R = (a,b) => a + Math.random()*(b-a);
