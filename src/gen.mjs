@@ -1,0 +1,16 @@
+import fs from 'fs';
+import * as d3 from 'd3-geo';
+import * as topo from 'topojson-client';
+const t = JSON.parse(fs.readFileSync('node_modules/world-atlas/land-50m.json'));
+const land = topo.feature(t, t.objects.land);
+const W=1000,H=800;
+const bbox={type:'Feature',geometry:{type:'MultiPoint',coordinates:[[-11,41.6],[10.5,41.6],[-11,57.5],[10.5,57.5]]}};
+const proj=d3.geoConicConformal().rotate([-0.5,0]).parallels([44,54]).fitExtent([[0,0],[W,H]],bbox);
+proj.clipExtent([[-5,-5],[W+5,H+5]]);
+const path=d3.geoPath(proj).digits(1);
+const d=path(land);
+const grat=d3.geoPath(proj).digits(1)(d3.geoGraticule().step([5,5])());
+const places=JSON.parse(fs.readFileSync('places.json'));
+const out=places.map(p=>{const [x,y]=proj([p.lon,p.lat]);return {...p,x:+x.toFixed(1),y:+y.toFixed(1)};});
+fs.writeFileSync('mapdata.js',`const LAND_PATH=${JSON.stringify(d)};\nconst GRAT_PATH=${JSON.stringify(grat)};\nconst PLACES_RAW=${JSON.stringify(out)};\n`);
+console.log(d.length, grat.length, out.filter(p=>p.x<0||p.x>W||p.y<0||p.y>H).map(p=>p.id));

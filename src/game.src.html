@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crown &amp; Dynasty</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Spectral:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a royal chronicle — grave, warm, candlelit.
+   IDEA: a 16th-century campaign table: an engraved sea chart with wax-seal towns, beside a ledger.
+   PICTURE: the map itself, filling the screen; coastlines only, kingdoms shown by seal colour.
+   COLOUR and TYPE: oak-brown housing, aged-paper land, slate-green sea, oxblood accent; IM Fell for titles, Spectral for text.
+   LAYOUT: map left (fills), ledger panel right; stacks on phones with the map on top. */
+:root{color-scheme:light dark;
+ --wood:#2b1d14;--wood2:#3a281b;--paper:#efe2c4;--paper2:#e4d3ad;--ink:#2a1d12;--muted:#6b5640;
+ --sea:#7d9a96;--sea2:#6a8884;--land:#eadbb6;--coast:#5b4128;--accent:#8a1f1f;--gold:#b8892d;--line:#c7b28a}
+:root[data-theme=dark]{--sea:#3d5250;--sea2:#334644;--land:#cdbd96;--paper:#e6d7b4}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--wood);color:var(--ink);font:16px/1.5 Spectral,Georgia,serif;overflow:hidden}
+button{font:inherit;cursor:pointer}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 380px;grid-template-rows:auto minmax(0,1fr);height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:8px 16px;background:linear-gradient(#f3e8cb,#e2d0a6);color:#3b2614;border-bottom:2px solid #000}
+header h1{font:400 26px/1 "IM Fell English SC",serif;margin:0;letter-spacing:.02em}
+header .ver{font:italic 14px "IM Fell English",serif;color:#6b4a28}
+.stats{display:flex;gap:16px;flex-wrap:wrap;margin-left:auto;font-size:14px}
+.stat b{font-weight:600;color:#3b2614;font-variant-numeric:tabular-nums}
+.stat span{color:#7a5a36;margin-right:4px}
+.mapwrap{position:relative;background:var(--sea);overflow:hidden;border-right:2px solid #000}
+#map{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#map.drag{cursor:grabbing}
+.place{cursor:pointer}
+.place text{font:600 11px Spectral,serif;fill:#2a1d12;paint-order:stroke;stroke:#efe2c4;stroke-width:3px;pointer-events:none}
+.place:hover circle.seal{stroke:#fff;stroke-width:2.5}
+.sealabel{font:italic 22px "IM Fell English",serif;fill:#25403d;opacity:.55;pointer-events:none}
+.mapctl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.mapctl button{width:44px;height:44px;border-radius:6px;border:1px solid var(--coast);background:var(--paper);font-size:20px;color:var(--ink)}
+.legend{position:absolute;left:10px;bottom:10px;background:rgba(239,226,196,.92);border:1px solid var(--coast);border-radius:6px;padding:8px 10px;font-size:13px;max-width:240px}
+.legend div{display:flex;align-items:center;gap:6px;line-height:1.35}
+.legend i{width:11px;height:11px;border-radius:50%;display:inline-block;border:1px solid #0006;flex:none}
+.card{position:absolute;left:10px;top:10px;width:280px;background:var(--paper);border:1px solid var(--coast);border-radius:8px;box-shadow:0 6px 18px #0005;padding:12px 14px;display:none}
+.card h3{margin:0 0 2px;font:400 22px "IM Fell English",serif}
+.card .sub{color:var(--muted);font-size:14px;margin-bottom:8px}
+.card .x{position:absolute;right:6px;top:4px;border:0;background:none;font-size:22px;width:36px;height:36px;color:var(--muted)}
+aside{background:var(--paper);display:flex;flex-direction:column;min-height:0;background-image:radial-gradient(circle at 30% 10%,#f6ecd4,transparent 60%)}
+.tabs{display:flex;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tabs button{flex:1;padding:10px 4px;border:0;background:none;font:400 16px "IM Fell English",serif;color:var(--muted);border-bottom:3px solid transparent;min-height:44px}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+.panel{overflow-y:auto;padding:14px 16px 20px;flex:1}
+.panel h2{font:400 24px/1.1 "IM Fell English",serif;margin:4px 0 8px}
+.panel h4{font:400 18px "IM Fell English",serif;margin:16px 0 6px;color:var(--accent)}
+.row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dotted var(--line);font-size:15px}
+.row span:last-child{font-variant-numeric:tabular-nums;text-align:right}
+.btn{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;min-height:44px;border:1px solid var(--coast);border-radius:6px;background:linear-gradient(#f7eed8,#e8d8b2);color:var(--ink)}
+.btn small{display:block;color:var(--muted);font-size:13px}
+.btn:hover:not(:disabled){background:linear-gradient(#fff6e2,#efe0bd)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.red{border-color:var(--accent);color:var(--accent)}
+.person{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:6px 0;background:#fff5}
+.person b{font-weight:600}
+.person .meta{font-size:13px;color:var(--muted)}
+.bar{height:6px;background:#0001;border-radius:3px;margin-top:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
+.log p{margin:0 0 6px;font-size:14px}.log p b{color:var(--accent);font-weight:600}
+.foot{border-top:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:12px;background:var(--paper2)}
+.ap{display:flex;gap:5px}.ap i{width:16px;height:16px;border-radius:50%;background:var(--accent);border:1px solid #0006}.ap i.used{background:transparent}
+.endyear{margin-left:auto;padding:10px 18px;min-height:44px;border-radius:6px;border:1px solid #000;background:var(--accent);color:#f6e7b8;font:400 18px "IM Fell English",serif}
+.modalbg{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
+.modal{background:var(--paper);border:2px solid var(--coast);border-radius:10px;max-width:540px;width:100%;max-height:90vh;overflow:auto;padding:22px 24px;box-shadow:0 20px 50px #000a;background-image:radial-gradient(circle at 20% 0%,#fbf3df,transparent 70%)}
+.modal h2{font:400 30px/1.1 "IM Fell English",serif;margin:0 0 10px;text-wrap:balance}
+.modal p{margin:0 0 10px}
+.modal input,.modal select{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--coast);border-radius:6px;background:#fffaf0;width:100%;min-height:44px}
+.modal label{display:block;margin:10px 0 4px;font-size:14px;color:var(--muted)}
+.realmgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+.realmgrid button{padding:6px 8px;border:2px solid var(--line);border-radius:6px;background:#fff6;text-align:left;min-height:44px}
+.realmgrid button.on{border-color:var(--accent);background:#fff}
+.realmgrid i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.note{font-size:13px;color:var(--muted)}
+#title{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px;background:radial-gradient(ellipse at 50% 35%,#4a3322,#1c120b 75%);color:#f0e0b8}
+#title.hide{display:none}
+#title svg.crown{width:min(220px,40vw);height:auto;filter:drop-shadow(0 6px 14px #000a)}
+#title h1{font:400 clamp(40px,8vw,84px)/1 "IM Fell English SC",serif;margin:10px 0 4px;color:#f2d98d;text-shadow:0 3px 0 #000a;text-wrap:balance}
+#title .tag{font:italic clamp(17px,2.4vw,24px) "IM Fell English",serif;color:#d9c293;margin:0 0 26px}
+#title .menu{display:flex;flex-direction:column;gap:10px;width:min(320px,100%)}
+#title .menu button{padding:12px 18px;min-height:48px;border:2px solid #b8892d;border-radius:6px;background:linear-gradient(#5b3a22,#3a2314);color:#f6e7b8;font:400 20px "IM Fell English",serif}
+#title .menu button:hover:not(:disabled){background:linear-gradient(#7a4d2c,#4d2f1b)}
+#title .menu button:disabled{opacity:.4;cursor:not-allowed}
+#title .ver2{position:absolute;bottom:14px;font:italic 14px "IM Fell English",serif;color:#a88f61}
+#title .rule{width:min(360px,70vw);height:2px;background:linear-gradient(90deg,transparent,#b8892d,transparent);margin:6px 0 10px}
+@media(max-width:860px){
+ body{overflow:auto}
+ .app{grid-template-columns:1fr;grid-template-rows:auto 60vh auto;height:auto}
+ .mapwrap{border-right:0}
+ aside{min-height:70vh}
+ .legend{display:none}
+ .card{width:auto;right:60px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+ <header>
+  <h1>Crown &amp; Dynasty</h1><span class="ver" id="ver"></span>
+  <div class="stats" id="stats"></div>
+ </header>
+ <div class="mapwrap">
+  <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet" aria-label="Map of western Europe"></svg>
+  <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Reset view">⌂</button></div>
+  <div class="legend" id="legend"></div>
+  <div class="card" id="card"></div>
+ </div>
+ <aside>
+  <div class="tabs" id="tabs"></div>
+  <div class="panel" id="panel"></div>
+  <div class="foot"><span class="note">Deeds left</span><div class="ap" id="ap"></div><button class="endyear" id="endyear">End Year</button></div>
+ </aside>
+</div>
+<div id="title">
+ <svg class="crown" viewBox="0 0 200 170" aria-hidden="true">
+  <defs><linearGradient id="gd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7e29a"/><stop offset="1" stop-color="#b8892d"/></linearGradient></defs>
+  <path d="M24 130 L14 52 L60 88 L100 30 L140 88 L186 52 L176 130 Z" fill="url(#gd)" stroke="#5a3d0e" stroke-width="4" stroke-linejoin="round"/>
+  <rect x="24" y="130" width="152" height="22" rx="4" fill="url(#gd)" stroke="#5a3d0e" stroke-width="4"/>
+  <circle cx="14" cy="50" r="9" fill="#f7e29a" stroke="#5a3d0e" stroke-width="3"/><circle cx="100" cy="28" r="10" fill="#f7e29a" stroke="#5a3d0e" stroke-width="3"/><circle cx="186" cy="50" r="9" fill="#f7e29a" stroke="#5a3d0e" stroke-width="3"/>
+  <circle cx="100" cy="106" r="9" fill="#8a1f1f" stroke="#5a3d0e" stroke-width="3"/><circle cx="64" cy="141" r="5" fill="#2f6a9a"/><circle cx="100" cy="141" r="5" fill="#8a1f1f"/><circle cx="136" cy="141" r="5" fill="#2f6a9a"/>
+ </svg>
+ <h1>Crown &amp; Dynasty</h1>
+ <div class="rule"></div>
+ <p class="tag">Rule a kingdom. Raise an heir. Found an empire.</p>
+ <div class="menu">
+  <button id="tnew">New Reign</button>
+  <button id="tcont">Continue Reign</button>
+  <button id="thow">How to Rule</button>
+ </div>
+ <div class="ver2" id="tver"></div>
+</div>
+<div class="modalbg" id="modalbg"><div class="modal" id="modal"></div></div>
+<script>
+/*MAPDATA*/
+</script>
+<script>
+{
+const VERSION = "pre-alpha v0.0.2";
+const SAVE_KEY = "crown-dynasty-save";
+const $ = id => document.getElementById(id);
+const R = (a,b) => a + Math.random()*(b-a);
+const RI = (a,b) => Math.floor(R(a,b+1));
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+
+const REALMS = {
+ albion:{name:"Albion",color:"#b03a2e",dyn:"Ashcombe"},
+ caledon:{name:"Caledon",color:"#2f6a9a",dyn:"MacAldair"},
+ eirland:{name:"Eirland",color:"#3e8e4e",dyn:"Ó Ríain"},
+ bretonne:{name:"Bretonne",color:"#7a8b2e",dyn:"de Kerval"},
+ valoria:{name:"Valoria",color:"#3b4fb0",dyn:"de Valois-Mer"},
+ aurelle:{name:"Aurelle",color:"#8e44ad",dyn:"d'Aurignac"},
+ bourgmont:{name:"Bourgmont",color:"#9a5a2e",dyn:"de Charolle"},
+ arlesia:{name:"Arlesia",color:"#c4628a",dyn:"di Montalba"},
+ lowmark:{name:"Lowmark",color:"#e07b1a",dyn:"van Oorde"},
+ rhinemark:{name:"Rhinemark",color:"#5d6d7e",dyn:"von Arnsberg"},
+ daneholm:{name:"Daneholm",color:"#178f9e",dyn:"Skjoldung"},
+ castamar:{name:"Castamar",color:"#c9a227",dyn:"de Lara"}
+};
+const MALE = ["Edmund","Henric","Aldric","Godfrey","Rowan","Tristan","Lionel","Percival","Osric","Gerard","Baldwin","Arthur","Geoffrey","Roland","Thibault","Florian","Anselm","Rodrigo","Lothar","Magnus","Casimir","Hugo"];
+const FEMALE = ["Isolde","Matilda","Eleanor","Rosamund","Beatrix","Cecily","Margery","Adela","Sibyl","Gwendolyn","Elise","Clémence","Odette","Joan","Agnes","Blanche","Ingrid","Leonor","Mathilde","Aveline","Yolande","Hedwig"];
+const TRAITS = ["Brave","Kind","Ambitious","Clever","Gentle","Proud","Cruel","Fair","Pious","Charming","Shy","Wrathful"];
+const COLONY_LANDS = ["the Verdant Isles","the Coast of Pearls","Cinnabar Bay","Greywater Inlet","the Isle of Saint Brendan","the Amber Strand","Cape Tempest","the Golden Savanna","Newhaven Sound","the Cedar Shore"];
+const LAND_RANGE = 165, SEA_RANGE = 430;
+
+let S = null;            // game state
+let tab = "realm";
+let selected = null;
+let vb = {x:0,y:0,w:1000,h:800};
+
+/* ---------- people ---------- */
+function mkPerson(gender, age, realm){
+ const t = [pick(TRAITS)]; if(Math.random()<.5){const t2=pick(TRAITS); if(t2!==t[0]) t.push(t2);}
+ return {name: pick(gender==="m"?MALE:FEMALE), gender, age, realm, traits:t, alive:true,
+  martial:RI(2,9), diplomacy:RI(2,9), stewardship:RI(2,9), charm:RI(2,9)+(t.includes("Charming")?3:0)+(t.includes("Fair")?2:0)};
+}
+const title = (p, ruler) => ruler ? (S.empire ? (p.gender==="m"?"Emperor":"Empress") : (p.gender==="m"?"King":"Queen")) : (p.gender==="m"?"Prince":"Princess");
+const pr = () => S.realms[S.player];
+
+/* ---------- setup ---------- */
+function newGame(realmId, name, gender, dyn){
+ S = {version:VERSION, year:1500, player:realmId, gold:0, prestige:50, stability:70, ap:3, empire:false,
+  dynasty:dyn, rulers:[], monarch:null, spouse:null, children:[], siblings:[], lover:null, heirId:null,
+  matchPool:[], matchYear:0, colonies:[], discovered:[], expedition:false, log:[], over:false, nextId:1, places:[], realms:{}, events:[]};
+ S.places = PLACES_RAW.map(p => ({id:p.id,name:p.name,x:p.x,y:p.y,owner:p.realm,dev:p.dev,fort:1,port:!!p.port,capital:!!p.capital}));
+ for(const [id,r] of Object.entries(REALMS)){
+  const n = S.places.filter(p=>p.owner===id).length;
+  S.realms[id] = {id, name:r.name, color:r.color, gold:80*n, army:1200+450*n, alive:true, atWar:[], truce:{}, allies:[], ruler:mkPerson(Math.random()<.85?"m":"f", RI(22,55), id), warStart:{}, lost:{}};
+ }
+ const me = mkPerson(gender, 21, realmId); me.name = name || me.name; me.id = S.nextId++;
+ S.monarch = me; S.rulers.push({name:me.name, gender, from:1500});
+ const r = pr(); r.ruler = me; S.gold = 300;
+ log(`${title(me,true)} ${me.name} of House ${dyn} is crowned sovereign of ${r.name}.`);
+ save(); render(); centerOnRealm(realmId);
+}
+
+/* ---------- geometry / power ---------- */
+const owned = rid => S.places.filter(p=>p.owner===rid);
+const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+function reachable(rid, place){
+ if(place.owner===rid) return false;
+ const mine = owned(rid);
+ if(mine.some(m => dist(m,place) <= LAND_RANGE)) return true;
+ if(place.port && mine.some(m => m.port && dist(m,place) <= SEA_RANGE)) return true;
+ return false;
+}
+const neighbours = rid => Object.keys(S.realms).filter(o => o!==rid && S.realms[o].alive && owned(o).some(p => reachable(rid,p)));
+const armyCap = rid => 800 + 650*owned(rid).length;
+function income(rid){
+ let g = owned(rid).reduce((s,p)=>s + p.dev*8 + (p.port?5:0), 0);
+ if(rid===S.player){
+  g *= (1 + S.monarch.stewardship*0.03) * (0.6 + S.stability/250);
+  g += S.colonies.reduce((s,c)=>s + c.size*15, 0);
+ }
+ return Math.round(g);
+}
+const upkeep = rid => Math.round(S.realms[rid].army/100);
+const atWar = (a,b) => S.realms[a].atWar.includes(b);
+function setWar(a,b){
+ if(atWar(a,b)) return;
+ S.realms[a].atWar.push(b); S.realms[b].atWar.push(a);
+ S.realms[a].warStart[b] = S.realms[b].warStart[a] = S.year;
+ S.realms[a].lost[b] = S.realms[b].lost[a] = 0;
+}
+function setPeace(a,b){
+ S.realms[a].atWar = S.realms[a].atWar.filter(x=>x!==b);
+ S.realms[b].atWar = S.realms[b].atWar.filter(x=>x!==a);
+ S.realms[a].truce[b] = S.realms[b].truce[a] = S.year + 5;
+}
+const truce = (a,b) => (S.realms[a].truce[b]||0) > S.year;
+const allied = (a,b) => S.realms[a].allies.includes(b);
+function ally(a,b){ if(!allied(a,b)){ S.realms[a].allies.push(b); S.realms[b].allies.push(a);} }
+function unally(a,b){ S.realms[a].allies = S.realms[a].allies.filter(x=>x!==b); S.realms[b].allies = S.realms[b].allies.filter(x=>x!==a); }
+
+function defenseOf(place){
+ const d = S.realms[place.owner];
+ return place.fort*500 + place.dev*150 + d.army*0.6 + (place.capital?500:0);
+}
+function battle(att, place){
+ const A = S.realms[att], D = S.realms[place.owner], def = place.owner;
+ const lead = att===S.player ? S.monarch.martial : A.ruler.martial;
+ const dlead = def===S.player ? S.monarch.martial : D.ruler.martial;
+ const aPow = A.army * 0.7 * (1 + lead*0.04) * R(0.75,1.25);
+ const dPow = defenseOf(place) * (1 + dlead*0.03) * R(0.8,1.2);
+ const win = aPow > dPow;
+ const aLoss = Math.round(Math.min(A.army*0.6, dPow*(win?0.3:0.45)));
+ const dLoss = Math.round(Math.min(D.army*0.5, aPow*(win?0.25:0.12)));
+ A.army = Math.max(0, A.army - aLoss); D.army = Math.max(0, D.army - dLoss);
+ if(win){
+  place.owner = att; place.fort = Math.max(1, place.fort-1); const wasCap = place.capital; place.capital = false;
+  D.lost[att] = (D.lost[att]||0) + 1;
+  if(wasCap){ const rest = owned(def); if(rest.length) rest.sort((a,b)=>b.dev-a.dev)[0].capital = true; }
+  if(!owned(def).length) destroyRealm(def, att);
+ }
+ return {win, aLoss, dLoss, place:place.name};
+}
+function destroyRealm(rid, by){
+ const r = S.realms[rid]; r.alive = false;
+ for(const o of r.atWar) S.realms[o].atWar = S.realms[o].atWar.filter(x=>x!==rid);
+ for(const o of r.allies) S.realms[o].allies = S.realms[o].allies.filter(x=>x!==rid);
+ r.atWar=[]; r.allies=[];
+ log(`The realm of ${r.name} has fallen to ${S.realms[by].name}.`, true);
+ if(rid===S.player) gameOver(`${r.name} has been conquered. The crown of House ${S.dynasty} lies in the mud.`);
+}
+
+/* ---------- logging & save ---------- */
+function log(t, big){ S.log.unshift({y:S.year, t, big:!!big}); if(S.log.length>300) S.log.length=300; }
+function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
+function load(){ try{ const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
+
+/* ---------- modals ---------- */
+const mq = [];
+function modal(m){ mq.push(m); if(mq.length===1) showModal(); }
+function showModal(){
+ while(mq.length && typeof mq[0]==="function"){ let r=null; try{ r=mq[0](); }catch(e){ console.warn(e); } if(r) mq[0]=r; else mq.shift(); }
+ const m = mq[0]; if(!m){ $("modalbg").style.display="none"; return; }
+ $("modal").innerHTML = `<h2>${m.title}</h2>${m.body||""}<div id="mch"></div>`;
+ const ch = $("mch");
+ (m.choices||[{label:"Continue"}]).forEach(c=>{
+  const b = document.createElement("button"); b.className="btn"+(c.red?" red":"");
+  b.innerHTML = c.label + (c.sub?`<small>${c.sub}</small>`:""); b.disabled = !!c.disabled;
+  b.onclick = () => { if(c.keep && c.fn){ c.fn(); return; } mq.shift(); if(c.fn){ try{ c.fn(); }catch(e){ console.warn(e); } } render(); showModal(); };
+  ch.appendChild(b);
+ });
+ $("modalbg").style.display="flex";
+ if(m.onshow) m.onshow();
+}
+
+/* ---------- player actions ---------- */
+function useAP(){ if(S.ap<1){ return false; } S.ap--; return true; }
+function canAct(){ return S.ap>0 && !S.over; }
+
+function actTax(){ if(!useAP()) return; const g = Math.round(income(S.player)*0.6); S.gold+=g; S.stability=clamp(S.stability-8,0,100); log(`Extra taxes levied: +${g} gold. The commons grumble.`); after(); }
+function actMuster(){
+ const r=pr(), cap=armyCap(S.player), add=Math.min(1000, cap-r.army), cost=Math.round(add*0.12);
+ if(add<=0||S.gold<cost||!useAP()) return; S.gold-=cost; r.army+=add; log(`${add} men mustered for ${cost} gold.`); after();
+}
+function actMercs(){ const r=pr(), add=Math.min(1000, armyCap(S.player)+2000-r.army), cost=Math.round(add*0.3); if(add<=0||S.gold<cost||S.over) return; S.gold-=cost; r.army+=add; log(`${add} mercenaries hired for ${cost} gold.`); after(); }
+function actFeast(){ if(S.gold<80||!useAP()) return; S.gold-=80; S.prestige+=15; S.stability=clamp(S.stability+5,0,100); if(S.spouse) S.spouse.affection=clamp(S.spouse.affection+8,0,100); log("A grand feast is held at court. Nobles toast your name."); after(); }
+function actImprove(p){ const c=100*p.dev; if(p.dev>=6||S.gold<c||!useAP()) return; S.gold-=c; p.dev++; log(`${p.name} prospers: new markets and guildhalls (development ${p.dev}).`); after(); }
+function actFortify(p){ const c=90*p.fort; if(p.fort>=4||S.gold<c||!useAP()) return; S.gold-=c; p.fort++; log(`The walls of ${p.name} are raised higher (fortification ${p.fort}).`); after(); }
+function actAttack(p){
+ if(!atWar(S.player,p.owner)||!reachable(S.player,p)||pr().army<300||!useAP()) return;
+ const foe = S.realms[p.owner].name, res = battle(S.player,p);
+ if(res.win){ S.prestige+=12; log(`Victory! ${p.name} taken from ${foe}. We lost ${res.aLoss} men; they lost ${res.dLoss}.`, true); }
+ else { S.prestige-=4; log(`Our assault on ${p.name} was repulsed. We lost ${res.aLoss} men; ${foe} lost ${res.dLoss}.`, true); }
+ if(Math.random()<0.02){ log(`${S.monarch.name} fell leading the charge at ${p.name}!`, true); after(); killMonarch("fell in battle"); return; }
+ modal({title: res.win?`${p.name} is ours!`:`Repulsed at ${p.name}`, body:`<p>${res.win?"The banners of "+pr().name+" fly over the walls.":"The defenders held the walls."}</p><div class="row"><span>Our losses</span><span>${res.aLoss} men</span></div><div class="row"><span>Enemy losses</span><span>${res.dLoss} men</span></div>`});
+ selected = res.win ? p.id : selected; after();
+}
+function actDeclare(rid){
+ if(truce(S.player,rid)||atWar(S.player,rid)||!useAP()) return;
+ if(allied(S.player,rid)){ unally(S.player,rid); S.prestige-=40; S.stability=clamp(S.stability-10,0,100); log(`We betrayed our alliance with ${S.realms[rid].name}. Honour is stained.`,true); }
+ setWar(S.player,rid);
+ log(`War is declared upon ${S.realms[rid].name}!`, true);
+ for(const a of S.realms[rid].allies) if(a!==S.player && !atWar(S.player,a)){ setWar(S.player,a); log(`${S.realms[a].name} honours its alliance and joins the war against us.`, true); }
+ for(const a of pr().allies) if(Math.random()<0.65 && !atWar(a,rid)){ setWar(a,rid); log(`Our ally ${S.realms[a].name} takes up arms against ${S.realms[rid].name}.`); }
+ after();
+}
+function peaceChance(rid){
+ const e=S.realms[rid], me=pr();
+ let c = 25 + S.monarch.diplomacy*3 + (e.lost[S.player]||0)*15 - (me.lost[rid]||0)*12 + (me.army>e.army?15:-10) + (S.year-(e.warStart[S.player]||S.year))*5;
+ return clamp(Math.round(c),5,95);
+}
+function actPeace(rid){
+ if(!useAP()) return; const c=peaceChance(rid);
+ if(Math.random()*100<c){ setPeace(S.player,rid); log(`Peace is signed with ${S.realms[rid].name}. A truce of five years begins.`, true); }
+ else { log(`${S.realms[rid].name} rejects our envoys. The war goes on.`); }
+ after();
+}
+
+/* courtship */
+function refreshMatches(){
+ const want = S.monarch.gender==="m"?"f":"m";
+ const rs = Object.keys(S.realms).filter(r=>r!==S.player && S.realms[r].alive && !atWar(S.player,r));
+ if(!rs.length){ S.matchPool=[]; S.matchYear=S.year; return; }
+ S.matchPool = Array.from({length:4},()=>{ const r=pick(rs); const p=mkPerson(want,RI(16,27),r); p.id=S.nextId++; p.dowry=RI(40,180); return p; });
+ S.matchYear = S.year;
+}
+function matchChance(c){
+ const them = owned(c.realm).length, us = owned(S.player).length;
+ let x = 35 + S.monarch.diplomacy*3 + S.monarch.charm*2 + S.prestige/10 + (us-them)*3 + (allied(S.player,c.realm)?10:0);
+ return clamp(Math.round(x),5,92);
+}
+function actPropose(c){
+ if(S.spouse||!useAP()) return;
+ const chance = matchChance(c);
+ if(Math.random()*100 < chance){
+  c.affection = RI(45,70); S.spouse = c; S.matchPool=[]; S.gold += c.dowry; S.prestige += 20;
+  ally(S.player, c.realm);
+  log(`${S.monarch.name} weds ${c.name} of ${S.realms[c.realm].name}. A dowry of ${c.dowry} gold, and an alliance.`, true);
+  modal({title:"A Royal Wedding", body:`<p>Bells ring across ${pr().name}. ${c.name}, ${c.traits.join(" and ").toLowerCase()}, is now your ${c.gender==="f"?"queen":"consort"}. ${S.realms[c.realm].name} becomes your ally.</p>`});
+ } else {
+  S.matchPool = S.matchPool.filter(x=>x!==c); S.prestige -= 5;
+  log(`${c.name} of ${S.realms[c.realm].name} refused our suit.`);
+  modal({title:"A Suit Refused", body:`<p>${c.name} has returned your letters unopened. The court whispers; ${S.monarch.name} keeps a brave face, but the sting lingers.</p>`});
+ }
+ after();
+}
+function actWoo(){ if(!S.spouse||!useAP()) return; S.spouse.affection = clamp(S.spouse.affection + RI(8,15) + Math.round(S.monarch.charm/2),0,100); S.spouse.wooed=S.year; log(`${S.monarch.name} spends the season with ${S.spouse.name}: hunting, music and long walks.`); after(); }
+function actTutor(c){ if(!c.alive||c.age>=16||!useAP()) return; const st=pick(["martial","diplomacy","stewardship","charm"]); c[st]=Math.min(15,c[st]+RI(1,2)); log(`${c.name} is tutored by the finest masters (${st} improves).`); after(); }
+function actArrange(c){
+ if(c.age<16||c.spouse||!useAP()) return;
+ const rs = Object.keys(S.realms).filter(r=>r!==S.player && S.realms[r].alive && !atWar(S.player,r));
+ if(!rs.length) return;
+ const r = rs.sort((a,b)=>owned(b).length-owned(a).length)[RI(0,Math.min(3,rs.length-1))];
+ if(Math.random()*100 < matchChance({realm:r})){ const sp=mkPerson(c.gender==="m"?"f":"m",RI(15,25),r); c.spouse=sp.name+" of "+S.realms[r].name; ally(S.player,r); S.prestige+=10; log(`${c.name} is betrothed to ${sp.name} of ${S.realms[r].name}. An alliance is sealed.`, true); }
+ else log(`${S.realms[r].name} declined a match for ${c.name}.`);
+ after();
+}
+function actNameHeir(c){ if(S.prestige<30||!useAP()) return; S.prestige-=30; S.heirId=c.id; log(`${c.name} is proclaimed heir to the throne.`, true); after(); }
+
+/* colonisation */
+const hasPort = () => owned(S.player).some(p=>p.port);
+function actExpedition(){ if(S.year<1505||!hasPort()||S.expedition||S.gold<120||!useAP()) return; S.gold-=120; S.expedition=true; log("Ships sail west beyond the edge of the charts. Word will come within the year."); after(); }
+function actFound(land){ if(S.gold<200||!useAP()) return; S.gold-=200; S.discovered=S.discovered.filter(x=>x!==land); S.colonies.push({name:land, size:1, founded:S.year}); S.prestige+=15; log(`A colony is founded in ${land}.`, true); after(); }
+function actGrow(c){ const cost=100*c.size; if(c.size>=5||S.gold<cost||!useAP()) return; S.gold-=cost; c.size++; log(`Settlers flock to ${c.name} (size ${c.size}).`); after(); }
+function actEmpire(){
+ if(S.empire||owned(S.player).length<18||S.prestige<250||!useAP()) return;
+ S.empire=true; S.prestige+=50; log(`${S.monarch.name} is proclaimed ${title(S.monarch,true)}! The Empire of ${pr().name} is born.`, true);
+ modal({title:`The Empire of ${pr().name}`, body:`<p>In the great cathedral of ${owned(S.player).find(p=>p.capital)?.name||"the capital"}, a new crown is set upon ${S.monarch.name}'s brow. What began as a kingdom is now an empire.</p>`});
+ after();
+}
+function after(){ save(); render(); }
+
+/* ---------- succession ---------- */
+function heir(){
+ const kids = S.children.filter(c=>c.alive && !c.bastard);
+ const d = kids.find(c=>c.id===S.heirId); if(d) return d;
+ const sons = kids.filter(c=>c.gender==="m").sort((a,b)=>b.age-a.age);
+ const daus = kids.filter(c=>c.gender==="f").sort((a,b)=>b.age-a.age);
+ if(sons.length) return sons[0]; if(daus.length) return daus[0];
+ const sib = S.siblings.filter(c=>c.alive).sort((a,b)=>(b.gender==="m")-(a.gender==="m")||b.age-a.age);
+ return sib[0]||null;
+}
+function killMonarch(cause){
+ const old = S.monarch, h = heir();
+ S.rulers[S.rulers.length-1].to = S.year; S.rulers[S.rulers.length-1].cause = cause;
+ log(`${title(old,true)} ${old.name} ${cause} at the age of ${old.age}.`, true);
+ if(!h){ gameOver(`${old.name} ${cause}, leaving no heir. House ${S.dynasty} is extinct, and the great lords carve up the realm.`); return; }
+ const others = S.children.filter(c=>c.alive && c!==h && !c.bastard);
+ const sibs = S.siblings.filter(c=>c.alive && c!==h);
+ S.siblings = others.concat(sibs);
+ S.children = []; S.heirId = null; S.lover = null;
+ S.monarch = h; S.monarch.realm = S.player;
+ S.spouse = null;
+ if(h.spouse){ const [nm, , ...rest] = h.spouse.split(" "); S.spouse = {name:nm, gender:h.gender==="m"?"f":"m", age:h.age+RI(-3,3), realm:Object.keys(REALMS).find(k=>REALMS[k].name===rest.join(" "))||S.player, traits:[pick(TRAITS)], alive:true, affection:RI(40,70), charm:RI(3,9)}; }
+ pr().ruler = h;
+ S.rulers.push({name:h.name, gender:h.gender, from:S.year});
+ S.prestige = Math.round(S.prestige*0.8); S.stability = clamp(S.stability - (h.age<16?20:8),0,100);
+ log(`Long live ${title(h,true)} ${h.name}! The crown passes to a new generation.`, true);
+ modal({title:"The Crown Passes", body:`<p>${old.name} ${cause}. The court is draped in black, and then, by custom, the cry goes up: <em>long live the ${h.gender==="m"?"King":"Queen"}!</em></p><p><b>${h.name}</b>, aged ${h.age}, now rules ${pr().name}.${h.age<16?" A regency council will govern until the young sovereign comes of age.":""}</p>`});
+}
+function gameOver(text){
+ S.over = true; save();
+ const list = S.rulers.map(r=>`<div class="row"><span>${r.name}</span><span>${r.from}–${r.to||S.year}</span></div>`).join("");
+ modal({title:"The End of a Dynasty", body:`<p>${text}</p><h4>The rulers of House ${S.dynasty}</h4>${list}`, choices:[{label:"Return to the title screen", fn:()=>{ $("title").classList.remove("hide"); const sv=load(); $("tcont").disabled=!(sv&&!sv.over); }}]});
+}
+
+/* ---------- year end ---------- */
+function endYear(){
+ if(S.over) return;
+ const summary = [];
+ const me = pr();
+ // player economy
+ const inc = income(S.player), up = upkeep(S.player);
+ S.gold += inc - up;
+ if(S.gold<0){ me.army = Math.round(me.army*0.8); S.stability=clamp(S.stability-10,0,100); summary.push("The treasury is empty; unpaid soldiers desert."); S.gold=0; }
+ S.stability = clamp(S.stability + (S.stability<60?3:1), 0, 100);
+ if(me.army < armyCap(S.player)*0.5) me.army += 150;
+ summary.push(`Income ${inc} gold, army upkeep ${up}.`);
+
+ // AI realms
+ for(const r of Object.values(S.realms)){
+  if(!r.alive || r.id===S.player) continue;
+  r.gold += income(r.id) - upkeep(r.id);
+  const cap = armyCap(r.id);
+  if(r.army < cap && r.gold > 40){ const add=Math.min(600, cap-r.army); r.army+=add; r.gold-=Math.round(add*0.1); }
+  r.ruler.age++;
+  if(r.ruler.age>45 && Math.random()<(r.ruler.age-40)*0.007){ r.ruler = mkPerson(Math.random()<.85?"m":"f", RI(16,40), r.id); log(`The ruler of ${r.name} has died; ${r.ruler.name} takes the throne.`); }
+  // fight
+  for(const e of [...r.atWar]){
+   if(!S.realms[e]?.alive || !r.alive) continue;
+   if(Math.random()<0.55 && r.army>600){
+    const targets = owned(e).filter(p=>reachable(r.id,p)).sort((a,b)=>defenseOf(a)-defenseOf(b));
+    if(targets.length){
+     const t = targets[0]; const res = battle(r.id, t);
+     if(e===S.player) summary.push(res.win?`<b>${r.name} captured ${t.name}!</b> (we lost ${res.dLoss} men)`:`${r.name} assaulted ${t.name} but our garrison held. (They lost ${res.aLoss} men.)`);
+     else if(res.win) log(`${r.name} seized ${t.name} from ${S.realms[e].name}.`);
+     if(res.win && e===S.player) log(`${r.name} captured ${t.name}!`, true);
+    }
+   }
+   // peace among AIs / offers to player
+   const yrs = S.year - (r.warStart[e]||S.year);
+   if(S.realms[e]?.alive && atWar(r.id,e)){
+    if(e!==S.player && (yrs>=3 || r.army<cap*0.3) && Math.random()<0.3){ setPeace(r.id,e); log(`${r.name} and ${S.realms[e].name} make peace.`); }
+    else if(e===S.player && yrs>=2 && ((r.lost[S.player]||0)>=2 || r.army<me.army*0.5) && Math.random()<0.4){
+     const pay = Math.min(r.gold, RI(60,160));
+     S.events.push({kind:"peaceOffer", realm:r.id, pay});
+    }
+   }
+  }
+  // declare
+  if(r.atWar.length===0 && Math.random()<0.07){
+   const opts = neighbours(r.id).filter(o=>!allied(r.id,o) && !truce(r.id,o) && S.realms[o].army < r.army*0.95);
+   if(opts.length){
+    const t = pick(opts); setWar(r.id,t);
+    if(t===S.player){ summary.push(`<b>${r.name} has declared war upon us!</b>`); log(`${r.name} declares war upon us!`, true);
+     for(const a of me.allies) if(Math.random()<0.65 && !atWar(a,r.id)){ setWar(a,r.id); log(`Our ally ${S.realms[a].name} joins the war against ${r.name}.`); } }
+    else log(`${r.name} declares war on ${S.realms[t].name}.`);
+   }
+  }
+ }
+
+ // expedition
+ if(S.expedition){
+  S.expedition=false;
+  const avail = COLONY_LANDS.filter(l=>!S.discovered.includes(l) && !S.colonies.some(c=>c.name===l));
+  if(Math.random()<0.7 && avail.length){ const l=pick(avail); S.discovered.push(l); summary.push(`<b>Our ships return! They have charted ${l}.</b>`); log(`Our navigators discover ${l} across the Western Ocean.`, true); }
+  else { summary.push("Our expedition was lost to storms. No word, no ships."); log("The western expedition is lost at sea."); }
+ }
+ for(const c of S.colonies){ if(Math.random()<0.05){ c.size=Math.max(1,c.size-1); summary.push(`Fever and raids ravage ${c.name}.`); } }
+
+ // court life
+ const m = S.monarch; m.age++;
+ if(S.spouse){ S.spouse.age++; S.spouse.affection = clamp(S.spouse.affection - 4 + (S.spouse.traits.includes("Kind")?2:0), 0, 100); }
+ for(const c of S.children.concat(S.siblings)){ if(!c.alive) continue; c.age++;
+  const risk = c.age<5?0.04:c.age<16?0.012:0.008;
+  if(Math.random()<risk){ c.alive=false; summary.push(`<b>Grief: ${c.name} has died, aged ${c.age}.</b>`); log(`${c.name} has died, aged ${c.age}. The court mourns.`, true); }
+  if(c.age===16 && c.alive && S.children.includes(c)) log(`${c.name} comes of age.`);
+ }
+ // births
+ if(S.spouse && S.spouse.alive){
+  const mother = m.gender==="f"?m:S.spouse;
+  if(mother.age<44){
+   const p = 0.22 + S.spouse.affection/400 + (S.spouse.wooed===S.year-1?0.1:0);
+   if(Math.random()<p){
+    const g = Math.random()<0.5?"m":"f"; const c = mkPerson(g,0,S.player); c.id=S.nextId++;
+    c.martial=Math.round((c.martial+m.martial)/2); c.diplomacy=Math.round((c.diplomacy+m.diplomacy)/2);
+    S.children.push(c);
+    summary.push(`<b>A ${g==="m"?"son":"daughter"}, ${c.name}, is born!</b>`); log(`${S.spouse.name} gives birth to a ${g==="m"?"son":"daughter"}: ${c.name}.`, true);
+    if(Math.random()<0.04 && mother!==m){ mother.alive=false; summary.push(`<b>${mother.name} did not survive the birth.</b>`); log(`${mother.name} died in childbirth.`, true); S.spouse=null; S.events.push({kind:"widowed",name:mother.name}); }
+   }
+  }
+ }
+ if(S.lover && Math.random()<0.18){ const c=mkPerson(Math.random()<.5?"m":"f",0,S.player); c.id=S.nextId++; c.bastard=true; S.children.push(c); summary.push(`Whispers: ${S.lover} has borne a child, ${c.name}.`); log(`A natural child, ${c.name}, is born to ${S.lover}.`); }
+
+ // random events
+ queueEvents();
+
+ // monarch death
+ let died = false;
+ const dp = m.age<40?0.004:(m.age-38)*0.007;
+ if(Math.random()<dp){ died=true; }
+ if(S.spouse && S.spouse.age>50 && Math.random()<(S.spouse.age-45)*0.006){ const sp=S.spouse; S.spouse=null; summary.push(`<b>${sp.name} has died.</b>`); log(`${sp.name}, beloved consort, has died.`, true); S.events.push({kind:"widowed",name:sp.name}); }
+
+ S.year++;
+ S.ap = S.monarch.age<16 ? 2 : 3;
+ if(S.matchYear && S.year-S.matchYear>=3) S.matchPool=[];
+ if(S.year>=1650 && !S.over){ gameOver(`The year 1650 dawns. The age of kings gives way to a new era, and the chroniclers close their book on House ${S.dynasty}.`); }
+ modal({title:`The Year ${S.year-1} Ends`, body: summary.map(s=>`<p>${s}</p>`).join("")});
+ if(died) killMonarch(pick(["died peacefully in sleep","succumbed to a winter fever","died after a fall while hunting","passed away surrounded by family"]));
+ runEvents();
+ save(); render();
+}
+
+/* ---------- events ---------- */
+function queueEvents(){
+ const m=S.monarch, sp=S.spouse, adult=S.children.filter(c=>c.alive&&c.age>=16&&!c.spouse&&!c.bastard);
+ const pool = [];
+ if(sp && !S.lover) pool.push("glance");
+ if(sp) pool.push("fever");
+ if(sp && sp.affection<35) pool.push("cold");
+ if(sp) pool.push("quarrel");
+ if(!sp) pool.push("letters");
+ if(adult.length) pool.push("youngLove");
+ if(S.children.some(c=>c.alive&&c.age<16&&c.age>=5)) pool.push("prodigy");
+ pool.push("plague","harvest","unrest","guild","envoy");
+ if(S.year>=1503 && hasPort() && !S.colonies.length && !S.discovered.length) pool.push("navigator");
+ const n = Math.random()<0.6?1:2;
+ for(let i=0;i<n;i++){ const k=pick(pool); if(!S.events.some(e=>e.kind===k)) S.events.push({kind:k}); }
+}
+function runEvents(){
+ const evs = S.events; S.events=[];
+ for(const e of evs){ const f = EVENTS[e.kind]; if(f) modal(()=>f(e)); }
+}
+const EVENTS = {
+ glance: () => { if(!S.spouse||S.over) return null; const n = pick(S.monarch.gender==="m"?FEMALE:MALE); return {title:"A Glance Across the Hall",
+  body:`<p>At the Candlemas dance, ${n}, a ${S.monarch.gender==="m"?"lady":"lord"} of the court, holds your gaze a moment too long. Later, a folded note is pressed into your hand.</p>`,
+  choices:[{label:"Answer the note", sub:"Passion, and danger. A child may follow.", fn:()=>{ if(!S.spouse) return; S.lover=n; S.spouse.affection=clamp(S.spouse.affection-5,0,100); log(`${S.monarch.name} takes ${n} as a secret lover.`);
+    if(Math.random()<0.35) modal({title:"Discovered", body:`<p>${S.spouse.name} has found the letters. There are no shouts, only a silence colder than winter. Something between you has broken.</p>`, choices:[{label:"Beg forgiveness", sub:"End the affair", fn:()=>{S.lover=null;if(S.spouse)S.spouse.affection=clamp(S.spouse.affection-20,0,100);log(`${S.spouse.name} discovered the affair. ${S.monarch.name} ended it.`);}},{label:"Keep the lover", red:true, fn:()=>{if(S.spouse)S.spouse.affection=clamp(S.spouse.affection-45,0,100);S.prestige-=10;log(`${S.spouse.name} discovered the affair and was heartbroken.`,true);}}]}); }},
+   {label:"Burn the note", sub:"Remain faithful", fn:()=>{ if(!S.spouse) return; S.spouse.affection=clamp(S.spouse.affection+6,0,100); log("A tempting note is burned unread."); }}]};},
+ fever: () => (!S.spouse||S.over) ? null : ({title:`${S.spouse.name} Falls Ill`, body:`<p>A burning fever has taken ${S.spouse.name}. The physicians shake their heads.</p>`,
+  choices:[{label:"Summon the royal physician", sub:"40 gold, good odds", disabled:S.gold<40, fn:()=>{S.gold-=40; sick(0.88);}},{label:"Pray at the bedside", sub:"Free, worse odds", fn:()=>sick(0.65)}]}),
+ cold: () => (!S.spouse||S.over) ? null : ({title:"A Cold Marriage", body:`<p>${S.spouse.name} now keeps separate chambers and speaks to you only before the court. Servants say ${S.spouse.gender==="f"?"she":"he"} weeps at night.</p>`,
+  choices:[{label:"Write a heartfelt letter", sub:"Charm may mend this", fn:()=>{ if(!S.spouse) return; const ok=Math.random()<0.4+S.monarch.charm*0.04; S.spouse.affection=clamp(S.spouse.affection+(ok?25:-5),0,100); log(ok?`A letter rekindles ${S.spouse.name}'s love.`:`${S.spouse.name} burned the letter unread.`); }},
+   {label:"Let it be", sub:"Pride before love", fn:()=>{ if(S.spouse && Math.random()<0.35){ const sp=S.spouse; S.spouse=null; S.prestige-=15; log(`${sp.name} has left court for a convent. The marriage is over in all but name.`,true); modal({title:"Heartbreak", body:`<p>At dawn a carriage leaves the palace. ${sp.name} has taken holy vows and will not return.</p>`}); } }}]}),
+ quarrel: () => (!S.spouse||S.over) ? null : ({title:"A Quarrel at Court", body:`<p>${S.spouse.name} openly disputes your decision before the privy council.</p>`,
+  choices:[{label:"Apologise in private", fn:()=>{if(S.spouse)S.spouse.affection=clamp(S.spouse.affection+8,0,100);S.prestige-=3;}},{label:"Rebuke them publicly", fn:()=>{if(S.spouse)S.spouse.affection=clamp(S.spouse.affection-15,0,100);S.prestige+=6;}}]}),
+ letters: () => { if(S.spouse||S.over) return null; refreshMatches(); const c=S.matchPool[0]; if(!c) return null; return {title:"Letters from Abroad", body:`<p>${c.name} of ${S.realms[c.realm].name} has written you a letter of surprising warmth. Perhaps there is more here than politics.</p>`,
+  choices:[{label:"Write back", sub:"Better odds if you propose", fn:()=>{c.dowry+=40; S.prestige+=3; log(`${S.monarch.name} corresponds with ${c.name} of ${S.realms[c.realm].name}.`);}},{label:"Ignore it"}]};},
+ youngLove: () => { const c=pick(S.children.filter(c=>c.alive&&c.age>=16&&!c.spouse&&!c.bastard)); if(!c) return null; const n=pick(c.gender==="m"?FEMALE:MALE);
+  return {title:`${c.name} in Love`, body:`<p>${c.name} confesses a love for ${n}, a minor noble of no great house, and begs your blessing.</p>`,
+  choices:[{label:"Bless the match", sub:"Happiness, but no alliance", fn:()=>{c.spouse=n+" (love match)"; c.charm+=1; S.prestige-=5; log(`${c.name} marries ${n} for love.`,true);}},
+   {label:"Forbid it", sub:"Duty before the heart", fn:()=>{c.diplomacy=Math.max(1,c.diplomacy-1); log(`${c.name}'s heart is broken by royal command.`);}}]};},
+ prodigy: () => { const c=pick(S.children.filter(c=>c.alive&&c.age<16&&c.age>=5)); if(!c) return null; const st=pick(["martial","diplomacy","stewardship","charm"]); c[st]+=2; return {title:"A Gifted Child", body:`<p>The tutors report that young ${c.name} shows rare gifts in ${st}.</p>`}; },
+ plague: () => { const p=pick(owned(S.player)); if(!p) return null; return {title:`Pestilence in ${p.name}`, body:`<p>Sickness spreads through the crowded streets of ${p.name}.</p>`,
+  choices:[{label:"Pay for quarantine and physicians", sub:"60 gold", disabled:S.gold<60, fn:()=>{S.gold-=60;}},{label:"Seal the gates and wait", fn:()=>{p.dev=Math.max(1,p.dev-1); log(`Plague ravages ${p.name}.`);}}]};},
+ harvest: () => { const g=RI(40,90); S.gold+=g; S.stability=clamp(S.stability+4,0,100); return {title:"A Bountiful Harvest", body:`<p>Granaries overflow across ${pr().name}. The treasury gains ${g} gold.</p>`}; },
+ unrest: () => ({title:"Peasant Unrest", body:`<p>Bread prices have risen and the commons gather in the market squares.</p>`,
+  choices:[{label:"Open the royal granaries", sub:"50 gold", disabled:S.gold<50, fn:()=>{S.gold-=50;S.stability=clamp(S.stability+6,0,100);}},{label:"Send the soldiers", fn:()=>{pr().army=Math.max(0,pr().army-150);S.stability=clamp(S.stability-6,0,100);}}]}),
+ guild: () => ({title:"The Merchant Guilds", body:`<p>The great merchant houses ask for a royal charter.</p>`,
+  choices:[{label:"Grant the charter", sub:"+60 gold now, less stability", fn:()=>{S.gold+=60;S.stability=clamp(S.stability-4,0,100);}},{label:"Refuse", fn:()=>{S.prestige+=3;}}]}),
+ envoy: () => { const ns=neighbours(S.player).filter(r=>!atWar(S.player,r)); if(!ns.length) return null; const r=pick(ns); const ask=RI(50,120);
+  return {title:`An Envoy from ${S.realms[r].name}`, body:`<p>The envoy of ${S.realms[r].name} demands ${ask} gold as tribute, "for the sake of peace".</p>`,
+  choices:[{label:"Pay the tribute", disabled:S.gold<ask, fn:()=>{S.gold-=ask;S.prestige-=8;}},{label:"Send them away", sub:"They may remember this", fn:()=>{S.prestige+=5; if(Math.random()<0.35 && !truce(S.player,r)){ setWar(r,S.player); log(`${S.realms[r].name} declares war over the insult!`,true);} }}]};},
+ navigator: () => ({title:"The Navigator's Proposal", body:`<p>A weathered captain kneels before the throne with charts of an ocean no one has crossed, and swears there is land beyond it.</p>`,
+  choices:[{label:"Fund him", sub:"An expedition sets sail at once (120 gold)", disabled:S.gold<120, fn:()=>{S.gold-=120;S.expedition=true;log("A navigator's expedition sails west.");}},{label:"Laugh him out of court"}]}),
+ peaceOffer: e => { const r=S.realms[e.realm]; if(!r.alive||!atWar(S.player,e.realm)) return null; return {title:`${r.name} Sues for Peace`, body:`<p>Battered, ${r.name} offers ${e.pay} gold for an end to the war.</p>`,
+  choices:[{label:"Accept peace", fn:()=>{S.gold+=e.pay; r.gold-=e.pay; setPeace(S.player,e.realm); S.prestige+=10; log(`${r.name} pays ${e.pay} gold for peace.`,true);}},{label:"Fight on"}]};},
+ widowed: e => ({title:"A Widow's Black", body:`<p>${e.name} is gone. The bed is cold, the halls are quiet, and the crown feels heavier than it ever has.</p><p class="note">You may seek a new match from the Court tab.</p>`, choices:[{label:"Mourn"}]})
+};
+function sick(p){ if(!S.spouse) return; if(Math.random()<p){ log(`${S.spouse.name} recovers from the fever.`); S.spouse.affection=clamp(S.spouse.affection+5,0,100); }
+ else { const n=S.spouse.name; S.spouse=null; log(`${n} has died of fever.`,true); modal(EVENTS.widowed({name:n})); } }
+
+/* ---------- rendering ---------- */
+function render(){
+ if(!S) return;
+ $("ver").textContent = VERSION;
+ const r = pr(), n = owned(S.player).length;
+ $("stats").innerHTML = [
+  ["Year",S.year],["Gold",Math.round(S.gold)],["Army",r.army.toLocaleString()],["Prestige",S.prestige],["Stability",S.stability+"%"],["Holdings",n]
+ ].map(([k,v])=>`<div class="stat"><span>${k}</span><b>${v}</b></div>`).join("");
+ $("ap").innerHTML = Array.from({length:S.monarch.age<16?2:3},(_,i)=>`<i class="${i<S.ap?"":"used"}"></i>`).join("");
+ $("endyear").disabled = S.over;
+ renderPlaces(); renderLegend(); renderTabs(); renderPanel(); renderCard();
+}
+function renderPlaces(){
+ const g = $("places");
+ const war = pr().atWar;
+ g.innerHTML = S.places.map(p=>{
+  const col = S.realms[p.owner].color, mine = p.owner===S.player;
+  const tgt = war.includes(p.owner) && reachable(S.player,p);
+  const rad = 5 + p.dev*0.9;
+  return `<g class="place" data-id="${p.id}" transform="translate(${p.x},${p.y})">
+   ${tgt?`<circle r="${rad+6}" fill="none" stroke="#8a1f1f" stroke-width="2" stroke-dasharray="3 3"/>`:""}
+   ${mine?`<circle r="${rad+3.5}" fill="none" stroke="#fff" stroke-width="2"/>`:""}
+   ${selected===p.id?`<circle r="${rad+8}" fill="none" stroke="#000" stroke-width="1.5"/>`:""}
+   <circle class="seal" r="${rad}" fill="${col}" stroke="#2a1d12" stroke-width="1.2"/>
+   ${p.capital?`<path d="M0,-4 L1.2,-1.2 4,-1.2 1.8,0.6 2.6,3.4 0,1.8 -2.6,3.4 -1.8,0.6 -4,-1.2 -1.2,-1.2Z" fill="#f4e3a1"/>`:""}
+   ${lab(p,rad)}</g>`;
+ }).join("");
+}
+const LBL = {glasmere:"l",dunedain:"r",trajectum:"b",antwerpe:"r",brugwater:"l",besancine:"r",divion:"l",caenmor:"l",wintancester:"b",calaisse:"r",monspel:"l",lyddeburg:"r"};
+function lab(p,rad){ const k=LBL[p.id];
+ if(k==="l") return `<text x="${-rad-4}" y="4" text-anchor="end">${p.name}</text>`;
+ if(k==="r") return `<text x="${rad+4}" y="4" text-anchor="start">${p.name}</text>`;
+ if(k==="b") return `<text y="${rad+13}" text-anchor="middle">${p.name}</text>`;
+ return `<text y="${-rad-4}" text-anchor="middle">${p.name}</text>`; }
+function renderLegend(){
+ const alive = Object.values(S.realms).filter(r=>r.alive).sort((a,b)=>owned(b.id).length-owned(a.id).length);
+ $("legend").innerHTML = alive.map(r=>`<div><i style="background:${r.color}"></i>${r.name}${r.id===S.player?" (you)":""}${atWar(S.player,r.id)?" ⚔":""}</div>`).join("");
+}
+const TABS = [["realm","Realm"],["court","Court"],["war","War"],["colonies","Colonies"],["chronicle","Chronicle"]];
+function renderTabs(){
+ $("tabs").innerHTML = TABS.map(([k,l])=>`<button data-t="${k}" class="${tab===k?"on":""}">${l}</button>`).join("");
+}
+function personCard(p, extra=""){
+ return `<div class="person"><b>${p.name}</b> <span class="meta">· age ${p.age}${p.traits?" · "+p.traits.join(", "):""}</span>
+  ${p.martial!=null?`<div class="meta">Martial ${p.martial} · Diplomacy ${p.diplomacy} · Stewardship ${p.stewardship} · Charm ${p.charm}</div>`:""}${extra}</div>`;
+}
+function btn(label, sub, fn, dis, red){ const id="b"+Math.random().toString(36).slice(2,8); BTN[id]=fn; return `<button class="btn${red?" red":""}" data-b="${id}" ${dis?"disabled":""}>${label}${sub?`<small>${sub}</small>`:""}</button>`; }
+let BTN = {};
+function renderPanel(){
+ BTN = {};
+ const r=pr(), m=S.monarch, ap=canAct(); let h="";
+ if(tab==="realm"){
+  const n=owned(S.player).length, cap=armyCap(S.player), add=Math.min(1000,cap-r.army);
+  h += `<h2>${S.empire?"Empire":"Kingdom"} of ${r.name}</h2>`;
+  h += personCard(m, `<div class="meta">${title(m,true)} of ${r.name}, House ${S.dynasty}${m.age<16?" — under regency":""}</div>`);
+  h += `<div class="row"><span>Yearly income</span><span>${income(S.player)} gold</span></div><div class="row"><span>Army upkeep</span><span>${upkeep(S.player)} gold</span></div><div class="row"><span>Army / capacity</span><span>${r.army.toLocaleString()} / ${cap.toLocaleString()}</span></div><div class="row"><span>Allies</span><span>${r.allies.map(a=>S.realms[a].name).join(", ")||"none"}</span></div>`;
+  h += `<h4>Royal deeds</h4>`;
+  h += btn("Muster troops", add>0?`+${add} men for ${Math.round(add*0.12)} gold`:"Army at full strength", actMuster, !ap||add<=0||S.gold<Math.round(add*0.12));
+  { const ma=Math.min(1000, cap+2000-r.army), mc=Math.round(ma*0.3); h += btn("Hire mercenaries", ma>0?`+${ma} men for ${mc} gold · costs no deed, can exceed capacity`:"No more sellswords to be had", actMercs, S.over||ma<=0||S.gold<mc); }
+  h += btn("Levy extra taxes", `+${Math.round(income(S.player)*0.6)} gold, −8 stability`, actTax, !ap);
+  h += btn("Hold a grand feast", "80 gold · +15 prestige, +stability, +spouse affection", actFeast, !ap||S.gold<80);
+  const canEmp = n>=18 && S.prestige>=250;
+  if(!S.empire) h += btn("Proclaim an Empire", `Needs 18 holdings and 250 prestige (you have ${n} and ${S.prestige})`, actEmpire, !ap||!canEmp);
+  h += `<p class="note">Click a town on the map to develop or fortify it, or to attack it in wartime.</p>`;
+ }
+ if(tab==="court"){
+  h += `<h2>The Royal Court</h2>`;
+  if(S.spouse){ const sp=S.spouse; h += `<h4>${sp.gender==="f"?"Queen":"Consort"}</h4>` + personCard(sp, `<div class="meta">of ${S.realms[sp.realm]?.name||"—"} · affection ${sp.affection}</div><div class="bar"><i style="width:${sp.affection}%"></i></div>`);
+   h += btn(`Spend time with ${sp.name}`, "Raises affection; more likely to have a child", actWoo, !ap);
+   if(S.lover) h += `<p class="note">You keep a secret lover: ${S.lover}.</p>`;
+  } else {
+   h += `<h4>Seek a match</h4>`;
+   if(!S.matchPool.length && S.matchYear!==S.year) refreshMatches();
+   h += `<p class="note">A royal marriage brings a dowry and an alliance. Each proposal costs a deed.</p>`;
+   for(const c of S.matchPool) h += personCard(c, `<div class="meta">of ${S.realms[c.realm].name} · dowry ${c.dowry} gold</div>`) + btn(`Propose to ${c.name}`, `${matchChance(c)}% chance of acceptance`, ()=>actPropose(c), !ap);
+  }
+  const kids = S.children.filter(c=>c.alive), hh = heir();
+  h += `<h4>Children</h4>`;
+  if(!kids.length) h += `<p class="note">${S.spouse?"No children yet.":"Marry to secure an heir. Without one, the dynasty ends with you."}</p>`;
+  for(const c of kids){
+   const tag = c.bastard?"natural child":(hh===c?"heir to the throne":title(c));
+   h += personCard(c, `<div class="meta">${tag}${c.spouse?" · married to "+c.spouse:""}</div>`);
+   if(!c.bastard){
+    if(c.age<16) h += btn(`Tutor ${c.name}`, "Improves a random skill", ()=>actTutor(c), !ap);
+    else if(!c.spouse) h += btn(`Arrange a marriage for ${c.name}`, "Seeks an alliance with a great house", ()=>actArrange(c), !ap);
+    if(hh!==c) h += btn(`Name ${c.name} heir`, "30 prestige", ()=>actNameHeir(c), !ap||S.prestige<30);
+   }
+  }
+  const sibs=S.siblings.filter(c=>c.alive);
+  if(sibs.length){ h += `<h4>Royal siblings</h4>`; for(const c of sibs) h += personCard(c,`<div class="meta">${hh===c?"heir presumptive":""}</div>`); }
+  h += `<h4>House ${S.dynasty}</h4>` + S.rulers.map(x=>`<div class="row"><span>${x.name}</span><span>${x.from}–${x.to||""}</span></div>`).join("");
+ }
+ if(tab==="war"){
+  h += `<h2>War Council</h2><p class="note">Declare war, then click towns ringed in red on the map to assault them. Each assault costs a deed.</p>`;
+  const NB = neighbours(S.player);
+  const others = Object.values(S.realms).filter(o=>o.alive && o.id!==S.player).sort((a,b)=>owned(b.id).length-owned(a.id).length);
+  for(const o of others){
+   const w=atWar(S.player,o.id), t=truce(S.player,o.id), al=allied(S.player,o.id), nb=NB.includes(o.id);
+   const st = w?"<b style='color:#8a1f1f'>AT WAR</b>":al?"Ally":t?`Truce until ${S.realms[S.player].truce[o.id]}`:"At peace";
+   h += `<div class="person"><b style="color:${o.color}">●</b> <b>${o.name}</b> <span class="meta">· ${owned(o.id).length} holdings · ${o.army.toLocaleString()} men · ${st}${nb?"":" · out of reach"}</span>`;
+   if(o.atWar.length) h += `<div class="meta">Fighting: ${o.atWar.map(x=>S.realms[x].name).join(", ")}</div>`;
+   h += `</div>`;
+   if(w) h += btn(`Sue for peace with ${o.name}`, `${peaceChance(o.id)}% chance`, ()=>actPeace(o.id), !ap);
+   else if(!t && nb) h += btn(`Declare war on ${o.name}`, al?"Breaks our alliance: −40 prestige":"Their allies will join them", ()=>actDeclare(o.id), !ap, true);
+  }
+ }
+ if(tab==="colonies"){
+  h += `<h2>The Western Ocean</h2>`;
+  h += `<p class="note">Beyond the edge of the map lies a New World. Expeditions need a port and can sail from 1505.</p>`;
+  h += btn("Fund a western expedition", S.expedition?"Ships are at sea…":`120 gold · ${S.year<1505?"available from 1505":hasPort()?"70% chance of finding land":"needs a port"}`, actExpedition, !ap||S.year<1505||!hasPort()||S.expedition||S.gold<120);
+  if(S.discovered.length){ h += `<h4>Charted lands</h4>`; for(const l of S.discovered) h += btn(`Found a colony in ${l}`, "200 gold", ()=>actFound(l), !ap||S.gold<200); }
+  h += `<h4>Colonies</h4>`;
+  if(!S.colonies.length) h += `<p class="note">None yet.</p>`;
+  for(const c of S.colonies){ h += `<div class="row"><span>${c.name} (since ${c.founded})</span><span>size ${c.size} · +${c.size*15} gold</span></div>`; if(c.size<5) h += btn(`Send settlers to ${c.name}`, `${100*c.size} gold`, ()=>actGrow(c), !ap||S.gold<100*c.size); }
+ }
+ if(tab==="chronicle"){
+  h += `<h2>The Chronicle</h2><div class="log">` + S.log.map(e=>`<p>${e.big?"<b>":""}${e.y}: ${e.t}${e.big?"</b>":""}</p>`).join("") + `</div>`;
+  h += `<h4>Game</h4>` + btn("Abandon this reign and start anew", "Your current game will be lost", ()=>modal({title:"Start anew?", body:"<p>The current reign will be lost.</p>", choices:[{label:"Yes, start a new game", red:true, fn:startScreen},{label:"Cancel"}]}), false, true);
+ }
+ $("panel").innerHTML = h;
+}
+function renderCard(){
+ const c=$("card"); const p=S.places.find(x=>x.id===selected);
+ if(!p){ c.style.display="none"; return; }
+ const o=S.realms[p.owner], mine=p.owner===S.player, ap=canAct();
+ let h = `<button class="x" aria-label="Close">×</button><h3>${p.name}</h3><div class="sub"><b style="color:${o.color}">●</b> ${o.name}${p.capital?" · capital":""}${p.port?" · port":""}</div>
+  <div class="row"><span>Development</span><span>${p.dev}</span></div><div class="row"><span>Fortification</span><span>${p.fort}</span></div><div class="row"><span>Defence strength</span><span>~${Math.round(defenseOf(p)).toLocaleString()}</span></div>`;
+ if(mine){
+  h += btn("Develop town", p.dev>=6?"Fully developed":`${100*p.dev} gold · more income`, ()=>actImprove(p), !ap||p.dev>=6||S.gold<100*p.dev);
+  h += btn("Fortify walls", p.fort>=4?"Walls at their height":`${90*p.fort} gold · harder to take`, ()=>actFortify(p), !ap||p.fort>=4||S.gold<90*p.fort);
+ } else if(atWar(S.player,p.owner)){
+  const rch=reachable(S.player,p);
+  h += btn("Assault the town", rch?`Our ${pr().army.toLocaleString()} men vs ~${Math.round(defenseOf(p)).toLocaleString()} defence`:"Out of reach: too far from our lands or ports", ()=>actAttack(p), !ap||!rch||pr().army<300, true);
+ } else {
+  h += `<p class="note">${allied(S.player,p.owner)?"An allied town.":"We are at peace with "+o.name+". Declare war from the War tab."}</p>`;
+ }
+ c.innerHTML = h; c.style.display="block";
+}
+
+/* ---------- map ---------- */
+function buildMap(){
+ const svg=$("map");
+ svg.innerHTML = `<defs>
+  <filter id="paper"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" result="n"/><feColorMatrix type="saturate" values="0"/><feComponentTransfer><feFuncA type="linear" slope=".08"/></feComponentTransfer><feComposite in2="SourceGraphic" operator="in"/><feBlend in="SourceGraphic" mode="multiply"/></filter>
+  <radialGradient id="vig" cx="50%" cy="50%" r="70%"><stop offset="60%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".28"/></radialGradient>
+ </defs>
+ <rect x="-500" y="-500" width="2000" height="1800" style="fill:var(--sea)"/>
+ <path d="${GRAT_PATH}" fill="none" stroke="#25403d" stroke-opacity=".18" stroke-width=".8" stroke-dasharray="2 4"/>
+ <g fill="none" stroke="#25403d" stroke-linejoin="round">
+  <path d="${LAND_PATH}" stroke-width="14" stroke-opacity=".07"/>
+  <path d="${LAND_PATH}" stroke-width="8" stroke-opacity=".09"/>
+  <path d="${LAND_PATH}" stroke-width="3.5" stroke-opacity=".14"/>
+ </g>
+ <path d="${LAND_PATH}" style="fill:var(--land);stroke:var(--coast)" stroke-width="1.3" stroke-linejoin="round" filter="url(#paper)"/>
+ <text class="sealabel" x="105" y="560">The Western Ocean</text>
+ <text class="sealabel" x="215" y="452" font-size="17">The Narrow Sea</text>
+ <text class="sealabel" x="590" y="215" font-size="20">Mare Septentrionale</text>
+ <text class="sealabel" x="120" y="680" font-size="18">Bay of Storms</text>
+ <g transform="translate(70,90)" opacity=".7"><circle r="34" fill="none" stroke="#25403d"/><path d="M0,-40 L6,0 0,40 -6,0Z" fill="#25403d"/><path d="M-40,0 L0,6 40,0 0,-6Z" fill="#25403d" opacity=".6"/><text y="-45" text-anchor="middle" font-family="IM Fell English" font-size="14" fill="#25403d">N</text></g>
+ <g opacity=".75"><path d="M60,430 l-40,0 m0,0 l10,-7 m-10,7 l10,7" stroke="#25403d" stroke-width="2" fill="none"/><text x="20" y="455" font-family="IM Fell English" font-style="italic" font-size="13" fill="#25403d">to the New World</text></g>
+ <g id="places"></g>
+ <rect x="-500" y="-500" width="2000" height="1800" fill="url(#vig)" pointer-events="none"/>`;
+}
+function setVB(){ $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); }
+function zoom(f, cx, cy){
+ const nw = clamp(vb.w*f, 250, 1000), nh = nw*0.8;
+ cx = cx ?? vb.x+vb.w/2; cy = cy ?? vb.y+vb.h/2;
+ vb.x = cx - (cx-vb.x)*(nw/vb.w); vb.y = cy - (cy-vb.y)*(nh/vb.h); vb.w=nw; vb.h=nh; clampVB(); setVB();
+}
+function clampVB(){ vb.x=clamp(vb.x,-100,1100-vb.w); vb.y=clamp(vb.y,-80,880-vb.h); }
+function centerOnRealm(rid){ const ps=owned(rid); if(!ps.length) return; const cx=ps.reduce((s,p)=>s+p.x,0)/ps.length, cy=ps.reduce((s,p)=>s+p.y,0)/ps.length; vb={x:0,y:0,w:1000,h:800}; setVB(); }
+function svgPoint(e){ const svg=$("map"), pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+function bindMap(){
+ const svg=$("map"); let drag=null, moved=0;
+ svg.addEventListener("wheel", e=>{ e.preventDefault(); const p=svgPoint(e); zoom(e.deltaY>0?1.15:0.87, p.x, p.y); }, {passive:false});
+ svg.addEventListener("pointerdown", e=>{ drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y}; moved=0; });
+ window.addEventListener("pointermove", e=>{ if(!drag) return; const r=svg.getBoundingClientRect(); const s=Math.max(vb.w/r.width, vb.h/r.height);
+  const dx=e.clientX-drag.x, dy=e.clientY-drag.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); if(moved>4){ svg.classList.add("drag"); vb.x=drag.vx-dx*s; vb.y=drag.vy-dy*s; clampVB(); setVB(); } });
+ window.addEventListener("pointerup", e=>{ if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); if(g){ selected=g.dataset.id; render(); } } drag=null; svg.classList.remove("drag"); });
+ $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>{vb={x:0,y:0,w:1000,h:800};setVB();};
+}
+
+/* ---------- start screen ---------- */
+function startScreen(){
+ mq.length=0; let choice="albion", gender="m";
+ const saved = load();
+ const grid = Object.entries(REALMS).map(([k,r])=>`<button data-r="${k}" class="${k===choice?"on":""}"><i style="background:${r.color}"></i>${r.name}<br><span class="note">${PLACES_RAW.filter(p=>p.realm===k).length} towns</span></button>`).join("");
+ modal({title:"Crown &amp; Dynasty", body:`<p class="note">${VERSION} · Europe, anno Domini 1500</p>
+  <p>Take the throne of a young kingdom. Wage war, marry for love or for power, raise heirs, sail for the New World, and pass the crown down the generations until your kingdom becomes an empire.</p>
+  <label>Choose your realm</label><div class="realmgrid" id="rg">${grid}</div>
+  <label for="nm">Your sovereign's name</label><input id="nm" value="Edmund" maxlength="20">
+  <label for="gd">Sovereign</label><select id="gd"><option value="m">King</option><option value="f">Queen</option></select>
+  <label for="dy">Dynasty</label><input id="dy" value="${REALMS.albion.dyn}" maxlength="24">`,
+  choices:[
+   {label:"Take the throne", fn:()=>{ const nm=$("nm")?.value.trim(); }, keep:true},
+   ...(saved && !saved.over ? [{label:`Continue saved reign (${saved.year}, ${saved.realms[saved.player].name})`, fn:()=>{ S=saved; render(); }}] : [])
+  ],
+  onshow:()=>{
+   $("rg").onclick=e=>{ const b=e.target.closest("button"); if(!b) return; choice=b.dataset.r; [...$("rg").children].forEach(x=>x.classList.toggle("on",x===b)); $("dy").value=REALMS[choice].dyn; };
+   $("gd").onchange=e=>{ gender=e.target.value; $("nm").value = gender==="m"?"Edmund":"Eleanor"; };
+   const go = $("mch").querySelector(".btn");
+   go.onclick=()=>{ const nm=$("nm").value.trim()||"Edmund", dy=$("dy").value.trim()||REALMS[choice].dyn; mq.shift(); $("modalbg").style.display="none"; newGame(choice, nm, gender, dy); showModal(); };
+  }});
+}
+
+/* ---------- wiring ---------- */
+$("tabs").onclick = e=>{ const b=e.target.closest("button"); if(!b) return; tab=b.dataset.t; render(); };
+document.addEventListener("click", e=>{
+ const b=e.target.closest("[data-b]"); if(b && BTN[b.dataset.b] && !b.disabled){ BTN[b.dataset.b](); return; }
+ if(e.target.closest("#card .x")){ selected=null; render(); }
+});
+$("endyear").onclick = endYear;
+buildMap(); bindMap();
+$("ver").textContent = VERSION; $("tver").textContent = VERSION;
+{ const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
+$("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
+$("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); };
+$("thow").onclick = () => modal({title:"How to Rule", body:`<p>Each year you have a few <b>deeds</b>: taxes, mustering, feasts, courting, tutoring, declaring war, assaulting towns. Click a town on the map for local actions.</p><p>Press <b>End Year</b> to let time pass: income arrives, enemies march, children are born, and fate intervenes.</p><p>Marry to gain allies and heirs. Win wars to grow. Hold 18 towns with 250 prestige to proclaim an Empire. When you die, the crown passes down. With no heir, the dynasty ends.</p>`});
+}
+</script>
+</body>
+</html>
