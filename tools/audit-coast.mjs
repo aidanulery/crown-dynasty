@@ -27,9 +27,17 @@ const coverage = 100*(1 - bare.length/Math.max(1,landPts));
 // 2. slivers: tiles smaller than 30% of a normal tile
 const tiny = tiles.map((t,i)=>[i,t.area]).filter(([i,a])=>a<0.3*NOM);
 if(tiny.length) issues.push(`Sliver tiles (<30% of a normal tile): ${tiny.length} — ${tiny.slice(0,8).map(([i,a])=>`#${i} ${a.toFixed(0)}px²`).join(', ')}`);
-// 3. unclaimed coastal scraps next to a full owned tile
-const scraps = tiles.map((t,i)=>i).filter(i=>{ const t=tiles[i]; if(t.home>=0 || t.area>=0.7*NOM) return false; return NEI[i].some(j=>tiles[j].home>=0 && tiles[j].area>=0.7*NOM); });
-if(scraps.length) issues.push(`Unclaimed scraps (<70% tile) beside a claimed tile: ${scraps.length} — ${scraps.slice(0,8).map(i=>`#${i} ${tiles[i].area.toFixed(0)}px²`).join(', ')}`);
+// 3. unclaimed scraps next to a full claimed tile — checked for the tile homes AND for the starting borders (CELLS[i][4])
+const held = (i,mode) => mode==='home' ? tiles[i].home>=0 : CELLS[i][4]===1;
+for(const mode of ['home','start']){
+ const scraps = tiles.map((t,i)=>i).filter(i=>{ if(held(i,mode) || tiles[i].area>=0.7*NOM) return false; return NEI[i].some(j=>held(j,mode) && tiles[j].area>=0.7*NOM); });
+ if(scraps.length) issues.push(`Unclaimed scraps (<70% tile) beside a claimed tile [${mode==='home'?'tile homes':'starting borders'}]: ${scraps.length} — ${scraps.slice(0,8).map(i=>`#${i} ${tiles[i].area.toFixed(0)}px²`).join(', ')}`);
+}
+// 3b. every town starts holding its own tile, and every starting-held tile connects to its town
+if(CELLS[0].length>4){ const bad=[]; PLACES_RAW.forEach((p,k)=>{ if(CELLS[TOWNCELL[k]][4]!==1) bad.push(p.name); }); if(bad.length) issues.push(`Towns not holding their own tile at start: ${bad.join(', ')}`);
+  const reach=new Uint8Array(tiles.length); TOWNCELL.forEach((c,k)=>{ const q=[c]; reach[c]=1; while(q.length){ const i=q.pop(); for(const j of NEI[i]) if(!reach[j] && CELLS[j][4]===1 && PLACES_RAW[CELLS[j][1]]?.realm===PLACES_RAW[k].realm){ reach[j]=1; q.push(j); } } });
+  const cut=CELLS.map((c,i)=>i).filter(i=>CELLS[i][4]===1 && !reach[i]); if(cut.length) issues.push(`Starting-held tiles cut off from their kingdom: ${cut.length}`);
+  console.log(`  starting borders: ${CELLS.filter(c=>c[4]===1).length} of ${CELLS.length} tiles held, the rest wild`); }
 // 4. towns sit on their own tile
 PLACES_RAW.forEach((p,k)=>{ const i=TOWNCELL[k]; if(i==null||i<0){ issues.push(`Town ${p.name} has no tile`); return; } if(tiles[i].home!==k) issues.push(`Town ${p.name}'s tile is not homed to it`); if(!inTile(p.x,p.y,tiles[i])){ const t=tiles[i]; const near=t.R.some(r=>r.some(([x,y])=>Math.hypot(x-p.x,y-p.y)<6)); (near?warn:issues).push(`Town ${p.name} marker is ${near?"just":"well"} outside its tile`); } });
 // 5. every tile connects (over land links) to a tile holding a town

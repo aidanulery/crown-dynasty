@@ -8,28 +8,46 @@
 <link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Spectral:wght@400;600&display=swap" rel="stylesheet">
 <style>
 /* VOICE: a royal chronicle — grave, warm, candlelit.
-   IDEA: a 16th-century campaign table: an engraved sea chart with wax-seal towns, beside a ledger.
-   PICTURE: the map itself, filling the screen; coastlines only, kingdoms shown by seal colour.
-   COLOUR and TYPE: oak-brown housing, aged-paper land, slate-green sea, oxblood accent; IM Fell for titles, Spectral for text.
-   LAYOUT: map left (fills), ledger panel right; stacks on phones with the map on top. */
+   IDEA: a campaign table: an engraved sea chart under a gilded, paper-bound ledger with brass-framed tabs.
+   PICTURE: the map fills the window; twelve gilded notches hang from the top edge.
+   COLOUR and TYPE: aged, darkened paper with gilt edges, slate sea, oxblood accent; IM Fell for titles, Spectral for text.
+   LAYOUT: top bar (brand · notches · stats), map beneath; pages open as paper sheets over the map. */
 :root{color-scheme:light dark;
- --wood:#2b1d14;--wood2:#3a281b;--paper:#bb9d72;--paper2:#a98a5f;--ink:#241508;--muted:#47301a;
- --sea:#1f3437;--sea2:#1a2c2f;--land:#c2ae82;--coast:#5b4128;--accent:#8a1f1f;--gold:#b8892d;--line:#8a6d44}
-:root[data-theme=dark]{--sea:#172729;--sea2:#132123;--land:#a99a72;--paper:#a98a5f}
+ --wood:#2b1d14;--paper:#a98b5e;--paper2:#987a4f;--ink:#1f1206;--muted:#3e2814;
+ --sea:#1f3437;--sea2:#1a2c2f;--land:#c2ae82;--coast:#5b4128;--accent:#8a1f1f;--gold:#b8892d;--line:#7a5c34;
+ --paperimg:none;
+ --gilt:linear-gradient(135deg,#f6e3a0,#a8741f 22%,#f0d27a 45%,#7a4f14 68%,#e8c66a 88%,#9a6a1f);
+ --sheet:var(--paperimg),linear-gradient(#b0925f,#9c7e51)}
+:root[data-theme=dark]{--sea:#172729;--sea2:#132123;--land:#a99a72}
 *{box-sizing:border-box;min-width:0}
 html,body{height:100%}
 body{margin:0;background:var(--wood);color:var(--ink);font:16px/1.5 Spectral,Georgia,serif;overflow:hidden}
 button{font:inherit;cursor:pointer}
-.app{display:grid;grid-template-columns:380px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);height:100vh}
-header{grid-column:1/-1;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px;padding:8px 16px;background:linear-gradient(#b99b6e,#a3845a);color:#241508;border-bottom:2px solid #000}
-header .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
-header h1{font:400 26px/1 "IM Fell English SC",serif;margin:0;letter-spacing:.02em}
-header .ver{font:italic 14px "IM Fell English",serif;color:#47301a}
-.stats{grid-column:2;display:flex;gap:26px;flex-wrap:wrap;justify-content:center;font-size:17px}
-.stat{display:flex;flex-direction:column;align-items:center;line-height:1.15}
-.stat b{font-weight:600;font-size:21px;color:#1c1006;font-variant-numeric:tabular-nums}
-.stat span{color:#47301a;font:400 15px "IM Fell English",serif}
-.mapwrap{position:relative;background:var(--sea);overflow:hidden;border-left:2px solid #000;grid-column:2;grid-row:2}
+.paper{background:var(--sheet);background-size:512px 512px,auto}
+.gilt{position:relative;border:3px solid transparent;background-clip:padding-box;box-shadow:0 8px 22px #000a}
+.gilt::before{content:"";position:absolute;inset:-3px;padding:3px;background:var(--gilt);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;border-radius:inherit}
+.gilt::after{content:"";position:absolute;inset:3px;border:1px solid rgba(250,225,160,.35);pointer-events:none;border-radius:inherit}
+.app{display:flex;flex-direction:column;height:100vh}
+header{position:relative;z-index:6;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:16px;padding:0 16px;height:72px;color:var(--ink);border-bottom:3px solid transparent;border-image:var(--gilt) 1;box-shadow:0 4px 14px #000a}
+header .brand{display:flex;flex-direction:column;justify-content:center;height:68px}
+header h1{font:400 25px/1 "IM Fell English SC",serif;margin:0;letter-spacing:.02em;color:#1a0e04;text-shadow:0 1px 0 rgba(255,235,180,.35)}
+header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
+.notches{display:flex;gap:6px;justify-content:center;height:84px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 4px}
+.notch{flex:none;width:54px;height:66px;margin-top:-3px;border-radius:0 0 12px 12px;display:flex;align-items:flex-end;justify-content:center;padding:0 0 7px;transition:transform .15s,height .15s;border:0}
+.notch.gilt{border:3px solid transparent;border-top:0}
+.notch.gilt::before{border-radius:0 0 13px 13px}
+.notch svg{width:36px;height:36px;filter:drop-shadow(0 1px 0 rgba(255,235,180,.4))}
+.notch:hover:not(:disabled){transform:translateY(3px)}
+.notch.on{height:78px;background:var(--paperimg),linear-gradient(#c4a672,#a9895a);background-size:512px 512px,auto}
+.notch.on::after{border-color:#8a1f1f;border-width:0 0 3px;inset:auto 8px 3px 8px}
+.notch:disabled{cursor:default}
+.notch:disabled .rivet{fill:#7a5c34;opacity:.5}
+.notch:focus-visible{outline:2px solid #f2d98d;outline-offset:2px}
+.stats{display:flex;gap:20px;align-items:center;height:68px}
+.stat{display:flex;flex-direction:column;align-items:center;line-height:1.1}
+.stat b{font-weight:600;font-size:20px;color:#1a0e04;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat span{color:var(--muted);font:400 14px "IM Fell English",serif}
+.mapwrap{position:relative;flex:1;min-height:0;background:var(--sea);overflow:hidden}
 #map{width:100%;height:100%;display:block;touch-action:none;cursor:grab;transform-origin:0 0;will-change:transform}
 #map.drag{cursor:grabbing}
 .place{cursor:pointer}
@@ -39,73 +57,65 @@ header .ver{font:italic 14px "IM Fell English",serif;color:#47301a}
 .cell{stroke:rgba(60,40,20,.35);stroke-width:.8;cursor:pointer;vector-effect:non-scaling-stroke}
 .cell.sel{stroke:#fff;stroke-width:2}
 .cell.tgt{stroke:#8a1f1f;stroke-width:1.6}
-.toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(36,21,8,.9);color:#f0dcae;padding:8px 16px;border-radius:6px;font-size:15px;pointer-events:none;opacity:0;transition:opacity .25s;max-width:80%;text-align:center}
+.toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(36,21,8,.92);color:#f0dcae;padding:8px 16px;border-radius:6px;font-size:15px;pointer-events:none;opacity:0;transition:opacity .25s;max-width:60%;text-align:center;z-index:4}
 .toast.on{opacity:1}
-.mapctl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
-.mapctl button{width:44px;height:44px;border-radius:6px;border:1px solid var(--coast);background:var(--paper);font-size:20px;color:var(--ink)}
-.legend{position:absolute;left:10px;bottom:10px;background:rgba(187,157,114,.94);border:1px solid var(--coast);border-radius:6px;padding:8px 10px;font-size:13px;max-width:240px}
+.mapctl{position:absolute;right:12px;top:22px;display:flex;flex-direction:column;gap:8px;z-index:3}
+.mapctl button{width:44px;height:44px;border-radius:6px;font-size:20px;color:var(--ink)}
+.legend{position:absolute;left:12px;bottom:12px;border-radius:6px;padding:8px 10px;font-size:13px;max-width:220px;max-height:40%;overflow:auto;z-index:2}
 .legend div{display:flex;align-items:center;gap:6px;line-height:1.35}
 .legend i{width:11px;height:11px;border-radius:50%;display:inline-block;border:1px solid #0006;flex:none}
-.card{position:absolute;left:10px;top:64px;width:280px;background:var(--paper);border:1px solid var(--coast);border-radius:8px;box-shadow:0 6px 18px #0005;padding:12px 14px;display:none}
+.card{position:absolute;right:68px;top:22px;width:290px;border-radius:8px;padding:12px 14px;display:none;z-index:3}
 .card h3{margin:0 0 2px;font:400 22px "IM Fell English",serif}
 .card .sub{color:var(--muted);font-size:14px;margin-bottom:8px}
-.card .x{position:absolute;right:6px;top:4px;border:0;background:none;font-size:22px;width:36px;height:36px;color:var(--muted)}
-#sidetog{position:absolute;left:10px;top:10px;width:44px;height:44px;border-radius:6px;border:1px solid var(--coast);background:var(--paper);font-size:18px;color:var(--ink);z-index:5}
-.app{transition:grid-template-columns .3s ease}
-.app.collapsed{grid-template-columns:0 minmax(0,1fr)}
-.app.collapsed aside{visibility:hidden}
-.fogc{pointer-events:all}
-aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-direction:column;min-height:0;background-image:radial-gradient(circle at 30% 10%,rgba(240,215,165,.35),transparent 60%)}
-.tabs{display:flex;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.tabs button{flex:1;padding:10px 4px;border:0;background:none;font:400 16px "IM Fell English",serif;color:var(--muted);border-bottom:3px solid transparent;min-height:44px}
-.tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
-.panel{overflow-y:auto;padding:14px 16px 20px;flex:1}
-.panel h2{font:400 24px/1.1 "IM Fell English",serif;margin:4px 0 8px}
+.card .x,.page .x{position:absolute;right:6px;top:4px;border:0;background:none;font-size:24px;width:40px;height:40px;color:var(--muted);z-index:2}
+.page{position:absolute;left:12px;top:22px;width:410px;max-height:calc(100% - 40px);border-radius:8px;display:none;flex-direction:column;z-index:4}
+.page.open{display:flex;animation:drop .22s ease-out}
+@keyframes drop{from{transform:translateY(-12px);opacity:0}to{transform:none;opacity:1}}
+@media(prefers-reduced-motion:reduce){.page.open,#frame{animation:none!important}}
+.panel{overflow-y:auto;padding:16px 18px 20px;flex:1}
+.panel h2{font:400 28px/1.1 "IM Fell English SC",serif;margin:2px 40px 6px 0}
 .panel h4{font:400 18px "IM Fell English",serif;margin:16px 0 6px;color:var(--accent)}
 .row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dotted var(--line);font-size:15px}
 .row span:last-child{font-variant-numeric:tabular-nums;text-align:right}
-.btn{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;min-height:44px;border:1px solid var(--coast);border-radius:6px;background:linear-gradient(#cdb287,#b99b6d);color:var(--ink)}
+.btn{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;min-height:44px;border:1px solid #6b4a1e;border-radius:6px;background:linear-gradient(rgba(240,215,160,.35),rgba(120,85,40,.25));color:var(--ink);box-shadow:inset 0 1px 0 rgba(255,240,200,.35)}
 .btn small{display:block;color:var(--muted);font-size:13px}
-.btn:hover:not(:disabled){background:linear-gradient(#dcc399,#c6a877)}
+.btn:hover:not(:disabled){background:linear-gradient(rgba(250,230,180,.55),rgba(140,100,50,.3))}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn.red{border-color:var(--accent);color:var(--accent)}
-.person{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:6px 0;background:rgba(255,235,190,.16)}
+.person{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:6px 0;background:rgba(255,235,190,.12)}
 .person b{font-weight:600}
 .person .meta{font-size:13px;color:var(--muted)}
-.bar{height:6px;background:#0001;border-radius:3px;margin-top:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
 .log p{margin:0 0 6px;font-size:14px}.log p b{color:var(--accent);font-weight:600}
-.foot{border-top:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:12px;background:var(--paper2)}
-.ap{display:flex;gap:5px;flex-wrap:wrap;max-width:120px}
+.plaque{position:absolute;right:12px;bottom:12px;display:flex;align-items:center;gap:14px;padding:10px 12px 10px 16px;border-radius:8px;z-index:3}
+.plaque .note{display:block;font:400 14px "IM Fell English",serif;color:var(--muted)}
+.ap{display:flex;gap:5px;flex-wrap:wrap;max-width:110px;margin-top:2px}
 .ap.mar i{border-radius:2px;width:12px;height:12px;background:#4a5a2a}.ap i{width:16px;height:16px;border-radius:50%;background:var(--accent);border:1px solid #0006}.ap i.used{background:transparent!important}
-.endyear{margin-left:auto;padding:10px 18px;min-height:44px;border-radius:6px;border:1px solid #000;background:var(--accent);color:#f6e7b8;font:400 18px "IM Fell English",serif}
+.endyear{padding:10px 18px;min-height:44px;border-radius:6px;border:1px solid #3a0c0c;background:linear-gradient(#a3302a,#741818);color:#f6e7b8;font:400 18px "IM Fell English",serif;box-shadow:inset 0 1px 0 rgba(255,200,160,.35)}
+.endyear:disabled{opacity:.5}
 .modalbg{position:fixed;inset:0;background:radial-gradient(ellipse at center,#0007,#000e);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
 #frame{position:relative;width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;animation:unroll .35s ease-out;transform-origin:50% 0}
 @keyframes unroll{from{transform:scaleY(.15);opacity:0}to{transform:none;opacity:1}}
-@media(prefers-reduced-motion:reduce){#frame{animation:none}}
 .rod{display:block;height:24px;margin:0 -12px;border-radius:12px;flex:none;position:relative;z-index:2;background:linear-gradient(#efd48a,#a8741f 45%,#5a3a12 55%,#c99a3f);box-shadow:0 4px 8px #0008,inset 0 -2px 3px #0006}
 .rod::before,.rod::after{content:"";position:absolute;top:-4px;width:18px;height:32px;border-radius:8px;background:linear-gradient(#f3d98f,#7a4f14);box-shadow:0 2px 4px #0006}
 .rod::before{left:-9px}.rod::after{right:-9px}
-.modal{flex:1;overflow:auto;margin:0 2px;padding:28px 34px 34px;color:#241508;border:1px solid #5a3f18;outline:1.5px solid #b8892d;outline-offset:-9px;background:radial-gradient(ellipse at 50% 0%,#d6bf92,transparent 65%),linear-gradient(90deg,#a98a5f,#c3a478 10%,#c3a478 90%,#a98a5f)}
-.modal h2{font:400 31px/1.1 "IM Fell English SC",serif;margin:0;text-align:center;color:#241508;text-wrap:balance}
+.modal{flex:1;overflow:auto;margin:0 2px;padding:28px 34px 34px;color:var(--ink);border:1px solid #5a3f18;outline:1.5px solid #b8892d;outline-offset:-9px;background:var(--paperimg),radial-gradient(ellipse at 50% 0%,#c9ad7c,transparent 65%),linear-gradient(90deg,#937549,#b19366 10%,#b19366 90%,#937549);background-size:512px 512px,auto,auto}
+.modal h2{font:400 31px/1.1 "IM Fell English SC",serif;margin:0;text-align:center;color:var(--ink);text-wrap:balance}
 .modal h2::after{content:"\2766";display:block;font:20px/1 serif;color:#9a6a1f;margin:8px 0 14px}
 .modal p{margin:0 0 10px}
 .modal h2+p:not(.note)::first-letter{float:left;font:400 3.3em/.8 "IM Fell English SC",serif;color:#8a1f1f;padding:5px 8px 0 0}
-.modal h4{color:#8a1f1f}
-.modal .btn{background:linear-gradient(90deg,transparent,#c9a45a33 20%,#c9a45a33 80%,transparent);border:0;border-top:1px solid #9a6a1f;border-bottom:1px solid #9a6a1f;border-radius:0;text-align:center;font:400 19px "IM Fell English",serif;color:#241508;margin:8px 0}
+.modal .btn{background:linear-gradient(90deg,transparent,#c9a45a33 20%,#c9a45a33 80%,transparent);border:0;border-top:1px solid #9a6a1f;border-bottom:1px solid #9a6a1f;border-radius:0;text-align:center;font:400 19px "IM Fell English",serif;color:var(--ink);margin:8px 0;box-shadow:none}
 .modal .btn:hover:not(:disabled){background:linear-gradient(90deg,transparent,#c9a45a77 20%,#c9a45a77 80%,transparent)}
 .modal .btn small{font:italic 14px Spectral,serif;color:#3a2410}
-.modal .realmgrid .note{color:#6b4a28;font-family:Spectral,serif;font-size:13px}
 .modal .btn.red{color:#8a1f1f}
 .seal{position:absolute;right:-4px;bottom:-14px;width:58px;height:58px;border-radius:50%;z-index:3;background:radial-gradient(circle at 35% 30%,#d24a3a,#8a1f1f 55%,#4a0f0f);box-shadow:0 5px 10px #000a,inset 0 0 0 4px #7a1818,inset 0 0 0 6px #b13a2c;display:flex;align-items:center;justify-content:center;font:400 26px "IM Fell English SC",serif;color:#e9b9a8;pointer-events:none}
-
-.modal input,.modal select{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--coast);border-radius:6px;background:#dcc89c;width:100%;min-height:44px}
+.modal input,.modal select{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--coast);border-radius:6px;background:#d6c194;width:100%;min-height:44px;color:var(--ink)}
 .modal label{display:block;margin:10px 0 4px;font-size:15px;color:#3a2410}
-.modal input,.modal select,.modal option{color:#241508}
 .modal .note{color:#3a2410}
-.realmgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
-.realmgrid button{color:#241508;font-family:"IM Fell English",serif;font-size:18px;padding:6px 8px;border:2px solid var(--line);border-radius:6px;background:rgba(255,235,190,.2);text-align:left;min-height:44px}
-.realmgrid button.on{border-color:var(--accent);background:#d9c398}
+.realmgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;max-height:260px;overflow:auto;padding:2px}
+.realmgrid button{color:var(--ink);font-family:"IM Fell English",serif;font-size:17px;padding:5px 8px;border:2px solid var(--line);border-radius:6px;background:rgba(255,235,190,.18);text-align:left;min-height:44px;line-height:1.15}
+.realmgrid button.on{border-color:var(--accent);background:#d2bb8c}
 .realmgrid i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.modal .realmgrid .note{color:#5a3d1e;font-family:Spectral,serif;font-size:12px}
 .note{font-size:13px;color:var(--muted)}
 #title{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px;background:radial-gradient(ellipse at 50% 35%,#4a3322,#1c120b 75%);color:#f0e0b8}
 #title.hide{display:none}
@@ -118,40 +128,38 @@ aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:f
 #title .menu button:disabled{opacity:.4;cursor:not-allowed}
 #title .ver2{position:absolute;top:14px;left:18px;font:italic 14px "IM Fell English",serif;color:#a88f61}
 #title .rule{width:min(360px,70vw);height:2px;background:linear-gradient(90deg,transparent,#b8892d,transparent);margin:6px 0 10px}
-@media(max-width:860px){
- header{grid-template-columns:1fr}
- .stats{grid-column:1;gap:14px;font-size:14px}
- .stat b{font-size:17px}
- body{overflow:auto}
- .app{grid-template-columns:1fr;grid-template-rows:auto 60vh auto;height:auto}
- .app.collapsed{grid-template-columns:1fr}
- .app.collapsed aside{display:none}
- .mapwrap{border-left:0;grid-column:1;grid-row:2}
- aside{min-height:70vh;grid-column:1;grid-row:3}
+@media(max-width:1180px){
+ header{grid-template-columns:auto auto;height:auto;row-gap:0}
+ header .brand{height:52px}.stats{height:52px;justify-self:end}
+ .notches{grid-column:1/-1;grid-row:2;justify-content:flex-start;height:72px}
+}
+@media(max-width:640px){
+ .stats{gap:10px}.stat b{font-size:16px}.stat span{font-size:12px}
+ header h1{font-size:20px}
+ .page{left:8px;right:8px;width:auto}
+ .card{left:8px;right:60px;width:auto}
  .legend{display:none}
- .card{width:auto;right:60px}
+ .plaque{left:8px;right:8px;justify-content:space-between}
+ .toast{max-width:90%;bottom:90px}
 }
 </style>
 </head>
 <body>
 <div class="app" id="app">
- <header>
+ <header class="paper">
   <div class="brand"><h1>Crown &amp; Dynasty</h1><span class="ver" id="ver"></span></div>
+  <nav class="notches" id="notches" aria-label="Pages"></nav>
   <div class="stats" id="stats"></div>
  </header>
  <div class="mapwrap">
   <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet" aria-label="Map of western Europe"></svg>
-  <button id="sidetog" aria-label="Hide side panel" title="Hide side panel">◂</button>
-  <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Return to your realm" title="Return to your realm">⌂</button></div>
-  <div class="legend" id="legend"></div>
-  <div class="card" id="card"></div>
+  <div class="mapctl"><button class="paper gilt" id="zin" aria-label="Zoom in">+</button><button class="paper gilt" id="zout" aria-label="Zoom out">−</button><button class="paper gilt" id="zreset" aria-label="Return to your realm" title="Return to your realm">⌂</button></div>
+  <section class="page paper gilt" id="page" aria-live="polite"><button class="x" id="pagex" aria-label="Close page">×</button><div class="panel" id="panel"></div></section>
+  <div class="legend paper gilt" id="legend"></div>
+  <div class="card paper gilt" id="card"></div>
+  <div class="plaque paper gilt"><div><span class="note">Deeds</span><div class="ap" id="ap"></div></div><div><span class="note">Marches</span><div class="ap mar" id="mar"></div></div><button class="endyear" id="endyear">End Season</button></div>
   <div class="toast" id="toast"></div>
  </div>
- <aside>
-  <div class="tabs" id="tabs"></div>
-  <div class="panel" id="panel"></div>
-  <div class="foot"><div><span class="note">Deeds</span><div class="ap" id="ap"></div></div><div><span class="note">Marches</span><div class="ap mar" id="mar"></div></div><button class="endyear" id="endyear">End Season</button></div>
- </aside>
 </div>
 <div id="title">
  <svg class="crown" viewBox="0 0 200 170" aria-hidden="true">
@@ -183,8 +191,8 @@ aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:f
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.0.9";
-const SAVE_KEY = "crown-dynasty-save-v9";
+const VERSION = "pre-alpha v0.0.10";
+const SAVE_KEY = "crown-dynasty-save-v10";
 const $ = id => document.getElementById(id);
 const R = (a,b) => a + Math.random()*(b-a);
 const RI = (a,b) => Math.floor(R(a,b+1));
@@ -193,38 +201,66 @@ const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
 
 const REALMS = {
  albion:{name:"Albion",color:"#b03a2e",dyn:"Ashcombe"},
- caledon:{name:"Caledon",color:"#2f6a9a",dyn:"MacAldair"},
- eirland:{name:"Eirland",color:"#3e8e4e",dyn:"Ó Ríain"},
- bretonne:{name:"Bretonne",color:"#7a8b2e",dyn:"de Kerval"},
- valoria:{name:"Valoria",color:"#3b4fb0",dyn:"de Valois-Mer"},
- aurelle:{name:"Aurelle",color:"#8e44ad",dyn:"d'Aurignac"},
- bourgmont:{name:"Bourgmont",color:"#9a5a2e",dyn:"de Charolle"},
- arlesia:{name:"Arlesia",color:"#c4628a",dyn:"di Montalba"},
- lowmark:{name:"Lowmark",color:"#e07b1a",dyn:"van Oorde"},
- rhinemark:{name:"Rhinemark",color:"#5d6d7e",dyn:"von Arnsberg"},
- daneholm:{name:"Daneholm",color:"#178f9e",dyn:"Skjoldung"},
- castamar:{name:"Castamar",color:"#c9a227",dyn:"de Lara"}
+ wessmark:{name:"Wessmark",color:"#2cbe67",dyn:"Thornbury"},
+ cymria:{name:"Cymria",color:"#9b39c5",dyn:"ap Rhydderch"},
+ estanglia:{name:"Estanglia",color:"#9e9d37",dyn:"Wulfstan"},
+ northumbra:{name:"Northumbra",color:"#2c94be",dyn:"Ravensworth"},
+ caledon:{name:"Caledon",color:"#c53974",dyn:"MacAldair"},
+ strathmore:{name:"Strathmore",color:"#459e37",dyn:"Dunvegan"},
+ eirland:{name:"Eirland",color:"#432cbe",dyn:"Ó Ríain"},
+ mumhan:{name:"Mumhan",color:"#c57839",dyn:"Mac Carthaigh"},
+ bretonne:{name:"Bretonne",color:"#379e84",dyn:"de Kerval"},
+ valoria:{name:"Valoria",color:"#be2cb8",dyn:"de Valois-Mer"},
+ nordmere:{name:"Nordmere",color:"#97c539",dyn:"Fitzhrolf"},
+ artesia:{name:"Artesia",color:"#375e9e",dyn:"d'Artois-Lande"},
+ champaine:{name:"Champaine",color:"#be2c39",dyn:"de Brienne"},
+ aurelle:{name:"Aurelle",color:"#39c555",dyn:"d'Aurignac"},
+ pictavia:{name:"Pictavia",color:"#6a379e",dyn:"de Lusignan"},
+ occitane:{name:"Occitane",color:"#be9e2c",dyn:"de Tolosa"},
+ bourgmont:{name:"Bourgmont",color:"#39bac5",dyn:"de Charolle"},
+ lyonesse:{name:"Lyonesse",color:"#9e3778",dyn:"de Forez"},
+ alpenmark:{name:"Alpenmark",color:"#5dbe2c",dyn:"von Kyburg"},
+ arlesia:{name:"Arlesia",color:"#3940c5",dyn:"di Montalba"},
+ lowmark:{name:"Lowmark",color:"#9e5037",dyn:"van Oorde"},
+ hollandt:{name:"Hollandt",color:"#2cbe7a",dyn:"van Egmont"},
+ ardenne:{name:"Ardenne",color:"#ad39c5",dyn:"de la Marck"},
+ rhinemark:{name:"Rhinemark",color:"#929e37",dyn:"von Arnsberg"},
+ treverland:{name:"Treverland",color:"#2c82be",dyn:"von Isenburg"},
+ alsatia:{name:"Alsatia",color:"#c53962",dyn:"von Lützel"},
+ palatine:{name:"The Palatine",color:"#389e37",dyn:"von Wittelsbrunn"},
+ saxmark:{name:"Saxmark",color:"#562cbe",dyn:"Billunger"},
+ daneholm:{name:"Daneholm",color:"#c58a39",dyn:"Skjoldung"},
+ slesmark:{name:"Slesmark",color:"#379e91",dyn:"Abelsen"},
+ castamar:{name:"Castamar",color:"#be2ca6",dyn:"de Lara"},
+ navarra:{name:"Navarra",color:"#85c539",dyn:"de Foix-Evreux"},
+ asturia:{name:"Asturia",color:"#37519e",dyn:"de Quirós"}
 };
+const MALE = ["Edmund","Henric","Aldric","Godfrey","Rowan","Tristan","Lionel","Percival","Osric","Gerard","Baldwin","Arthur","Geoffrey","Roland","Thibault","Florian","Anselm","Rodrigo","Lothar","Magnus","Casimir","Hugo","Alaric","Bertrand","Conrad","Diarmait","Eamon","Fulk","Guiscard","Harald","Ivo","Joscelin","Leofric","Malcolm","Niall","Odo","Raymond","Sancho","Tancred","Ulric","Waleran"];
+const FEMALE = ["Isolde","Matilda","Eleanor","Rosamund","Beatrix","Cecily","Margery","Adela","Sibyl","Gwendolyn","Elise","Clémence","Odette","Joan","Agnes","Blanche","Ingrid","Leonor","Mathilde","Aveline","Yolande","Hedwig","Ermengarde","Gisela","Urraca","Sigrid","Brígh","Ysabeau"];
+const EPITHETS = ["the Bold","the Pious","the Fair","the Young","the Lame","the Wise","the Stern","the Generous","the Lion","the Unready","the Black","the Red","the Good","the Cruel","the Fat","the Learned","Ironhand","the Builder","the Quiet","Longshanks"];
+const HOUSES = ["Varne","Mortaigne","Halloway","Corbeau","Ostrand","Dauvergne","Penhallow","Riesen","Blackmere","Montclair","Valdric","Hartwell","Lisieux","Strandberg","Croix-Haute","Aubrac","Rosenthal","Kervignac","Wendmoor","Saint-Clair","Falkenrode","Ormesby","Belcastel","Ruthven","Torvald","Grimaud"];
 const SEA_RANGE = 430;
 const DEEDS_PER_SEASON = 2;
 
 let S = null;            // game state
-let tab = "explore";
+let page = null;   // which notch page is open
 let selected = null;
 let vb = {x:0,y:0,w:1000,h:800};
 const pr = () => S.realms[S.player];
 const rulerTitle = () => S.monarch.gender==="m" ? "King" : "Queen";
+function randomRuler(){ const gender = Math.random()<0.82 ? "m" : "f"; return {name:pick(gender==="m"?MALE:FEMALE), gender, epithet: Math.random()<0.55 ? pick(EPITHETS) : "", house: pick(HOUSES)}; }
+const rulerOf = rid => rid===S.player ? `${rulerTitle()} ${S.monarch.name} of House ${S.dynasty}` : (()=>{ const r=S.realms[rid].ruler; return `${r.gender==="m"?"King":"Queen"} ${r.name}${r.epithet?" "+r.epithet:""} of House ${r.house}`; })();
 
 /* ---------- setup ---------- */
 function newGame(realmId, name, gender, dyn){
  S = {version:VERSION, year:1500, season:0, player:realmId, gold:300, ap:DEEDS_PER_SEASON, marches:0,
   dynasty:dyn, monarch:{name, gender}, explored:{}, seen:[], expeditions:[], log:[], over:false, nextId:1, places:[], realms:{}, events:[]};
  S.places = PLACES_RAW.map(p => ({id:p.id,name:p.name,x:p.x,y:p.y,owner:p.realm,dev:p.dev,fort:1,port:!!p.port,capital:!!p.capital}));
- S.tiles = CELLS.map(c => c[1]>=0 ? PLACES_RAW[c[1]].realm : null);
+ S.tiles = CELLS.map(c => c[4] && c[1]>=0 ? PLACES_RAW[c[1]].realm : null);
  S.seen = CELLS.map(()=>0);
  for(const [id,r] of Object.entries(REALMS)){
   const n = S.places.filter(p=>p.owner===id).length;
-  S.realms[id] = {id, name:r.name, color:r.color, gold:80*n, alive:true, atWar:[], truce:{}, warStart:{}, lost:{}};
+  S.realms[id] = {id, name:r.name, color:r.color, gold:80*n, alive:true, atWar:[], truce:{}, warStart:{}, lost:{}, ruler: id===realmId ? null : randomRuler()};
  }
  S.marches = maxMarches(); updateSight();
  log(`${rulerTitle()} ${name} of House ${dyn} is crowned sovereign of ${pr().name}.`);
@@ -329,7 +365,7 @@ const turn = () => S.year*4 + S.season;
 const when = (t=turn()) => `${SEASONS[((t%4)+4)%4]} ${Math.floor(t/4)}`;
 let CELLC=null, FOGT=null, COMP=null;
 const known = rid => rid===S.player || !!(S.explored && S.explored[rid]);
-function reveal(rid){ if(!S.explored || known(rid)) return; S.explored[rid]=true; log(`We have made contact with ${S.realms[rid].name}.`, true); }
+function reveal(rid){ if(!S.explored || known(rid)) return; S.explored[rid]=true; log(`We have made contact with ${S.realms[rid].name}, ruled by ${rulerOf(rid)}.`, true); }
 function cellInit(){ if(CELLC) return;
  CELLC = CELLS.map(c=>{ let x=0,y=0,n=0; for(const m of c[0].matchAll(/(-?[\d.]+) (-?[\d.]+)/g)){ x+=+m[1]; y+=+m[2]; n++; } return [x/n,y/n]; });
  FOGT = CELLC.map(([x,y])=>{ let b=0,bd=1e9; PLACES_RAW.forEach((p,k)=>{ const d=Math.hypot(p.x-x,p.y-y); if(d<bd){bd=d;b=k;} }); return b; });
@@ -520,7 +556,7 @@ function render(){
  $("ap").innerHTML = Array.from({length:DEEDS_PER_SEASON},(_,i)=>`<i class="${i<S.ap?"":"used"}"></i>`).join("");
  $("mar").innerHTML = Array.from({length:maxMarches()},(_,i)=>`<i class="${i<S.marches?"":"used"}"></i>`).join("");
  $("endyear").disabled = S.over;
- renderCells(); renderPlaces(); renderLegend(); renderTabs(); renderPanel(); renderCard();
+ renderCells(); renderPlaces(); renderLegend(); renderNotches(); renderPanel(); renderCard();
 }
 function renderPlaces(){
  const war = pr().atWar;
@@ -545,24 +581,43 @@ function renderLegend(){
  const alive = Object.values(S.realms).filter(r=>r.alive && known(r.id)).sort((a,b)=>owned(b.id).length-owned(a.id).length);
  $("legend").innerHTML = alive.map(r=>`<div><i style="background:${r.color}"></i>${r.name}${r.id===S.player?" (you)":""}${atWar(S.player,r.id)?" ⚔":""}</div>`).join("");
 }
-// HOOK: add your own tabs here (e.g. ["realm","Realm"], ["court","Court"]).
-const TABS = [["explore","Explore"],["war","War"],["chronicle","Chronicle"]];
-function renderTabs(){ $("tabs").innerHTML = TABS.map(([k,l])=>`<button data-t="${k}" class="${tab===k?"on":""}">${l}</button>`).join(""); }
+
+const ICON = {
+ explore:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M4 9 L13 6 L23 9 L33 6 L33 28 L23 31 L13 28 L4 31Z" fill="#ead6a6" stroke="#3a240e" stroke-width="1.4" stroke-linejoin="round"/><path d="M13 6V28M23 9V31" stroke="#3a240e" stroke-width=".9" opacity=".55"/><path d="M7 24 q4-7 9-4 t8-8" fill="none" stroke="#8a1f1f" stroke-width="1.3" stroke-dasharray="2 1.6"/><path d="M26 12 l2 2 m0-2 l-2 2" stroke="#8a1f1f" stroke-width="1.2"/><g transform="rotate(-38 24 27)"><rect x="11" y="25.5" width="5" height="4" rx=".8" fill="#7a4f14" stroke="#2a1808" stroke-width=".9"/><rect x="16" y="24.5" width="9" height="6" rx="1" fill="#c99a3f" stroke="#2a1808" stroke-width=".9"/><rect x="25" y="23.5" width="8" height="8" rx="1" fill="#e8c66a" stroke="#2a1808" stroke-width=".9"/><rect x="33" y="22.5" width="3" height="10" rx="1" fill="#9a6a1f" stroke="#2a1808" stroke-width=".9"/><path d="M19 24.5v6M28 23.5v8" stroke="#7a4f14" stroke-width=".8"/></g></svg>`,
+ war:`<svg viewBox="0 0 40 40" aria-hidden="true"><g transform="translate(0 3) scale(.92) translate(1.7 0) rotate(38 20 12)"><path d="M20 1.5 L22 4.5 L22 24 L18 24 L18 4.5Z" fill="#e4e7ea" stroke="#2a1808" stroke-width="1"/><path d="M20 4 V23" stroke="#9aa3aa" stroke-width=".7"/><rect x="13" y="24" width="14" height="3" rx="1" fill="#d9b25a" stroke="#2a1808" stroke-width=".9"/><rect x="18.4" y="27" width="3.2" height="6.5" fill="#5a3412" stroke="#2a1808" stroke-width=".8"/><circle cx="20" cy="35.2" r="2.3" fill="#d9b25a" stroke="#2a1808" stroke-width=".9"/></g><g transform="translate(0 3) scale(.92) translate(1.7 0) rotate(-38 20 12)"><path d="M20 1.5 L22 4.5 L22 24 L18 24 L18 4.5Z" fill="#e4e7ea" stroke="#2a1808" stroke-width="1"/><path d="M20 4 V23" stroke="#9aa3aa" stroke-width=".7"/><rect x="13" y="24" width="14" height="3" rx="1" fill="#d9b25a" stroke="#2a1808" stroke-width=".9"/><rect x="18.4" y="27" width="3.2" height="6.5" fill="#5a3412" stroke="#2a1808" stroke-width=".8"/><circle cx="20" cy="35.2" r="2.3" fill="#d9b25a" stroke="#2a1808" stroke-width=".9"/></g><path d="M20 3.2 l1.2 2.6 2.8.3-2.1 1.9.6 2.8-2.5-1.4-2.5 1.4.6-2.8-2.1-1.9 2.8-.3Z" fill="#f6d86b" stroke="#8a5a10" stroke-width=".6"/></svg>`,
+ romance:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M16 31 C4 23 4 11 11 10 C14.5 9.5 16 12 16.5 13.5 C17 12 18.5 9.5 22 10 C29 11 28 23 16 31Z" fill="#9c2228" stroke="#3a0c0c" stroke-width="1.2"/><path d="M25.5 35 C15.5 28.5 15.5 18.5 21.5 17.7 C24.4 17.3 25.6 19.3 26 20.6 C26.4 19.3 27.6 17.3 30.5 17.7 C36.5 18.5 35.5 28.5 25.5 35Z" fill="#c9414a" stroke="#3a0c0c" stroke-width="1.2"/><path d="M9.5 14 q1.5-2 3.5-1.6" stroke="#f3b3b3" stroke-width="1.2" fill="none" stroke-linecap="round"/><path d="M20.5 21 q1.2-1.6 2.8-1.3" stroke="#ffd0d0" stroke-width="1.1" fill="none" stroke-linecap="round"/></svg>`,
+ chronicle:`<svg viewBox="0 0 40 40" aria-hidden="true"><rect x="10" y="8" width="20" height="23" fill="#ead6a6" stroke="#3a240e" stroke-width="1.3"/><path d="M13.5 13h13M13.5 16.5h13M13.5 20h10M13.5 23.5h12" stroke="#5a3d1e" stroke-width="1" stroke-linecap="round"/><rect x="7" y="5" width="26" height="5.5" rx="2.75" fill="#c99a3f" stroke="#2a1808" stroke-width="1.2"/><rect x="7" y="29.5" width="26" height="5.5" rx="2.75" fill="#c99a3f" stroke="#2a1808" stroke-width="1.2"/><circle cx="7.5" cy="7.75" r="1.6" fill="#7a4f14"/><circle cx="32.5" cy="7.75" r="1.6" fill="#7a4f14"/><circle cx="7.5" cy="32.25" r="1.6" fill="#7a4f14"/><circle cx="32.5" cy="32.25" r="1.6" fill="#7a4f14"/><circle cx="27" cy="27" r="3" fill="#8a1f1f" stroke="#4a0f0f" stroke-width=".8"/></svg>`,
+ empty:`<svg viewBox="0 0 40 40" aria-hidden="true"><circle class="rivet" cx="20" cy="20" r="3.2" fill="#7a5c34"/><path d="M20 12v3M20 25v3M12 20h3M25 20h3" stroke="#7a5c34" stroke-width="1" opacity=".45"/></svg>`
+};
+// HOOK: notches 4–11 are reserved for future pages.
+const NOTCHES = [
+ {k:"explore", label:"Explore"}, {k:"war", label:"War"}, {k:"romance", label:"Romance"},
+ null, null, null, null, null, null, null, null,
+ {k:"chronicle", label:"Chronicle"}
+];
+function renderNotches(){
+ $("notches").innerHTML = NOTCHES.map((n,i)=> n
+  ? `<button class="notch paper gilt${page===n.k?" on":""}" data-p="${n.k}" title="${n.label}" aria-label="${n.label}" aria-pressed="${page===n.k}">${ICON[n.k]}</button>`
+  : `<button class="notch paper gilt" disabled title="Reserved" aria-label="Reserved notch ${i+1}">${ICON.empty}</button>`).join("");
+}
+
 let BTN = {};
 function btn(label, sub, fn, dis, red){ const id="b"+Math.random().toString(36).slice(2,8); BTN[id]=fn; return `<button class="btn${red?" red":""}" data-b="${id}" ${dis?"disabled":""}>${label}${sub?`<small>${sub}</small>`:""}</button>`; }
 function renderPanel(){
  BTN = {};
+ $("page").classList.toggle("open", !!page);
+ if(!page){ $("panel").innerHTML=""; return; }
  const ap=canAct(); let h="";
- if(tab==="explore"){
-  h += `<h2>${pr().name}</h2><p class="note">${rulerTitle()} ${S.monarch.name} of House ${S.dynasty}. Income ${income(S.player)} gold a year.</p>`;
-  h += `<h4>Exploration</h4>`;
+ if(page==="explore"){
+  h += `<h2>Exploration</h2><p class="note">${pr().name} · ${rulerOf(S.player)} · income ${income(S.player)} gold a year.</p>`;
+  h += `<h4>Into the fog</h4>`;
   const f=nearestFrontier();
   h += btn("Send scouts overland", f>=0?"60 gold · maps about a fifth of the nearest hidden region by season's end":"No uncharted land can be reached on foot", ()=>actExplore(f), !ap||f<0||S.gold<60);
   h += `<p class="note">For lands over the sea, build ships in a port town, then click the fog on the map to send a fleet.</p>`;
   if(S.expeditions.length){ h += `<h4>Expeditions underway</h4>`; for(const e of S.expeditions) h += `<div class="row"><span>${e.sea?"Fleet from "+e.portName:"Scouts"}: ${expStatus(e)}</span><span>back ${when(e.eta)}</span></div>`; }
   h += `<h4>The map</h4><p class="note">Click a town to develop, fortify, build ships or assault it. Click a land tile to claim wild land or, in wartime, occupy enemy land using marches.</p>`;
  }
- if(tab==="war"){
+ if(page==="war"){
   h += `<h2>War Council</h2><p class="note">Declare war, then occupy bordering enemy tiles (outlined red) with marches, and assault towns ringed in red with deeds. Taking a town also takes its countryside.</p>`;
   const NB = neighbours(S.player);
   const others = Object.values(S.realms).filter(o=>o.alive && o.id!==S.player && known(o.id)).sort((a,b)=>owned(b.id).length-owned(a.id).length);
@@ -570,15 +625,19 @@ function renderPanel(){
   for(const o of others){
    const w=atWar(S.player,o.id), t=truce(S.player,o.id), nb=NB.includes(o.id);
    const st = w?"<b style='color:#8a1f1f'>AT WAR</b>":t?`Truce until ${S.realms[S.player].truce[o.id]}`:"At peace";
-   h += `<div class="person"><b style="color:${o.color}">●</b> <b>${o.name}</b> <span class="meta">· ${owned(o.id).length} towns · ${st}${nb?"":" · out of reach"}</span>`;
+   h += `<div class="person"><b style="color:${o.color}">●</b> <b>${o.name}</b> <span class="meta">· ${owned(o.id).length} towns · ${st}${nb?"":" · out of reach"}</span><div class="meta">${rulerOf(o.id)}</div>`;
    if(o.atWar.length) h += `<div class="meta">Fighting: ${o.atWar.map(x=>S.realms[x].name).join(", ")}</div>`;
    h += `</div>`;
    if(w) h += btn(`Sue for peace with ${o.name}`, `${peaceChance(o.id)}% chance`, ()=>actPeace(o.id), !ap);
    else if(!t && nb) h += btn(`Declare war on ${o.name}`, "", ()=>actDeclare(o.id), !ap, true);
   }
  }
- if(tab==="chronicle"){
-  h += `<h2>The Chronicle</h2><div class="log">` + S.log.map(e=>`<p>${e.big?"<b>":""}${SEASONS[e.s]} ${e.y}: ${e.t}${e.big?"</b>":""}</p>`).join("") + `</div>`;
+ if(page==="romance"){
+  // HOOK: the Romance page — courtship, marriage, love and heartbreak — is yours to write.
+  h += `<h2>Romance</h2><p class="note">The court of love is yet to be written. This page is reserved for courtship, marriage, love and heartbreak.</p>`;
+ }
+ if(page==="chronicle"){
+  h += `<h2>Chronicle</h2><div class="log">` + S.log.map(e=>`<p>${e.big?"<b>":""}${SEASONS[e.s]} ${e.y}: ${e.t}${e.big?"</b>":""}</p>`).join("") + `</div>`;
   h += `<h4>Game</h4>` + btn("Abandon this reign and start anew", "Your current game will be lost", ()=>modal({title:"Start anew?", body:"<p>The current reign will be lost.</p>", choices:[{label:"Yes, start a new game", red:true, fn:startScreen},{label:"Cancel"}]}), false, true);
  }
  $("panel").innerHTML = h;
@@ -602,7 +661,7 @@ function renderCard(){
  if(!p){ c.style.display="none"; return; }
  const o=S.realms[p.owner], mine=p.owner===S.player, ap=canAct();
  let h = `<button class="x" aria-label="Close">×</button><h3>${p.name}</h3><div class="sub"><b style="color:${o.color}">●</b> ${o.name}${p.capital?" · capital":""}${p.port?" · port":""}</div>
-  <div class="row"><span>Development</span><span>${p.dev}</span></div><div class="row"><span>Fortification</span><span>${p.fort}</span></div>`;
+  ${mine?"":`<p class="note">${rulerOf(p.owner)}</p>`}<div class="row"><span>Development</span><span>${p.dev}</span></div><div class="row"><span>Fortification</span><span>${p.fort}</span></div>`;
  if(mine){
   h += btn("Develop town", p.dev>=6?"Fully developed":`${100*p.dev} gold · more income`, ()=>actImprove(p), !ap||p.dev>=6||S.gold<100*p.dev);
   if(p.port){ h += `<div class="row"><span>Fleet</span><span>${p.ships==null?"none":!shipsReady(p)?"building, ready "+when(p.ships):portBusy(p)?"at sea":"in harbour"}</span></div>`;
@@ -611,7 +670,7 @@ function renderCard(){
  } else if(atWar(S.player,p.owner)){
   const rch=reachable(S.player,p);
   h += btn("Assault the town", rch?"1 deed":"Out of reach: too far from our lands or ports", ()=>actAttack(p), !ap||!rch, true);
- } else h += `<p class="note">We are at peace with ${o.name}. Declare war from the War tab.</p>`;
+ } else h += `<p class="note">We are at peace with ${o.name}. Declare war from the War page (crossed swords).</p>`;
  c.innerHTML = h; c.style.display="block";
 }
 
@@ -739,7 +798,6 @@ function bindMap(){
   const dx=e.clientX-drag.x, dy=e.clientY-drag.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); if(moved>4){ svg.classList.add("drag"); vb.x=drag.vx-dx*s; vb.y=drag.vy-dy*s; clampVB(); setVBsoon(-1); } });
  window.addEventListener("pointerup", e=>{ if(drag && moved>4) setVB(); if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell"); if(g){ selected=g.dataset.id; render(); } else if(cl){ const ci=+cl.dataset.i; if(fogged(ci)) selected="fog:"+ci; else if(TOWNAT.has(ci)) selected=S.places[TOWNAT.get(ci)].id; else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
  $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>goHome(true);
- $("sidetog").onclick=()=>{ const c=$("app").classList.toggle("collapsed"); $("sidetog").textContent=c?"▸":"◂"; $("sidetog").setAttribute("aria-label",c?"Show side panel":"Hide side panel"); $("sidetog").title=c?"Show side panel":"Hide side panel"; };
  new ResizeObserver(()=>fitAspect()).observe($("map").parentElement); fitAspect();
 }
 
@@ -747,9 +805,9 @@ function bindMap(){
 function startScreen(){
  mq.length=0; let choice="albion", gender="m";
  const saved = load();
- const grid = Object.entries(REALMS).map(([k,r])=>`<button data-r="${k}" class="${k===choice?"on":""}"><i style="background:${r.color}"></i>${r.name}<br><span class="note">${PLACES_RAW.filter(p=>p.realm===k).length} towns</span></button>`).join("");
+ const grid = Object.entries(REALMS).map(([k,r])=>{ const n=PLACES_RAW.filter(p=>p.realm===k).length; return `<button data-r="${k}" class="${k===choice?"on":""}"><i style="background:${r.color}"></i>${r.name}<br><span class="note">${n} town${n>1?"s":""}</span></button>`; }).join("");
  modal({title:"Crown &amp; Dynasty", body:`<p class="note">${VERSION} · Europe, anno Domini 1500</p>
-  <p>Take the throne of a young kingdom. Chart the lands beyond the fog, build fleets, and wage war for every field and town.</p>
+  <p>Take the throne of one of thirty-four small kingdoms, scattered across a Europe of wild, uncharted country. Chart the lands beyond the fog, build fleets, and wage war for every field and town.</p>
   <label>Choose your realm</label><div class="realmgrid" id="rg">${grid}</div>
   <label for="nm">Your sovereign's name</label><input id="nm" value="Edmund" maxlength="20">
   <label for="gd">Sovereign</label><select id="gd"><option value="m">King</option><option value="f">Queen</option></select>
@@ -764,18 +822,33 @@ function startScreen(){
 }
 
 /* ---------- wiring ---------- */
-$("tabs").onclick = e=>{ const b=e.target.closest("button"); if(!b) return; tab=b.dataset.t; render(); };
+$("notches").onclick = e=>{ const b=e.target.closest("button[data-p]"); if(!b || !S) return; page = page===b.dataset.p ? null : b.dataset.p; render(); };
+$("pagex").onclick = () => { page=null; render(); };
+document.addEventListener("keydown", e=>{ if(e.key==="Escape" && page && $("modalbg").style.display!=="flex"){ page=null; render(); } });
 document.addEventListener("click", e=>{
  const b=e.target.closest("[data-b]"); if(b && BTN[b.dataset.b] && !b.disabled){ BTN[b.dataset.b](); return; }
  if(e.target.closest("#card .x")){ selected=null; render(); }
 });
 $("endyear").onclick = endSeason;
+(function paperTexture(){
+ const N=512, cv=document.createElement("canvas"); cv.width=cv.height=N; const cx=cv.getContext("2d");
+ const blot=new Image(), fine=new Image(); let n=0;
+ const done=()=>{ if(++n<2) return;
+  cx.drawImage(blot,0,0,N,N); cx.drawImage(fine,0,0,N,N);
+  let sd=42; const rnd=()=>{ sd=(sd*16807)%2147483647; return sd/2147483647; };
+  for(let i=0;i<900;i++){ const x=rnd()*N, y=rnd()*N, a=rnd()*Math.PI, l=4+rnd()*14; cx.strokeStyle=`rgba(${rnd()<.5?"60,38,15":"240,220,175"},${.05+rnd()*.08})`; cx.lineWidth=.6; cx.beginPath(); cx.moveTo(x,y); cx.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l); cx.stroke(); }
+  for(let i=0;i<500;i++){ cx.fillStyle=`rgba(50,30,10,${.06+rnd()*.12})`; cx.beginPath(); cx.arc(rnd()*N,rnd()*N,rnd()*1.2+.2,0,7); cx.fill(); }
+  document.documentElement.style.setProperty("--paperimg", `url(${cv.toDataURL()})`); };
+ blot.onload=done; fine.onload=done;
+ blot.src = noiseURL(256, 3, 4, [70,44,18], 0, .42, 21);
+ fine.src = noiseURL(256, 24, 2, [245,228,190], 0, .22, 5);
+})();
 buildMap(); bindMap();
 $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
 $("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
-$("thow").onclick = () => modal({title:"How to Rule", body:`<p>Each year has four seasons. Each season you have two <b>deeds</b> (developing or fortifying a town, building ships, exploring, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or build ships in a port town to send fleets over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
+$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have two <b>deeds</b> (developing or fortifying a town, building ships, exploring, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or build ships in a port town to send fleets over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
 }
 </script>
 </body>

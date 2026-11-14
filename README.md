@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.0.9**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.0.10**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -25,3 +25,4 @@ node tools/audit-coast.mjs src/mapdata.js
 - v0.0.7 — four seasons per year (End Season); fog lifts tile by tile, each expedition charting about a fifth of a hidden region; overseas exploration needs ships built in a port town and takes 2–4 seasons (sail out, map, sail home); darker, calmer sea. Earlier saves are not carried over.
 - v0.0.8 — performance: coastline drawn at three levels of detail by zoom, SVG noise filters and masks replaced with pre-rendered textures, map moves as a GPU layer while dragging/zooming and redraws on release (~6× faster frames).
 - v0.0.9 — tiles clipped exactly to the coastline (no bare or unclaimed slivers; small islands join the nearest tile, larger town-less islands are linked to the mainland); coastline-auditor agent + audit tools; game gutted to a core (map, fog & exploration, ships, seasons, gold, towns, war) — realm management, court & family, armies, prestige, stability and colonies removed for rebuilding (see `HOOK:` comments in `src/game.src.html`). Earlier saves are not carried over.
+- v0.0.10 — 34 smaller kingdoms with wild, unexplored land between them; random ruler names each match; 12 gilded notches across the top (Explore, War, Romance, 8 reserved, Chronicle) replace the left bar; pages open as paper sheets over the full-width map; darker gilded old-paper UI. Earlier saves are not carried over.

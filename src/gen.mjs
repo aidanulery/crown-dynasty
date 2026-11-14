@@ -79,25 +79,36 @@ const cellUnits=new Map(); units.forEach((u,i)=>{ if(u.cell>=0){ if(!cellUnits.h
 const uadj=units.map(()=>new Set());
 units.forEach((u,i)=>{ if(u.cell<0) return; for(const j of [...del.neighbors(u.cell), u.cell]) for(const k of (cellUnits.get(j)||[])) if(k!==i && units[k].m===u.m) uadj[i].add(k); });
 const C=units.map(u=>centroid(u.mp));
-// 1) secondary pieces of a cell: keep if big, else merge into touching neighbour on the same landmass (largest)
+// land-touch adjacency: units whose outlines share a border (>= 2 common vertices), i.e. not just Voronoi
+// neighbours facing each other across a bay, fjord or strait
+const utouch=units.map(()=>new Set());
+{ const vk=new Map(); units.forEach((u,i)=>{ const seen=new Set(); for(const poly of u.mp) for(const r of poly) for(const [x,y] of r){ const k=Math.round(x*100)+','+Math.round(y*100); if(seen.has(k)) continue; seen.add(k); if(!vk.has(k)) vk.set(k,[]); vk.get(k).push(i); } });
+  const cnt=new Map(); for(const l of vk.values()) for(let a=0;a<l.length;a++) for(let b=a+1;b<l.length;b++){ const k=l[a]<l[b]?l[a]+'|'+l[b]:l[b]+'|'+l[a]; cnt.set(k,(cnt.get(k)||0)+1); }
+  for(const [k,n] of cnt) if(n>=2){ const [a,b]=k.split('|').map(Number); if(units[a].m===units[b].m){ utouch[a].add(b); utouch[b].add(a); } } }
+// 1) secondary pieces of a cell: keep if big, else merge into the largest neighbour they share a land border with
+//    (not their own cell's main piece across a bay); only a piece touching nothing falls back to Voronoi neighbours
 for(const [cell,list] of cellUnits){ if(list.length<2) continue; const main=list.reduce((a,b)=>units[a].area>=units[b].area?a:b);
- for(const k of list){ if(k===main || units[k].area>=0.5*NOM) continue; const nb=[...uadj[k]].filter(j=>units[j].cell!==cell||j===main); if(nb.length){ const best=nb.reduce((a,b)=>units[a].area>=units[b].area?a:b); join(k,best);} } }
-// 2) slivers: groups smaller than 30% of a tile merge into their largest touching neighbour
+ for(const k of list){ if(k===main || units[k].area>=0.5*NOM) continue; let nb=[...utouch[k]].filter(j=>units[j].cell!==cell); if(!nb.length) nb=[...uadj[k]].filter(j=>units[j].cell!==cell||j===main); if(nb.length){ const best=nb.reduce((a,b)=>units[a].area>=units[b].area?a:b); join(k,best);} } }
+// 2) slivers: groups smaller than 30% of a tile merge into their largest land-touching neighbour (Voronoi neighbour if none)
 for(let pass=0;pass<4;pass++){ const ga=groupArea(); let ch=0;
  units.forEach((u,i)=>{ if(u.island) return; const r=find(i); if(ga.get(r)>=0.3*NOM) return;
-  let best=-1,ba=-1; for(let k=0;k<units.length;k++){ if(find(k)!==r) continue; for(const j of uadj[k]){ const rj=find(j); if(rj===r) continue; if(ga.get(rj)>ba){ba=ga.get(rj);best=rj;} } }
+  let best=-1,ba=-1; for(const A of [utouch,uadj]){ for(let k=0;k<units.length;k++){ if(find(k)!==r) continue; for(const j of A[k]){ const rj=find(j); if(rj===r) continue; if(ga.get(rj)>ba){ba=ga.get(rj);best=rj;} } } if(best>=0) break; }
   if(best>=0){ join(r,best); ch++; ga.set(best,ga.get(best)+ga.get(r)); ga.set(r,0); } });
  if(!ch) break; }
-// 3) small islands join the closest tile (by distance to its pieces' centroids), any landmass
-{ const ga=groupArea();
- units.forEach((u,i)=>{ if(!u.island) return; let best=-1,bd=1e9; units.forEach((v,k)=>{ if(v.island) return; const d=Math.hypot(C[k][0]-C[i][0],C[k][1]-C[i][1]); if(d<bd){bd=d;best=k;} }); if(best>=0) join(i,best); }); }
+// 3) small islands join the closest tile: the one with the nearest coast (outline point), any landmass
+{ const V=units.map(u=>{ const v=[]; for(const poly of u.mp) for(const q of poly[0]) v.push(q); return v; });
+  const BB=V.map(v=>{ let b=[1e9,1e9,-1e9,-1e9]; for(const [x,y] of v){b[0]=Math.min(b[0],x);b[1]=Math.min(b[1],y);b[2]=Math.max(b[2],x);b[3]=Math.max(b[3],y);} return b; });
+ units.forEach((u,i)=>{ if(!u.island) return; const iv=V[i].filter((_,n)=>n%Math.ceil(V[i].length/60)===0); let best=-1,bd=1e9;
+  units.forEach((v,k)=>{ if(v.island) return; const b=BB[k]; const lb=Math.hypot(Math.max(0,b[0]-BB[i][2],BB[i][0]-b[2]),Math.max(0,b[1]-BB[i][3],BB[i][1]-b[3])); if(lb>=bd) return;
+   for(const [x,y] of V[k]) for(const [a,c] of iv){ const d=Math.hypot(x-a,y-c); if(d<bd){bd=d;best=k;} } });
+  if(best>=0) join(i,best); }); }
 // ---------- groups, ownership
 let roots=[...new Set(units.map((_,i)=>find(i)))];
 const places=JSON.parse(fs.readFileSync('places.json')).map(p=>{const [x,y]=proj([p.lon,p.lat]);return {...p,x:+x.toFixed(1),y:+y.toFixed(1)};});
 function buildGroups(){ roots=[...new Set(units.map((_,i)=>find(i)))]; const G=roots.map(r=>({r,mem:[],area:0})); const idx=new Map(roots.map((r,k)=>[r,k]));
  units.forEach((u,i)=>{ const g=G[idx.get(find(i))]; g.mem.push(i); g.area+=u.area; });
  for(const g of G){ const main=g.mem.filter(i=>!units[i].island).reduce((a,b)=>a<0||units[b].area>units[a].area?b:a,-1); g.m=units[main>=0?main:g.mem[0]].m; let ax=0,ay=0,aw=0; for(const i of g.mem){ ax+=C[i][0]*units[i].area; ay+=C[i][1]*units[i].area; aw+=units[i].area; } g.c=[ax/aw,ay/aw]; }
- for(const g of G) g.adj=new Set(); G.forEach((g,k)=>{ for(const i of g.mem) for(const j of uadj[i]){ const o=idx.get(find(j)); if(o!==k) g.adj.add(o); } });
+ for(const g of G){ g.adj=new Set(); g.touch=new Set(); } G.forEach((g,k)=>{ for(const i of g.mem){ for(const j of uadj[i]){ const o=idx.get(find(j)); if(o!==k) g.adj.add(o); } for(const j of utouch[i]){ const o=idx.get(find(j)); if(o!==k){ g.touch.add(o); g.adj.add(o); } } } });
  return {G,idx}; }
 let {G,idx}=buildGroups();
 // town tiles
@@ -133,10 +144,41 @@ function finalize(){
 for(let pass=0;pass<5;pass++){ let ch=0;
  G.forEach(g=>{ if(g.home>=0 || g.area>=0.7*NOM) return; const nb=[...g.adj].filter(o=>G[o].home>=0 && G[o].area>=0.7*NOM); if(!nb.length) return; const best=nb.reduce((a,b)=>G[a].area>=G[b].area?a:b); join(g.r, G[best].r); ch++; });
  if(!ch) break; finalize(); console.log('final sweep merged',ch); }
+// 7) starting borders: each town holds only the land within a radius that grows with its development,
+//    leaving wild, unexplored land between kingdoms. Slivers left beside a held tile join it.
+//    Held land must reach its town over land borders (g.touch); a step across water (g.adj only) is allowed
+//    only onto a tile that shares no land border with any tile (a one-tile island), so no kingdom starts
+//    with a stranded patch on a far shore. A small wild tile that sits beside held land only across water,
+//    and so cannot be held without being stranded, is merged into its largest land-touching neighbour.
+const startR = p => 14 + p.dev*4.5;
+const NOLAND = g => g.touch.size===0;
+function startBorders(){
+ G.forEach(g=>{ g.start = 0; if(g.home<0) return; const p=places[g.home]; if(Math.hypot(g.c[0]-p.x,g.c[1]-p.y) <= startR(p)) g.start=1; });
+ townG.forEach(k=>{ G[k].start=1; });
+ const prune=()=>{ const keep=new Uint8Array(G.length); townG.forEach((k,t)=>{ const q=[k]; keep[k]=1; while(q.length){ const i=q.pop();
+    for(const j of G[i].adj) if(!keep[j] && G[j].start && G[j].home===t && (G[i].touch.has(j) || NOLAND(G[j]) || NOLAND(G[i]))){ keep[j]=1; q.push(j); } } });
+  G.forEach((g,k)=>{ if(!keep[k]) g.start=0; }); };
+ prune();
+ const strand=[];
+ for(let pass=0;pass<6;pass++){ let ch=0; strand.length=0;
+  G.forEach((g,k)=>{ if(g.start || g.area>=0.7*NOM) return; const nb=[...g.adj].filter(o=>G[o].start && G[o].area>=0.7*NOM); if(!nb.length) return;
+   const land=nb.filter(o=>g.touch.has(o) || NOLAND(g) || NOLAND(G[o]));
+   if(!land.length){ strand.push(k); return; }
+   const best=land.reduce((a,b)=>G[a].area>=G[b].area?a:b); g.start=1; g.home=G[best].home; ch++; });
+  if(!ch) break; }
+ return strand;
+}
+for(let round=0;round<6;round++){
+ const strand=startBorders(); if(!strand.length) break;
+ let merged=0; for(const k of strand){ const g=G[k]; const t=[...g.touch]; if(!t.length) continue; const best=t.reduce((a,b)=>G[a].area>=G[b].area?a:b); join(g.r, G[best].r); merged++; }
+ console.log('start: wild scraps cut off by water merged into their land neighbour',merged);
+ if(!merged) break; finalize();
+}
+console.log('start-held tiles',G.filter(g=>g.start).length,'of',G.length);
 // ---------- output
 const fmt=mp=>mp.map(poly=>poly.map(r=>'M'+r.slice(0,-1).map(v=>v[0].toFixed(1)+' '+v[1].toFixed(1)).join('L')+'Z').join('')).join('');
 let vrng=20260; const vr=()=>{vrng=(vrng*16807)%2147483647;return vrng/2147483647;};
-const CELLS=G.map(g=>{ const parts=g.mem.map(i=>units[i].mp); const mp=parts.length>1?pc.union(...parts):parts[0]; return [fmt(mp), g.home, Math.floor(vr()*10), +g.area.toFixed(1)]; });
+const CELLS=G.map(g=>{ const parts=g.mem.map(i=>units[i].mp); const mp=parts.length>1?pc.union(...parts):parts[0]; return [fmt(mp), g.home, Math.floor(vr()*10), +g.area.toFixed(1), g.start]; });
 const NEI=G.map(g=>[...g.adj]);
 const area=p=>Math.abs(sarea(p));
 function lod(eps,minA){ return rawRings.map(r=>{ if(area(r)<minA) return ''; const q=rdp(r,eps); if(q.length<3) return ''; return 'M'+q.map(v=>v[0].toFixed(1)+','+v[1].toFixed(1)).join('L')+'Z'; }).join(''); }
