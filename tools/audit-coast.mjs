@@ -46,7 +46,27 @@ PLACES_RAW.forEach((p,k)=>{ const i=TOWNCELL[k]; if(i==null||i<0){ issues.push(`
 // 6. adjacency sanity
 let asym=0; NEI.forEach((n,i)=>n.forEach(j=>{ if(!NEI[j].includes(i)) asym++; })); if(asym) issues.push(`Asymmetric neighbour links: ${asym}`);
 const isolated = NEI.map((n,i)=>i).filter(i=>!NEI[i].length && tiles[i].area>=0.3*NOM); if(isolated.length) warn.push(`Island tiles with no land neighbours (expected for real islands): ${isolated.length}`);
+// 7. coastal flag (CELLS[i][5]): a tile is geometrically coastal if its outline runs along the coastline (LAND_PATH) —
+//    i.e. it has edges whose both endpoints lie within TOL px of a LAND_PATH segment, totalling >= MINLEN px. Lake shores count as coast.
+let coastLine='';
+if(CELLS[0].length>5){
+ const TOL=0.3, MINLEN=0.5, CG=4, seg=new Map();
+ for(const r of land) for(let i=0;i<r.length;i++){ const a=r[i], b=r[(i+1)%r.length]; const s=[a[0],a[1],b[0],b[1]];
+  for(let gx=Math.floor((Math.min(a[0],b[0])-TOL)/CG); gx<=Math.floor((Math.max(a[0],b[0])+TOL)/CG); gx++) for(let gy=Math.floor((Math.min(a[1],b[1])-TOL)/CG); gy<=Math.floor((Math.max(a[1],b[1])+TOL)/CG); gy++){ const k=gx+','+gy; if(!seg.has(k)) seg.set(k,[]); seg.get(k).push(s); } }
+ const dseg=(x,y,s)=>{ const dx=s[2]-s[0], dy=s[3]-s[1], L=dx*dx+dy*dy; let t=L?((x-s[0])*dx+(y-s[1])*dy)/L:0; t=Math.max(0,Math.min(1,t)); return Math.hypot(x-s[0]-t*dx, y-s[1]-t*dy); };
+ const onCoast=(x,y)=>{ for(const s of seg.get(Math.floor(x/CG)+','+Math.floor(y/CG))||[]) if(dseg(x,y,s)<=TOL) return true; return false; };
+ const coastLen = tiles.map(t=>{ let L=0; for(const r of t.R){ const on=r.map(([x,y])=>onCoast(x,y)); for(let i=0;i<r.length;i++){ const j=(i+1)%r.length; if(on[i]&&on[j]){ const mx=(r[i][0]+r[j][0])/2, my=(r[i][1]+r[j][1])/2; if(onCoast(mx,my)) L+=Math.hypot(r[j][0]-r[i][0], r[j][1]-r[i][1]); } } } return L; });
+ const geo = coastLen.map(L=>L>=MINLEN);
+ const flagged = CELLS.filter(c=>c[5]===1).length;
+ const missed = tiles.map((t,i)=>i).filter(i=>geo[i] && CELLS[i][5]!==1);   // touches sea but not flagged
+ const extra  = tiles.map((t,i)=>i).filter(i=>!geo[i] && CELLS[i][5]===1);  // flagged but no coastline on outline
+ coastLine = `  coastal flag: ${flagged} flagged, ${geo.filter(Boolean).length} touch the coastline geometrically; ${missed.length} unflagged coastal, ${extra.length} flagged inland`;
+ const fmtL = a=>a.slice(0,8).map(i=>`#${i} (${((tiles[i].bb[0]+tiles[i].bb[2])/2).toFixed(0)},${((tiles[i].bb[1]+tiles[i].bb[3])/2).toFixed(0)}) coast ${coastLen[i].toFixed(1)}px`).join(', ');
+ if(missed.length) issues.push(`Coastal tiles not flagged coastal (CELLS[i][5]): ${missed.length} — ${fmtL(missed)}`);
+ if(extra.length) issues.push(`Inland tiles flagged coastal (CELLS[i][5]): ${extra.length} — ${fmtL(extra)}`);
+}
 console.log(`Coastline audit — ${tiles.length} tiles, ${PLACES_RAW.length} towns`);
+if(coastLine) console.log(coastLine);
 console.log(`  land coverage inside tiled region: ${coverage.toFixed(2)}% (${bare.length} bare sample points of ${landPts})`);
 console.log(`  smallest tile: ${Math.min(...tiles.map(t=>t.area)).toFixed(1)}px² (normal tile ≈ ${NOM}px²)`);
 for(const w of warn) console.log('  note: '+w);

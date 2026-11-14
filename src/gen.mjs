@@ -178,7 +178,11 @@ console.log('start-held tiles',G.filter(g=>g.start).length,'of',G.length);
 // ---------- output
 const fmt=mp=>mp.map(poly=>poly.map(r=>'M'+r.slice(0,-1).map(v=>v[0].toFixed(1)+' '+v[1].toFixed(1)).join('L')+'Z').join('')).join('');
 let vrng=20260; const vr=()=>{vrng=(vrng*16807)%2147483647;return vrng/2147483647;};
-const CELLS=G.map(g=>{ const parts=g.mem.map(i=>units[i].mp); const mp=parts.length>1?pc.union(...parts):parts[0]; return [fmt(mp), g.home, Math.floor(vr()*10), +g.area.toFixed(1), g.start]; });
+// coastal: a tile touches the sea if any of its pieces was cut by the coastline (its land area is smaller than its cell inside the tiled region) or is an island
+const cellRegArea=new Map();
+const isCoastUnit=u=>{ if(u.island||u.cell<0) return true; if(!cellRegArea.has(u.cell)){ const r=pc.intersection([[vor.cellPolygon(u.cell)]],rect(...REG)); cellRegArea.set(u.cell, mpArea(r)); } return u.area < cellRegArea.get(u.cell)-1e-4; };
+const CELLS=G.map(g=>{ const parts=g.mem.map(i=>units[i].mp); const mp=parts.length>1?pc.union(...parts):parts[0]; return [fmt(mp), g.home, Math.floor(vr()*10), +g.area.toFixed(1), g.start, g.mem.some(i=>isCoastUnit(units[i]))?1:0]; });
+console.log('coastal tiles',CELLS.filter(c=>c[5]).length);
 const NEI=G.map(g=>[...g.adj]);
 const area=p=>Math.abs(sarea(p));
 function lod(eps,minA){ return rawRings.map(r=>{ if(area(r)<minA) return ''; const q=rdp(r,eps); if(q.length<3) return ''; return 'M'+q.map(v=>v[0].toFixed(1)+','+v[1].toFixed(1)).join('L')+'Z'; }).join(''); }
