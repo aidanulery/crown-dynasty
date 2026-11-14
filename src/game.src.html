@@ -21,21 +21,26 @@ html,body{height:100%}
 body{margin:0;background:var(--wood);color:var(--ink);font:16px/1.5 Spectral,Georgia,serif;overflow:hidden}
 button{font:inherit;cursor:pointer}
 .app{display:grid;grid-template-columns:380px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);height:100vh}
-header{grid-column:1/-1;display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:8px 16px;background:linear-gradient(#b99b6e,#a3845a);color:#241508;border-bottom:2px solid #000}
+header{grid-column:1/-1;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:18px;padding:8px 16px;background:linear-gradient(#b99b6e,#a3845a);color:#241508;border-bottom:2px solid #000}
+header .brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
 header h1{font:400 26px/1 "IM Fell English SC",serif;margin:0;letter-spacing:.02em}
 header .ver{font:italic 14px "IM Fell English",serif;color:#47301a}
-.stats{display:flex;gap:16px;flex-wrap:wrap;margin-left:auto;font-size:14px}
-.stat b{font-weight:600;color:#1c1006;font-variant-numeric:tabular-nums}
-.stat span{color:#47301a;margin-right:4px}
+.stats{grid-column:2;display:flex;gap:26px;flex-wrap:wrap;justify-content:center;font-size:17px}
+.stat{display:flex;flex-direction:column;align-items:center;line-height:1.15}
+.stat b{font-weight:600;font-size:21px;color:#1c1006;font-variant-numeric:tabular-nums}
+.stat span{color:#47301a;font:400 15px "IM Fell English",serif}
 .mapwrap{position:relative;background:var(--sea);overflow:hidden;border-left:2px solid #000;grid-column:2;grid-row:2}
 #map{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 #map.drag{cursor:grabbing}
 .place{cursor:pointer}
-.place text{font:600 11px Spectral,serif;fill:#2a1d12;paint-order:stroke;stroke:#efe2c4;stroke-width:3px;pointer-events:none}
+.place text{font:600 10px Spectral,serif;fill:#2a1d12;paint-order:stroke;stroke:#efe2c4;stroke-width:3px;pointer-events:none}
 .place:hover circle.seal{stroke:#fff;stroke-width:2.5}
 .sealabel{font:italic 22px "IM Fell English",serif;fill:#cfe0d6;opacity:.5;pointer-events:none}
-.cell{stroke:rgba(60,40,20,.3);stroke-width:.7;cursor:pointer}
-.cell.sel{stroke:#fff;stroke-width:1.5}
+.cell{stroke:rgba(60,40,20,.35);stroke-width:.8;cursor:pointer;vector-effect:non-scaling-stroke}
+.cell.sel{stroke:#fff;stroke-width:2}
+.cell.tgt{stroke:#8a1f1f;stroke-width:1.6}
+.toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(36,21,8,.9);color:#f0dcae;padding:8px 16px;border-radius:6px;font-size:15px;pointer-events:none;opacity:0;transition:opacity .25s;max-width:80%;text-align:center}
+.toast.on{opacity:1}
 .mapctl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
 .mapctl button{width:44px;height:44px;border-radius:6px;border:1px solid var(--coast);background:var(--paper);font-size:20px;color:var(--ink)}
 .legend{position:absolute;left:10px;bottom:10px;background:rgba(187,157,114,.94);border:1px solid var(--coast);border-radius:6px;padding:8px 10px;font-size:13px;max-width:240px}
@@ -70,7 +75,8 @@ aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:f
 .bar{height:6px;background:#0001;border-radius:3px;margin-top:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
 .log p{margin:0 0 6px;font-size:14px}.log p b{color:var(--accent);font-weight:600}
 .foot{border-top:1px solid var(--line);padding:10px 16px;display:flex;align-items:center;gap:12px;background:var(--paper2)}
-.ap{display:flex;gap:5px}.ap i{width:16px;height:16px;border-radius:50%;background:var(--accent);border:1px solid #0006}.ap i.used{background:transparent}
+.ap{display:flex;gap:5px;flex-wrap:wrap;max-width:120px}
+.ap.mar i{border-radius:2px;width:12px;height:12px;background:#4a5a2a}.ap i{width:16px;height:16px;border-radius:50%;background:var(--accent);border:1px solid #0006}.ap i.used{background:transparent!important}
 .endyear{margin-left:auto;padding:10px 18px;min-height:44px;border-radius:6px;border:1px solid #000;background:var(--accent);color:#f6e7b8;font:400 18px "IM Fell English",serif}
 .modalbg{position:fixed;inset:0;background:radial-gradient(ellipse at center,#0007,#000e);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
 #frame{position:relative;width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;animation:unroll .35s ease-out;transform-origin:50% 0}
@@ -113,6 +119,9 @@ aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:f
 #title .ver2{position:absolute;top:14px;left:18px;font:italic 14px "IM Fell English",serif;color:#a88f61}
 #title .rule{width:min(360px,70vw);height:2px;background:linear-gradient(90deg,transparent,#b8892d,transparent);margin:6px 0 10px}
 @media(max-width:860px){
+ header{grid-template-columns:1fr}
+ .stats{grid-column:1;gap:14px;font-size:14px}
+ .stat b{font-size:17px}
  body{overflow:auto}
  .app{grid-template-columns:1fr;grid-template-rows:auto 60vh auto;height:auto}
  .app.collapsed{grid-template-columns:1fr}
@@ -127,7 +136,7 @@ aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:f
 <body>
 <div class="app" id="app">
  <header>
-  <h1>Crown &amp; Dynasty</h1><span class="ver" id="ver"></span>
+  <div class="brand"><h1>Crown &amp; Dynasty</h1><span class="ver" id="ver"></span></div>
   <div class="stats" id="stats"></div>
  </header>
  <div class="mapwrap">
@@ -136,11 +145,12 @@ aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:f
   <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Return to your realm" title="Return to your realm">⌂</button></div>
   <div class="legend" id="legend"></div>
   <div class="card" id="card"></div>
+  <div class="toast" id="toast"></div>
  </div>
  <aside>
   <div class="tabs" id="tabs"></div>
   <div class="panel" id="panel"></div>
-  <div class="foot"><span class="note">Deeds left</span><div class="ap" id="ap"></div><button class="endyear" id="endyear">End Year</button></div>
+  <div class="foot"><div><span class="note">Deeds</span><div class="ap" id="ap"></div></div><div><span class="note">Marches</span><div class="ap mar" id="mar"></div></div><button class="endyear" id="endyear">End Year</button></div>
  </aside>
 </div>
 <div id="title">
@@ -167,8 +177,8 @@ aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:f
 </script>
 <script>
 {
-const VERSION = "pre-alpha v0.0.5";
-const SAVE_KEY = "crown-dynasty-save";
+const VERSION = "pre-alpha v0.0.6";
+const SAVE_KEY = "crown-dynasty-save-v6";
 const $ = id => document.getElementById(id);
 const R = (a,b) => a + Math.random()*(b-a);
 const RI = (a,b) => Math.floor(R(a,b+1));
@@ -213,15 +223,16 @@ const pr = () => S.realms[S.player];
 function newGame(realmId, name, gender, dyn){
  S = {version:VERSION, year:1500, player:realmId, gold:0, prestige:50, stability:70, ap:3, empire:false,
   dynasty:dyn, rulers:[], monarch:null, spouse:null, children:[], siblings:[], lover:null, heirId:null,
-  explored:{}, matchPool:[], matchYear:0, colonies:[], discovered:[], expedition:false, log:[], over:false, nextId:1, places:[], realms:{}, events:[]};
+  explored:{}, marches:0, matchPool:[], matchYear:0, colonies:[], discovered:[], expedition:false, log:[], over:false, nextId:1, places:[], realms:{}, events:[]};
  S.places = PLACES_RAW.map(p => ({id:p.id,name:p.name,x:p.x,y:p.y,owner:p.realm,dev:p.dev,fort:1,port:!!p.port,capital:!!p.capital}));
+ S.tiles = CELLS.map(c => c[1]>=0 ? PLACES_RAW[c[1]].realm : null);
  for(const [id,r] of Object.entries(REALMS)){
   const n = S.places.filter(p=>p.owner===id).length;
   S.realms[id] = {id, name:r.name, color:r.color, gold:80*n, army:1200+450*n, alive:true, atWar:[], truce:{}, allies:[], ruler:mkPerson(Math.random()<.85?"m":"f", RI(22,55), id), warStart:{}, lost:{}};
  }
  const me = mkPerson(gender, 21, realmId); me.name = name || me.name; me.id = S.nextId++;
  S.monarch = me; S.rulers.push({name:me.name, gender, from:1500});
- const r = pr(); r.ruler = me; S.gold = 300;
+ const r = pr(); r.ruler = me; S.gold = 300; S.marches = maxMarches();
  log(`${title(me,true)} ${me.name} of House ${dyn} is crowned sovereign of ${r.name}.`);
  save(); render(); goHome(false);
 }
@@ -229,17 +240,27 @@ function newGame(realmId, name, gender, dyn){
 /* ---------- geometry / power ---------- */
 const owned = rid => S.places.filter(p=>p.owner===rid);
 const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+const placeIdx = p => S.places.indexOf(p);
+const tileOfTown = p => TOWNCELL[placeIdx(p)];
+const TOWNAT = new Map(TOWNCELL.map((c,k)=>[c,k]));
+const tileCount = rid => S.tiles.reduce((n,t)=>n+(t===rid),0);
+const tileAdj = (rid,i) => NEI[i].some(j=>S.tiles[j]===rid);
 function reachable(rid, place){
  if(place.owner===rid) return false;
- const mine = owned(rid);
- if(mine.some(m => dist(m,place) <= LAND_RANGE)) return true;
- if(place.port && mine.some(m => m.port && dist(m,place) <= SEA_RANGE)) return true;
+ if(tileAdj(rid, tileOfTown(place))) return true;
+ if(place.port && owned(rid).some(m => m.port && dist(m,place) <= SEA_RANGE)) return true;
  return false;
 }
-const neighbours = rid => Object.keys(S.realms).filter(o => o!==rid && S.realms[o].alive && owned(o).some(p => reachable(rid,p)));
-const armyCap = rid => 800 + 650*owned(rid).length;
+function neighbours(rid){
+ const set=new Set();
+ for(let i=0;i<S.tiles.length;i++) if(S.tiles[i]===rid) for(const j of NEI[i]){ const o=S.tiles[j]; if(o && o!==rid) set.add(o); }
+ for(const o of Object.keys(S.realms)) if(o!==rid && S.realms[o].alive && !set.has(o) && owned(o).some(p=>reachable(rid,p))) set.add(o);
+ return [...set].filter(o=>S.realms[o].alive);
+}
+const armyCap = rid => 800 + 650*owned(rid).length + 4*tileCount(rid);
+const maxMarches = () => clamp(3 + Math.floor(pr().army/1500), 3, 10);
 function income(rid){
- let g = owned(rid).reduce((s,p)=>s + p.dev*8 + (p.port?5:0), 0);
+ let g = owned(rid).reduce((s,p)=>s + p.dev*8 + (p.port?5:0), 0) + tileCount(rid)*0.25;
  if(rid===S.player){
   g *= (1 + S.monarch.stewardship*0.03) * (0.6 + S.stability/250);
   g += S.colonies.reduce((s,c)=>s + c.size*15, 0);
@@ -281,6 +302,7 @@ function battle(att, place){
  A.army = Math.max(0, A.army - aLoss); D.army = Math.max(0, D.army - dLoss);
  if(win){
   place.owner = att; place.fort = Math.max(1, place.fort-1); const wasCap = place.capital; place.capital = false;
+  const k = placeIdx(place); S.tiles[TOWNCELL[k]] = att; CELLS.forEach((c,i)=>{ if(c[1]===k && S.tiles[i]===def) S.tiles[i]=att; });
   D.lost[att] = (D.lost[att]||0) + 1;
   if(wasCap){ const rest = owned(def); if(rest.length) rest.sort((a,b)=>b.dev-a.dev)[0].capital = true; }
   if(!owned(def).length) destroyRealm(def, att);
@@ -289,6 +311,7 @@ function battle(att, place){
 }
 function destroyRealm(rid, by){
  const r = S.realms[rid]; r.alive = false;
+ for(let i=0;i<S.tiles.length;i++) if(S.tiles[i]===rid) S.tiles[i]=by;
  for(const o of r.atWar) S.realms[o].atWar = S.realms[o].atWar.filter(x=>x!==rid);
  for(const o of r.allies) S.realms[o].allies = S.realms[o].allies.filter(x=>x!==rid);
  r.atWar=[]; r.allies=[];
@@ -300,7 +323,7 @@ function destroyRealm(rid, by){
 function log(t, big){ if(S.explored) for(const r of Object.values(S.realms)){ if(r.id!==S.player && !S.explored[r.id]) t = t.split(r.name).join("a distant realm"); }
  S.log.unshift({y:S.year, t, big:!!big}); if(S.log.length>300) S.log.length=300; }
 function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
-function load(){ try{ const s = localStorage.getItem(SAVE_KEY); if(!s) return null; const o = JSON.parse(s); if(!o.explored){ o.explored={}; for(const k in o.realms) o.explored[k]=true; } return o; }catch(e){ return null; } }
+function load(){ try{ const s = localStorage.getItem(SAVE_KEY); if(!s) return null; const o = JSON.parse(s); if(!o.tiles) return null; return o; }catch(e){ return null; } }
 
 /* ---------- modals ---------- */
 const mq = [];
@@ -326,7 +349,7 @@ const known = rid => rid===S.player || !!(S.explored && S.explored[rid]);
 function reveal(rid){ if(!S.explored || known(rid)) return; S.explored[rid]=true; log(`Our cartographers have charted ${S.realms[rid].name}.`, true); }
 function cellInit(){ if(CELLC) return; CELLC = CELLS.map(c=>{ let x=0,y=0,n=0; for(const m of c[0].matchAll(/(-?[\d.]+) (-?[\d.]+)/g)){ x+=+m[1]; y+=+m[2]; n++; } return [x/n,y/n]; });
  FOGT = CELLC.map(([x,y])=>{ let b=0,bd=1e9; PLACES_RAW.forEach((p,k)=>{ const d=Math.hypot(p.x-x,p.y-y); if(d<bd){bd=d;b=k;} }); return b; }); }
-const cellRealm = i => S.places[CELLS[i][1]>=0 ? CELLS[i][1] : FOGT[i]].owner;
+const cellRealm = i => S.tiles[i] || S.places[FOGT[i]].owner;
 const fogged = i => !known(cellRealm(i));
 function nearestUnknown(){ let best=null,bd=1e9; const mine=owned(S.player); for(const r of Object.values(S.realms)){ if(!r.alive||known(r.id)) continue; for(const p of owned(r.id)) for(const m of mine){ const d=dist(m,p); if(d<bd){bd=d;best=r.id;} } } return best; }
 function actExplore(rid){
@@ -423,6 +446,30 @@ function actNameHeir(c){ if(S.prestige<30||!useAP()) return; S.prestige-=30; S.h
 
 /* colonisation */
 const hasPort = () => owned(S.player).some(p=>p.port);
+function toast(t){ const el=$("toast"); el.textContent=t; el.classList.add("on"); clearTimeout(toast.h); toast.h=setTimeout(()=>el.classList.remove("on"),2600); }
+function tileSkirmish(att, def, i){
+ const A=S.realms[att], D=def?S.realms[def]:null;
+ if(!D) return true;
+ const lead = att===S.player ? S.monarch.martial : A.ruler.martial;
+ const p = clamp(0.55 + (A.army*(1+lead*0.03) - D.army*0.6)/(A.army+D.army+1)*0.8, 0.15, 0.92);
+ const win = Math.random()<p;
+ A.army = Math.max(0, Math.round(A.army - (win?R(10,40):R(40,110))));
+ D.army = Math.max(0, Math.round(D.army - (win?R(30,80):R(5,25))));
+ return win;
+}
+function actOccupy(i){
+ const o=S.tiles[i];
+ if(!o || !atWar(S.player,o) || TOWNAT.has(i) || !tileAdj(S.player,i) || S.marches<1 || pr().army<200) return;
+ S.marches--;
+ if(tileSkirmish(S.player,o,i)){ S.tiles[i]=S.player; toast(`Our soldiers take the land from ${S.realms[o].name}.`); }
+ else toast(`Our march was driven back by ${S.realms[o].name}.`);
+ after();
+}
+function actClaim(i){
+ if(S.tiles[i] || !tileAdj(S.player,i) || S.marches<1 || S.gold<10) return;
+ S.marches--; S.gold-=10; S.tiles[i]=S.player; toast("Settlers raise the royal banner over new land."); after();
+}
+
 function actExpedition(){ if(S.year<1505||!hasPort()||S.expedition||S.gold<120||!useAP()) return; S.gold-=120; S.expedition=true; log("Ships sail west beyond the edge of the charts. Word will come within the year."); after(); }
 function actFound(land){ if(S.gold<200||!useAP()) return; S.gold-=200; S.discovered=S.discovered.filter(x=>x!==land); S.colonies.push({name:land, size:1, founded:S.year}); S.prestige+=15; log(`A colony is founded in ${land}.`, true); after(); }
 function actGrow(c){ const cost=100*c.size; if(c.size>=5||S.gold<cost||!useAP()) return; S.gold-=cost; c.size++; log(`Settlers flock to ${c.name} (size ${c.size}).`); after(); }
@@ -511,6 +558,16 @@ function endYear(){
     }
    }
   }
+  // tile warfare & settling
+  { const front=[], wild=[];
+    for(let i=0;i<S.tiles.length;i++){ const t=S.tiles[i]; if(t===r.id || TOWNAT.has(i)) continue; if(!tileAdj(r.id,i)) continue;
+      if(t===null) wild.push(i); else if(atWar(r.id,t)) front.push(i); }
+    let lostHere=0;
+    for(let n=0;n<4 && front.length;n++){ const k=Math.floor(Math.random()*front.length), i=front.splice(k,1)[0], d=S.tiles[i];
+      if(tileSkirmish(r.id,d,i)){ S.tiles[i]=r.id; if(d===S.player) lostHere++; } }
+    if(lostHere) summary.push(`${r.name} occupied ${lostHere} of our lands.`);
+    if(wild.length && Math.random()<0.5){ S.tiles[pick(wild)]=r.id; }
+  }
   // declare
   if(r.atWar.length===0 && Math.random()<0.07){
    const opts = neighbours(r.id).filter(o=>!allied(r.id,o) && !truce(r.id,o) && S.realms[o].army < r.army*0.95);
@@ -566,7 +623,7 @@ function endYear(){
  if(S.spouse && S.spouse.age>50 && Math.random()<(S.spouse.age-45)*0.006){ const sp=S.spouse; S.spouse=null; summary.push(`<b>${sp.name} has died.</b>`); log(`${sp.name}, beloved consort, has died.`, true); S.events.push({kind:"widowed",name:sp.name}); }
 
  S.year++;
- S.ap = S.monarch.age<16 ? 2 : 3;
+ S.ap = S.monarch.age<16 ? 2 : 3; S.marches = maxMarches();
  if(S.matchYear && S.year-S.matchYear>=3) S.matchPool=[];
  if(S.year>=1650 && !S.over){ gameOver(`The year 1650 dawns. The age of kings gives way to a new era, and the chroniclers close their book on House ${S.dynasty}.`); }
  modal({title:`The Year ${S.year-1} Ends`, body: summary.map(s=>`<p>${s}</p>`).join("")});
@@ -640,9 +697,10 @@ function render(){
  $("ver").textContent = VERSION;
  const r = pr(), n = owned(S.player).length;
  $("stats").innerHTML = [
-  ["Year",S.year],["Gold",Math.round(S.gold)],["Army",r.army.toLocaleString()],["Prestige",S.prestige],["Stability",S.stability+"%"],["Holdings",n]
+  ["Year",S.year],["Gold",Math.round(S.gold)],["Army",r.army.toLocaleString()],["Prestige",S.prestige],["Stability",S.stability+"%"],["Towns",n],["Lands",tileCount(S.player)]
  ].map(([k,v])=>`<div class="stat"><span>${k}</span><b>${v}</b></div>`).join("");
  $("ap").innerHTML = Array.from({length:S.monarch.age<16?2:3},(_,i)=>`<i class="${i<S.ap?"":"used"}"></i>`).join("");
+ $("mar").innerHTML = Array.from({length:maxMarches()},(_,i)=>`<i class="${i<S.marches?"":"used"}"></i>`).join("");
  $("endyear").disabled = S.over;
  renderCells(); renderPlaces(); renderLegend(); renderTabs(); renderPanel(); renderCard();
 }
@@ -652,17 +710,18 @@ function renderPlaces(){
  g.innerHTML = S.places.filter(p=>known(p.owner)).map(p=>{
   const col = S.realms[p.owner].color, mine = p.owner===S.player;
   const tgt = war.includes(p.owner) && reachable(S.player,p);
-  const rad = 5 + p.dev*0.9;
+  const rad = 2.6 + p.dev*0.45;
   return `<g class="place" data-id="${p.id}" data-x="${p.x}" data-y="${p.y}" transform="translate(${p.x},${p.y}) scale(${PS()})">
-   ${tgt?`<circle r="${rad+6}" fill="none" stroke="#8a1f1f" stroke-width="2" stroke-dasharray="3 3"/>`:""}
-   ${mine?`<circle r="${rad+3.5}" fill="none" stroke="#fff" stroke-width="2"/>`:""}
-   ${selected===p.id?`<circle r="${rad+8}" fill="none" stroke="#000" stroke-width="1.5"/>`:""}
-   <circle class="seal" r="${rad}" fill="${col}" stroke="#2a1d12" stroke-width="1.2"/>
-   ${p.capital?`<path d="M0,-4 L1.2,-1.2 4,-1.2 1.8,0.6 2.6,3.4 0,1.8 -2.6,3.4 -1.8,0.6 -4,-1.2 -1.2,-1.2Z" fill="#f4e3a1"/>`:""}
+   ${tgt?`<circle r="${rad+4}" fill="none" stroke="#8a1f1f" stroke-width="2" stroke-dasharray="3 3"/>`:""}
+   ${mine?`<circle r="${rad+2}" fill="none" stroke="#fff" stroke-width="1.4"/>`:""}
+   ${selected===p.id?`<circle r="${rad+5}" fill="none" stroke="#000" stroke-width="1.2"/>`:""}
+   <circle class="seal" r="${rad}" fill="${col}" stroke="#2a1d12" stroke-width="1"/>
+   ${p.capital?`<path transform="scale(.6)" d="M0,-4 L1.2,-1.2 4,-1.2 1.8,0.6 2.6,3.4 0,1.8 -2.6,3.4 -1.8,0.6 -4,-1.2 -1.2,-1.2Z" fill="#f4e3a1"/>`:""}
    ${lab(p,rad)}</g>`;
  }).join("");
 }
-const LBL = {glasmere:"l",dunedain:"r",berwick:"r",trajectum:"b",antwerpe:"r",brugwater:"l",besancine:"b",divion:"l",caenmor:"l",wintancester:"b",calaisse:"r",monspel:"l",lyddeburg:"l"};
+const LBL0 = {glasmere:"l",dunedain:"r",berwick:"r",trajectum:"b",antwerpe:"r",brugwater:"l",besancine:"b",divion:"l",caenmor:"l",wintancester:"b",calaisse:"r",monspel:"l",lyddeburg:"l"};
+const LBL = LBL0;
 function lab(p,rad){ const k=LBL[p.id];
  if(k==="l") return `<text x="${-rad-4}" y="4" text-anchor="end">${p.name}</text>`;
  if(k==="r") return `<text x="${rad+4}" y="4" text-anchor="start">${p.name}</text>`;
@@ -698,7 +757,7 @@ function renderPanel(){
   h += btn("Hold a grand feast", "80 gold · +15 prestige, +stability, +spouse affection", actFeast, !ap||S.gold<80);
   const canEmp = n>=18 && S.prestige>=250;
   if(!S.empire) h += btn("Proclaim an Empire", `Needs 18 holdings and 250 prestige (you have ${n} and ${S.prestige})`, actEmpire, !ap||!canEmp);
-  h += `<p class="note">Click a town on the map to develop or fortify it, or to attack it in wartime.</p>`;
+  h += `<p class="note">Click a town to develop, fortify or assault it. Click a land tile to claim the wilds or, in wartime, occupy enemy land: that uses marches (green squares), which refill each year.</p>`;
  }
  if(tab==="court"){
   h += `<h2>The Royal Court</h2>`;
@@ -728,7 +787,7 @@ function renderPanel(){
   h += `<h4>House ${S.dynasty}</h4>` + S.rulers.map(x=>`<div class="row"><span>${x.name}</span><span>${x.from}–${x.to||""}</span></div>`).join("");
  }
  if(tab==="war"){
-  h += `<h2>War Council</h2><p class="note">Declare war, then click towns ringed in red on the map to assault them. Each assault costs a deed.</p>`;
+  h += `<h2>War Council</h2><p class="note">Declare war, then occupy bordering enemy tiles (outlined red) with marches, and assault towns ringed in red with deeds. Taking a town also takes its countryside.</p>`;
   const NB = neighbours(S.player);
   const others = Object.values(S.realms).filter(o=>o.alive && o.id!==S.player && known(o.id)).sort((a,b)=>owned(b.id).length-owned(a.id).length);
   if(!others.length) h += `<p class="note">Your scouts have found no other realm yet. Send explorers from the Realm tab.</p>`;
@@ -762,6 +821,14 @@ function renderCard(){
  if(selected && String(selected).startsWith("fog:")){ const rid=selected.slice(4), ap=canAct();
   c.innerHTML = `<button class="x" aria-label="Close">×</button><h3>Uncharted Lands</h3><div class="sub">Hidden in fog</div><p class="note">Your cartographers know nothing of what lies here. Explorers will chart the realm that holds these lands.</p>` + btn("Send explorers", "80 gold · 85% chance of success", ()=>actExplore(rid), !ap||S.gold<80);
   c.style.display="block"; return; }
+ if(selected && String(selected).startsWith("tile:")){ const i=+selected.slice(5), o=S.tiles[i], ap=S.marches>0&&!S.over, adj=tileAdj(S.player,i);
+  const home = CELLS[i][1]>=0 ? S.places[CELLS[i][1]].name : null;
+  let h = `<button class="x" aria-label="Close">×</button><h3>${o?(o===S.player?"Our lands":"Lands of "+S.realms[o].name):"Unclaimed wilds"}</h3><div class="sub">${o?`<b style="color:${S.realms[o].color}">●</b> `:""}${home?"Countryside of "+home:"Far from any town"}</div>`;
+  if(!o) h += btn("Claim this land", adj?"1 march · 10 gold":"Must border our lands", ()=>actClaim(i), !ap||!adj||S.gold<10);
+  else if(o===S.player) h += `<p class="note">These fields pay a little tax and feed our armies.</p>`;
+  else if(atWar(S.player,o)) h += btn("Occupy this land", adj?`1 march · our ${pr().army.toLocaleString()} men vs their ${S.realms[o].army.toLocaleString()}`:"Must border lands we hold", ()=>actOccupy(i), !ap||!adj||pr().army<200, true);
+  else h += `<p class="note">${allied(S.player,o)?"Allied land.":"We are at peace with "+S.realms[o].name+"."}</p>`;
+  c.innerHTML=h; c.style.display="block"; return; }
  const p=S.places.find(x=>x.id===selected);
  if(!p){ c.style.display="none"; return; }
  const o=S.realms[p.owner], mine=p.owner===S.player, ap=canAct();
@@ -783,8 +850,6 @@ function renderCard(){
 let CELLEL=[];
 function buildMap(){
  const svg=$("map");
- const FOGC=["#a8a493","#b7b3a2","#9f9b8c","#c0bcab"];
- const fog = CELLS.map((c,i)=>`<path class="fogc" data-i="${i}" visibility="hidden" fill="${FOGC[c[2]%4]}" fill-opacity=".95" d="${c[0]}"/>`).join("");
  const cells = CELLS.map((c,i)=>`<path class="cell" data-i="${i}" data-t="${c[1]}" d="${c[0]}"/>`).join("");
  svg.innerHTML = `<defs>
   <clipPath id="landclip"><path d="${LAND_PATH}"/></clipPath>
@@ -796,6 +861,8 @@ function buildMap(){
   <linearGradient id="gy" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="800"><stop offset=".02" stop-color="#000"/><stop offset=".13" stop-color="#fff"/><stop offset=".87" stop-color="#fff"/><stop offset=".98" stop-color="#000"/></linearGradient>
   <mask id="fadex" maskUnits="userSpaceOnUse" x="-400" y="-400" width="1800" height="1600"><rect x="-400" y="-400" width="1800" height="1600" fill="url(#gx)"/></mask>
   <mask id="fadey" maskUnits="userSpaceOnUse" x="-400" y="-400" width="1800" height="1600"><rect x="-400" y="-400" width="1800" height="1600" fill="url(#gy)"/></mask>
+  <clipPath id="fogclip"></clipPath>
+  <filter id="clouds" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".012" numOctaves="4" seed="9"/><feColorMatrix type="matrix" values="0 0 0 0 .8  0 0 0 0 .79  0 0 0 0 .74  1.2 0 0 0 -.42"/></filter>
   <filter id="fogf" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".025" numOctaves="3" seed="5" result="t"/><feDisplacementMap in="SourceGraphic" in2="t" scale="12" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="3"/></filter>
   <radialGradient id="vig" cx="50%" cy="50%" r="72%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".4"/></radialGradient>
  </defs>
@@ -810,8 +877,8 @@ function buildMap(){
   </g>
   <path d="${LAND_PATH}" style="fill:var(--land)" filter="url(#paper)"/>
   <g clip-path="url(#landclip)">${cells}</g>
-  <path d="${LAND_PATH}" fill="none" style="stroke:var(--coast)" stroke-width="1.2" stroke-linejoin="round"/>
-  <g clip-path="url(#landclip)"><g filter="url(#fogf)">${fog}</g></g>
+  <path d="${LAND_PATH}" fill="none" style="stroke:var(--coast)" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+  <g clip-path="url(#landclip)"><rect x="-200" y="-200" width="1400" height="1200" fill="#fff" filter="url(#clouds)" clip-path="url(#fogclip)" pointer-events="none"/></g>
  </g></g>
  <text class="sealabel" x="120" y="590">The Western Ocean</text>
  <text class="sealabel" x="205" y="455" font-size="17">The Narrow Sea</text>
@@ -821,40 +888,46 @@ function buildMap(){
  <g opacity=".8"><path d="M60,430 l-40,0 m0,0 l10,-7 m-10,7 l10,7" stroke="#d6e6dd" stroke-width="2" fill="none"/><text x="20" y="455" font-family="IM Fell English" font-style="italic" font-size="13" fill="#d6e6dd">to the New World</text></g>
  <g id="places"></g>
  <rect x="-500" y="-500" width="2000" height="1800" fill="url(#vig)" pointer-events="none"/>`;
- CELLEL=[]; FOGEL=[];
+ CELLEL=[]; FOGEL=[]; FOGKEY='';
 }
+let FOGKEY='';
+const FOGC=["#7d796a","#868272","#767264","#8d8977"];
 function renderCells(){
  if(!CELLEL.length) CELLEL=[...document.querySelectorAll("#map .cell")];
- cellInit(); if(!FOGEL.length) FOGEL=[...document.querySelectorAll('#map .fogc')];
- for(const el of FOGEL) el.setAttribute('visibility', fogged(+el.dataset.i)?'visible':'hidden');
- const si = selected ? S.places.findIndex(x=>x.id===selected) : -1;
+ cellInit();
+ const si = selected && !String(selected).includes(":") ? S.places.findIndex(x=>x.id===selected) : -1;
+ const st = String(selected||"").startsWith("tile:") ? +selected.slice(5) : -1;
+ const war = pr().atWar, fogList=[];
  for(const el of CELLEL){
-  const i=+el.dataset.i, ti=+el.dataset.t;
-  if(ti<0 || fogged(i)){ el.setAttribute("fill","#3b2a16"); el.setAttribute("fill-opacity",(CELLS[i][2]*0.012).toFixed(3)); continue; }
-  const col=S.realms[S.places[ti].owner].color;
-  el.setAttribute("fill",col);
-  el.setAttribute("fill-opacity", TOWNCELL[ti]===i ? "0.92" : (0.36+CELLS[i][2]*0.026).toFixed(3));
-  el.classList.toggle("sel", ti===si);
+  const i=+el.dataset.i, o=S.tiles[i];
+  if(fogged(i)){ el.setAttribute("fill",FOGC[CELLS[i][2]%4]); el.setAttribute("fill-opacity","1"); el.setAttribute("stroke","none"); el.classList.remove("sel","tgt"); fogList.push(i); continue; }
+  el.removeAttribute("stroke");
+  if(!o){ el.setAttribute("fill","#3b2a16"); el.setAttribute("fill-opacity",(CELLS[i][2]*0.012).toFixed(3)); }
+  else { el.setAttribute("fill",S.realms[o].color); el.setAttribute("fill-opacity", TOWNAT.has(i) ? "0.92" : (0.36+CELLS[i][2]*0.026).toFixed(3)); }
+  el.classList.toggle("sel", i===st || (si>=0 && TOWNCELL[si]===i));
+  el.classList.toggle("tgt", !!o && war.includes(o) && !TOWNAT.has(i) && tileAdj(S.player,i));
  }
+ const key=fogList.join(",");
+ if(key!==FOGKEY){ FOGKEY=key; $("fogclip").innerHTML = fogList.map(i=>`<path d="${CELLS[i][0]}"/>`).join(""); }
 }
 let anim=null;
-const PS = () => Math.min(1, Math.pow(vb.w/1000, .7)).toFixed(3);
+const PS = () => Math.min(1, Math.pow(vb.w/1000, .85)).toFixed(3);
 function setVB(){ $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const k=PS(); for(const g of document.querySelectorAll("#places .place")) g.setAttribute("transform",`translate(${g.dataset.x},${g.dataset.y}) scale(${k})`); }
 function aspect(){ const r=$("map").getBoundingClientRect(); return (r.width>10&&r.height>10)? r.width/r.height : 1.25; }
 const maxW = () => Math.max(1000, 800*aspect());
 function clampBox(b){ if(b.w>=1300) b.x=(1000-b.w)/2; else b.x=clamp(b.x,-150,1150-b.w); if(b.h>=1000) b.y=(800-b.h)/2; else b.y=clamp(b.y,-100,900-b.h); return b; }
 function clampVB(){ clampBox(vb); }
 function zoom(f, cx, cy){
- const A=aspect(), nw = clamp(vb.w*f, 250, maxW()), nh = nw/A;
+ const A=aspect(), nw = clamp(vb.w*f, 90, maxW()), nh = nw/A;
  cx = cx ?? vb.x+vb.w/2; cy = cy ?? vb.y+vb.h/2;
  vb.x = cx - (cx-vb.x)*(nw/vb.w); vb.y = cy - (cy-vb.y)*(nh/vb.h); vb.w=nw; vb.h=nh; clampVB(); setVB();
 }
-function fitAspect(){ const A=aspect(), cx=vb.x+vb.w/2, cy=vb.y+vb.h/2; vb.w=clamp(vb.w,250,maxW()); vb.h=vb.w/A; vb.x=cx-vb.w/2; vb.y=cy-vb.h/2; clampVB(); setVB(); }
+function fitAspect(){ const A=aspect(), cx=vb.x+vb.w/2, cy=vb.y+vb.h/2; vb.w=clamp(vb.w,90,maxW()); vb.h=vb.w/A; vb.x=cx-vb.w/2; vb.y=cy-vb.h/2; clampVB(); setVB(); }
 function homeTarget(){
  const ps = S ? owned(S.player) : []; const A=aspect();
  if(!ps.length){ const w=maxW(); return clampBox({x:500-w/2,y:400-w/A/2,w,h:w/A}); }
  const xs=ps.map(p=>p.x), ys=ps.map(p=>p.y), x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
- let w = Math.max(x1-x0+320, (y1-y0+260)*A); w = clamp(w,420,maxW()); const h=w/A;
+ let w = Math.max(x1-x0+200, (y1-y0+160)*A); w = clamp(w,260,maxW()); const h=w/A;
  return clampBox({x:(x0+x1)/2-w/2, y:(y0+y1)/2-h/2, w, h});
 }
 function animateTo(t, ms=850){
@@ -876,7 +949,7 @@ function bindMap(){
  svg.addEventListener("pointerdown", e=>{ cancelAnimationFrame(anim); drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y}; moved=0; });
  window.addEventListener("pointermove", e=>{ if(!drag) return; const r=svg.getBoundingClientRect(); const s=Math.max(vb.w/r.width, vb.h/r.height);
   const dx=e.clientX-drag.x, dy=e.clientY-drag.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); if(moved>4){ svg.classList.add("drag"); vb.x=drag.vx-dx*s; vb.y=drag.vy-dy*s; clampVB(); setVB(); } });
- window.addEventListener("pointerup", e=>{ if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell,.fogc"); if(g){ selected=g.dataset.id; render(); } else if(cl){ const ci=+cl.dataset.i; if(fogged(ci)){ selected="fog:"+cellRealm(ci); render(); } else if(+cl.dataset.t>=0){ selected=S.places[+cl.dataset.t].id; render(); } } } drag=null; svg.classList.remove("drag"); });
+ window.addEventListener("pointerup", e=>{ if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell"); if(g){ selected=g.dataset.id; render(); } else if(cl){ const ci=+cl.dataset.i; if(fogged(ci)) selected="fog:"+cellRealm(ci); else if(TOWNAT.has(ci)) selected=S.places[TOWNAT.get(ci)].id; else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
  $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>goHome(true);
  $("sidetog").onclick=()=>{ const c=$("app").classList.toggle("collapsed"); $("sidetog").textContent=c?"▸":"◂"; $("sidetog").setAttribute("aria-label",c?"Show side panel":"Hide side panel"); $("sidetog").title=c?"Show side panel":"Hide side panel"; };
  new ResizeObserver(()=>fitAspect()).observe($("map").parentElement); fitAspect();
@@ -917,7 +990,7 @@ $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
 $("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
-$("thow").onclick = () => modal({title:"How to Rule", body:`<p>Each year you have a few <b>deeds</b>: taxes, mustering, feasts, courting, tutoring, declaring war, assaulting towns. Click a town on the map for local actions.</p><p>Press <b>End Year</b> to let time pass: income arrives, enemies march, children are born, and fate intervenes.</p><p>Marry to gain allies and heirs. Win wars to grow. Hold 18 towns with 250 prestige to proclaim an Empire. When you die, the crown passes down. With no heir, the dynasty ends.</p>`});
+$("thow").onclick = () => modal({title:"How to Rule", body:`<p>Each year you have a few <b>deeds</b>: taxes, mustering, feasts, courting, tutoring, declaring war, assaulting towns. Click a town on the map for local actions.</p><p>Press <b>End Year</b> to let time pass: income arrives, enemies march, children are born, and fate intervenes.</p><p>Marry to gain allies and heirs. Win wars to grow. Click land tiles to claim wild land or, in war, occupy enemy land with your yearly marches. Hold 18 towns with 250 prestige to proclaim an Empire. When you die, the crown passes down. With no heir, the dynasty ends.</p>`});
 }
 </script>
 </body>
