@@ -13,20 +13,20 @@
    COLOUR and TYPE: oak-brown housing, aged-paper land, slate-green sea, oxblood accent; IM Fell for titles, Spectral for text.
    LAYOUT: map left (fills), ledger panel right; stacks on phones with the map on top. */
 :root{color-scheme:light dark;
- --wood:#2b1d14;--wood2:#3a281b;--paper:#e9dbb8;--paper2:#dccaa0;--ink:#2a1d12;--muted:#6b5640;
- --sea:#4f6f70;--sea2:#436163;--land:#c2ae82;--coast:#5b4128;--accent:#8a1f1f;--gold:#b8892d;--line:#c7b28a}
-:root[data-theme=dark]{--sea:#364b4c;--sea2:#2d4041;--land:#a99a72;--paper:#e2d3b0}
+ --wood:#2b1d14;--wood2:#3a281b;--paper:#bb9d72;--paper2:#a98a5f;--ink:#241508;--muted:#47301a;
+ --sea:#4f6f70;--sea2:#436163;--land:#c2ae82;--coast:#5b4128;--accent:#8a1f1f;--gold:#b8892d;--line:#8a6d44}
+:root[data-theme=dark]{--sea:#364b4c;--sea2:#2d4041;--land:#a99a72;--paper:#a98a5f}
 *{box-sizing:border-box;min-width:0}
 html,body{height:100%}
 body{margin:0;background:var(--wood);color:var(--ink);font:16px/1.5 Spectral,Georgia,serif;overflow:hidden}
 button{font:inherit;cursor:pointer}
 .app{display:grid;grid-template-columns:380px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);height:100vh}
-header{grid-column:1/-1;display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:8px 16px;background:linear-gradient(#f3e8cb,#e2d0a6);color:#3b2614;border-bottom:2px solid #000}
+header{grid-column:1/-1;display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding:8px 16px;background:linear-gradient(#b99b6e,#a3845a);color:#241508;border-bottom:2px solid #000}
 header h1{font:400 26px/1 "IM Fell English SC",serif;margin:0;letter-spacing:.02em}
-header .ver{font:italic 14px "IM Fell English",serif;color:#6b4a28}
+header .ver{font:italic 14px "IM Fell English",serif;color:#47301a}
 .stats{display:flex;gap:16px;flex-wrap:wrap;margin-left:auto;font-size:14px}
-.stat b{font-weight:600;color:#3b2614;font-variant-numeric:tabular-nums}
-.stat span{color:#7a5a36;margin-right:4px}
+.stat b{font-weight:600;color:#1c1006;font-variant-numeric:tabular-nums}
+.stat span{color:#47301a;margin-right:4px}
 .mapwrap{position:relative;background:var(--sea);overflow:hidden;border-left:2px solid #000;grid-column:2;grid-row:2}
 #map{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 #map.drag{cursor:grabbing}
@@ -38,14 +38,19 @@ header .ver{font:italic 14px "IM Fell English",serif;color:#6b4a28}
 .cell.sel{stroke:#fff;stroke-width:1.5}
 .mapctl{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
 .mapctl button{width:44px;height:44px;border-radius:6px;border:1px solid var(--coast);background:var(--paper);font-size:20px;color:var(--ink)}
-.legend{position:absolute;left:10px;bottom:10px;background:rgba(239,226,196,.92);border:1px solid var(--coast);border-radius:6px;padding:8px 10px;font-size:13px;max-width:240px}
+.legend{position:absolute;left:10px;bottom:10px;background:rgba(187,157,114,.94);border:1px solid var(--coast);border-radius:6px;padding:8px 10px;font-size:13px;max-width:240px}
 .legend div{display:flex;align-items:center;gap:6px;line-height:1.35}
 .legend i{width:11px;height:11px;border-radius:50%;display:inline-block;border:1px solid #0006;flex:none}
-.card{position:absolute;left:10px;top:10px;width:280px;background:var(--paper);border:1px solid var(--coast);border-radius:8px;box-shadow:0 6px 18px #0005;padding:12px 14px;display:none}
+.card{position:absolute;left:10px;top:64px;width:280px;background:var(--paper);border:1px solid var(--coast);border-radius:8px;box-shadow:0 6px 18px #0005;padding:12px 14px;display:none}
 .card h3{margin:0 0 2px;font:400 22px "IM Fell English",serif}
 .card .sub{color:var(--muted);font-size:14px;margin-bottom:8px}
 .card .x{position:absolute;right:6px;top:4px;border:0;background:none;font-size:22px;width:36px;height:36px;color:var(--muted)}
-aside{grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-direction:column;min-height:0;background-image:radial-gradient(circle at 30% 10%,#f6ecd4,transparent 60%)}
+#sidetog{position:absolute;left:10px;top:10px;width:44px;height:44px;border-radius:6px;border:1px solid var(--coast);background:var(--paper);font-size:18px;color:var(--ink);z-index:5}
+.app{transition:grid-template-columns .3s ease}
+.app.collapsed{grid-template-columns:0 minmax(0,1fr)}
+.app.collapsed aside{visibility:hidden}
+.fogc{pointer-events:all}
+aside{overflow:hidden;grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-direction:column;min-height:0;background-image:radial-gradient(circle at 30% 10%,rgba(240,215,165,.35),transparent 60%)}
 .tabs{display:flex;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .tabs button{flex:1;padding:10px 4px;border:0;background:none;font:400 16px "IM Fell English",serif;color:var(--muted);border-bottom:3px solid transparent;min-height:44px}
 .tabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
@@ -54,12 +59,12 @@ aside{grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-directi
 .panel h4{font:400 18px "IM Fell English",serif;margin:16px 0 6px;color:var(--accent)}
 .row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;border-bottom:1px dotted var(--line);font-size:15px}
 .row span:last-child{font-variant-numeric:tabular-nums;text-align:right}
-.btn{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;min-height:44px;border:1px solid var(--coast);border-radius:6px;background:linear-gradient(#f7eed8,#e8d8b2);color:var(--ink)}
+.btn{display:block;width:100%;text-align:left;margin:6px 0;padding:9px 12px;min-height:44px;border:1px solid var(--coast);border-radius:6px;background:linear-gradient(#cdb287,#b99b6d);color:var(--ink)}
 .btn small{display:block;color:var(--muted);font-size:13px}
-.btn:hover:not(:disabled){background:linear-gradient(#fff6e2,#efe0bd)}
+.btn:hover:not(:disabled){background:linear-gradient(#dcc399,#c6a877)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 .btn.red{border-color:var(--accent);color:var(--accent)}
-.person{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:6px 0;background:#fff5}
+.person{border:1px solid var(--line);border-radius:6px;padding:8px 10px;margin:6px 0;background:rgba(255,235,190,.16)}
 .person b{font-weight:600}
 .person .meta{font-size:13px;color:var(--muted)}
 .bar{height:6px;background:#0001;border-radius:3px;margin-top:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent)}
@@ -74,26 +79,26 @@ aside{grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-directi
 .rod{display:block;height:24px;margin:0 -12px;border-radius:12px;flex:none;position:relative;z-index:2;background:linear-gradient(#efd48a,#a8741f 45%,#5a3a12 55%,#c99a3f);box-shadow:0 4px 8px #0008,inset 0 -2px 3px #0006}
 .rod::before,.rod::after{content:"";position:absolute;top:-4px;width:18px;height:32px;border-radius:8px;background:linear-gradient(#f3d98f,#7a4f14);box-shadow:0 2px 4px #0006}
 .rod::before{left:-9px}.rod::after{right:-9px}
-.modal{flex:1;overflow:auto;margin:0 2px;padding:28px 34px 34px;color:#3b2210;border:1px solid #7a5a22;outline:1.5px solid #b8892d;outline-offset:-9px;background:radial-gradient(ellipse at 50% 0%,#f4e8c9,transparent 65%),linear-gradient(90deg,#cdb888,#e6d8b0 10%,#e6d8b0 90%,#cdb888)}
-.modal h2{font:400 31px/1.1 "IM Fell English SC",serif;margin:0;text-align:center;color:#3b2210;text-wrap:balance}
+.modal{flex:1;overflow:auto;margin:0 2px;padding:28px 34px 34px;color:#241508;border:1px solid #5a3f18;outline:1.5px solid #b8892d;outline-offset:-9px;background:radial-gradient(ellipse at 50% 0%,#d6bf92,transparent 65%),linear-gradient(90deg,#a98a5f,#c3a478 10%,#c3a478 90%,#a98a5f)}
+.modal h2{font:400 31px/1.1 "IM Fell English SC",serif;margin:0;text-align:center;color:#241508;text-wrap:balance}
 .modal h2::after{content:"\2766";display:block;font:20px/1 serif;color:#9a6a1f;margin:8px 0 14px}
 .modal p{margin:0 0 10px}
 .modal h2+p:not(.note)::first-letter{float:left;font:400 3.3em/.8 "IM Fell English SC",serif;color:#8a1f1f;padding:5px 8px 0 0}
 .modal h4{color:#8a1f1f}
-.modal .btn{background:linear-gradient(90deg,transparent,#c9a45a33 20%,#c9a45a33 80%,transparent);border:0;border-top:1px solid #9a6a1f;border-bottom:1px solid #9a6a1f;border-radius:0;text-align:center;font:400 19px "IM Fell English",serif;color:#3b2210;margin:8px 0}
+.modal .btn{background:linear-gradient(90deg,transparent,#c9a45a33 20%,#c9a45a33 80%,transparent);border:0;border-top:1px solid #9a6a1f;border-bottom:1px solid #9a6a1f;border-radius:0;text-align:center;font:400 19px "IM Fell English",serif;color:#241508;margin:8px 0}
 .modal .btn:hover:not(:disabled){background:linear-gradient(90deg,transparent,#c9a45a77 20%,#c9a45a77 80%,transparent)}
-.modal .btn small{font:italic 14px Spectral,serif;color:#5a3d1e}
+.modal .btn small{font:italic 14px Spectral,serif;color:#3a2410}
 .modal .realmgrid .note{color:#6b4a28;font-family:Spectral,serif;font-size:13px}
 .modal .btn.red{color:#8a1f1f}
 .seal{position:absolute;right:-4px;bottom:-14px;width:58px;height:58px;border-radius:50%;z-index:3;background:radial-gradient(circle at 35% 30%,#d24a3a,#8a1f1f 55%,#4a0f0f);box-shadow:0 5px 10px #000a,inset 0 0 0 4px #7a1818,inset 0 0 0 6px #b13a2c;display:flex;align-items:center;justify-content:center;font:400 26px "IM Fell English SC",serif;color:#e9b9a8;pointer-events:none}
 
-.modal input,.modal select{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--coast);border-radius:6px;background:#fffaf0;width:100%;min-height:44px}
-.modal label{display:block;margin:10px 0 4px;font-size:15px;color:#5a3d1e}
-.modal input,.modal select,.modal option{color:#3b2210}
-.modal .note{color:#5a3d1e}
+.modal input,.modal select{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--coast);border-radius:6px;background:#dcc89c;width:100%;min-height:44px}
+.modal label{display:block;margin:10px 0 4px;font-size:15px;color:#3a2410}
+.modal input,.modal select,.modal option{color:#241508}
+.modal .note{color:#3a2410}
 .realmgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
-.realmgrid button{color:#3b2210;font-family:"IM Fell English",serif;font-size:18px;padding:6px 8px;border:2px solid var(--line);border-radius:6px;background:#fff6;text-align:left;min-height:44px}
-.realmgrid button.on{border-color:var(--accent);background:#fff}
+.realmgrid button{color:#241508;font-family:"IM Fell English",serif;font-size:18px;padding:6px 8px;border:2px solid var(--line);border-radius:6px;background:rgba(255,235,190,.2);text-align:left;min-height:44px}
+.realmgrid button.on{border-color:var(--accent);background:#d9c398}
 .realmgrid i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:6px;vertical-align:-1px}
 .note{font-size:13px;color:var(--muted)}
 #title{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px;background:radial-gradient(ellipse at 50% 35%,#4a3322,#1c120b 75%);color:#f0e0b8}
@@ -110,6 +115,8 @@ aside{grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-directi
 @media(max-width:860px){
  body{overflow:auto}
  .app{grid-template-columns:1fr;grid-template-rows:auto 60vh auto;height:auto}
+ .app.collapsed{grid-template-columns:1fr}
+ .app.collapsed aside{display:none}
  .mapwrap{border-left:0;grid-column:1;grid-row:2}
  aside{min-height:70vh;grid-column:1;grid-row:3}
  .legend{display:none}
@@ -118,14 +125,15 @@ aside{grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-directi
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
  <header>
   <h1>Crown &amp; Dynasty</h1><span class="ver" id="ver"></span>
   <div class="stats" id="stats"></div>
  </header>
  <div class="mapwrap">
   <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet" aria-label="Map of western Europe"></svg>
-  <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Reset view">⌂</button></div>
+  <button id="sidetog" aria-label="Hide side panel" title="Hide side panel">◂</button>
+  <div class="mapctl"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Return to your realm" title="Return to your realm">⌂</button></div>
   <div class="legend" id="legend"></div>
   <div class="card" id="card"></div>
  </div>
@@ -159,7 +167,7 @@ aside{grid-column:1;grid-row:2;background:var(--paper);display:flex;flex-directi
 </script>
 <script>
 {
-const VERSION = "pre-alpha v0.0.4";
+const VERSION = "pre-alpha v0.0.5";
 const SAVE_KEY = "crown-dynasty-save";
 const $ = id => document.getElementById(id);
 const R = (a,b) => a + Math.random()*(b-a);
@@ -205,7 +213,7 @@ const pr = () => S.realms[S.player];
 function newGame(realmId, name, gender, dyn){
  S = {version:VERSION, year:1500, player:realmId, gold:0, prestige:50, stability:70, ap:3, empire:false,
   dynasty:dyn, rulers:[], monarch:null, spouse:null, children:[], siblings:[], lover:null, heirId:null,
-  matchPool:[], matchYear:0, colonies:[], discovered:[], expedition:false, log:[], over:false, nextId:1, places:[], realms:{}, events:[]};
+  explored:{}, matchPool:[], matchYear:0, colonies:[], discovered:[], expedition:false, log:[], over:false, nextId:1, places:[], realms:{}, events:[]};
  S.places = PLACES_RAW.map(p => ({id:p.id,name:p.name,x:p.x,y:p.y,owner:p.realm,dev:p.dev,fort:1,port:!!p.port,capital:!!p.capital}));
  for(const [id,r] of Object.entries(REALMS)){
   const n = S.places.filter(p=>p.owner===id).length;
@@ -215,7 +223,7 @@ function newGame(realmId, name, gender, dyn){
  S.monarch = me; S.rulers.push({name:me.name, gender, from:1500});
  const r = pr(); r.ruler = me; S.gold = 300;
  log(`${title(me,true)} ${me.name} of House ${dyn} is crowned sovereign of ${r.name}.`);
- save(); render(); centerOnRealm(realmId);
+ save(); render(); goHome(false);
 }
 
 /* ---------- geometry / power ---------- */
@@ -241,6 +249,7 @@ function income(rid){
 const upkeep = rid => Math.round(S.realms[rid].army/100);
 const atWar = (a,b) => S.realms[a].atWar.includes(b);
 function setWar(a,b){
+ if(a===S.player) reveal(b); else if(b===S.player) reveal(a);
  if(atWar(a,b)) return;
  S.realms[a].atWar.push(b); S.realms[b].atWar.push(a);
  S.realms[a].warStart[b] = S.realms[b].warStart[a] = S.year;
@@ -253,7 +262,7 @@ function setPeace(a,b){
 }
 const truce = (a,b) => (S.realms[a].truce[b]||0) > S.year;
 const allied = (a,b) => S.realms[a].allies.includes(b);
-function ally(a,b){ if(!allied(a,b)){ S.realms[a].allies.push(b); S.realms[b].allies.push(a);} }
+function ally(a,b){ if(a===S.player) reveal(b); else if(b===S.player) reveal(a); if(!allied(a,b)){ S.realms[a].allies.push(b); S.realms[b].allies.push(a);} }
 function unally(a,b){ S.realms[a].allies = S.realms[a].allies.filter(x=>x!==b); S.realms[b].allies = S.realms[b].allies.filter(x=>x!==a); }
 
 function defenseOf(place){
@@ -288,9 +297,10 @@ function destroyRealm(rid, by){
 }
 
 /* ---------- logging & save ---------- */
-function log(t, big){ S.log.unshift({y:S.year, t, big:!!big}); if(S.log.length>300) S.log.length=300; }
+function log(t, big){ if(S.explored) for(const r of Object.values(S.realms)){ if(r.id!==S.player && !S.explored[r.id]) t = t.split(r.name).join("a distant realm"); }
+ S.log.unshift({y:S.year, t, big:!!big}); if(S.log.length>300) S.log.length=300; }
 function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
-function load(){ try{ const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; }catch(e){ return null; } }
+function load(){ try{ const s = localStorage.getItem(SAVE_KEY); if(!s) return null; const o = JSON.parse(s); if(!o.explored){ o.explored={}; for(const k in o.realms) o.explored[k]=true; } return o; }catch(e){ return null; } }
 
 /* ---------- modals ---------- */
 const mq = [];
@@ -308,6 +318,23 @@ function showModal(){
  });
  $("modalbg").style.display="flex";
  if(m.onshow) m.onshow();
+}
+
+/* ---------- fog of war ---------- */
+let CELLC=null, FOGT=null, FOGEL=[];
+const known = rid => rid===S.player || !!(S.explored && S.explored[rid]);
+function reveal(rid){ if(!S.explored || known(rid)) return; S.explored[rid]=true; log(`Our cartographers have charted ${S.realms[rid].name}.`, true); }
+function cellInit(){ if(CELLC) return; CELLC = CELLS.map(c=>{ let x=0,y=0,n=0; for(const m of c[0].matchAll(/(-?[\d.]+) (-?[\d.]+)/g)){ x+=+m[1]; y+=+m[2]; n++; } return [x/n,y/n]; });
+ FOGT = CELLC.map(([x,y])=>{ let b=0,bd=1e9; PLACES_RAW.forEach((p,k)=>{ const d=Math.hypot(p.x-x,p.y-y); if(d<bd){bd=d;b=k;} }); return b; }); }
+const cellRealm = i => S.places[CELLS[i][1]>=0 ? CELLS[i][1] : FOGT[i]].owner;
+const fogged = i => !known(cellRealm(i));
+function nearestUnknown(){ let best=null,bd=1e9; const mine=owned(S.player); for(const r of Object.values(S.realms)){ if(!r.alive||known(r.id)) continue; for(const p of owned(r.id)) for(const m of mine){ const d=dist(m,p); if(d<bd){bd=d;best=r.id;} } } return best; }
+function actExplore(rid){
+ rid = rid || nearestUnknown(); if(!rid || known(rid) || S.gold<80 || !useAP()) return;
+ S.gold -= 80; const r = S.realms[rid];
+ if(Math.random()<0.85){ reveal(rid); modal({title:"The Explorers Return", body:`<p>After weeks of hard travel, your scouts return with maps and tales of <b>${r.name}</b>: ${owned(rid).length} towns held by House ${REALMS[rid].dyn}, ruled by ${r.ruler.name}, with an army of perhaps ${Math.round(r.army/100)*100} men.</p>`}); }
+ else { log("An exploring party vanished into the wilds. Nothing is learned."); modal({title:"The Party Is Lost", body:"<p>No word has come from your explorers. The fog still hides what lies beyond.</p>"}); }
+ if(selected && String(selected).startsWith("fog:")) selected=null; after();
 }
 
 /* ---------- player actions ---------- */
@@ -595,7 +622,7 @@ const EVENTS = {
   choices:[{label:"Open the royal granaries", sub:"50 gold", disabled:S.gold<50, fn:()=>{S.gold-=50;S.stability=clamp(S.stability+6,0,100);}},{label:"Send the soldiers", fn:()=>{pr().army=Math.max(0,pr().army-150);S.stability=clamp(S.stability-6,0,100);}}]}),
  guild: () => ({title:"The Merchant Guilds", body:`<p>The great merchant houses ask for a royal charter.</p>`,
   choices:[{label:"Grant the charter", sub:"+60 gold now, less stability", fn:()=>{S.gold+=60;S.stability=clamp(S.stability-4,0,100);}},{label:"Refuse", fn:()=>{S.prestige+=3;}}]}),
- envoy: () => { const ns=neighbours(S.player).filter(r=>!atWar(S.player,r)); if(!ns.length) return null; const r=pick(ns); const ask=RI(50,120);
+ envoy: () => { const ns=neighbours(S.player).filter(r=>!atWar(S.player,r)); if(!ns.length) return null; const r=pick(ns); reveal(r); const ask=RI(50,120);
   return {title:`An Envoy from ${S.realms[r].name}`, body:`<p>The envoy of ${S.realms[r].name} demands ${ask} gold as tribute, "for the sake of peace".</p>`,
   choices:[{label:"Pay the tribute", disabled:S.gold<ask, fn:()=>{S.gold-=ask;S.prestige-=8;}},{label:"Send them away", sub:"They may remember this", fn:()=>{S.prestige+=5; if(Math.random()<0.35 && !truce(S.player,r)){ setWar(r,S.player); log(`${S.realms[r].name} declares war over the insult!`,true);} }}]};},
  navigator: () => ({title:"The Navigator's Proposal", body:`<p>A weathered captain kneels before the throne with charts of an ocean no one has crossed, and swears there is land beyond it.</p>`,
@@ -622,11 +649,11 @@ function render(){
 function renderPlaces(){
  const g = $("places");
  const war = pr().atWar;
- g.innerHTML = S.places.map(p=>{
+ g.innerHTML = S.places.filter(p=>known(p.owner)).map(p=>{
   const col = S.realms[p.owner].color, mine = p.owner===S.player;
   const tgt = war.includes(p.owner) && reachable(S.player,p);
   const rad = 5 + p.dev*0.9;
-  return `<g class="place" data-id="${p.id}" transform="translate(${p.x},${p.y})">
+  return `<g class="place" data-id="${p.id}" data-x="${p.x}" data-y="${p.y}" transform="translate(${p.x},${p.y}) scale(${PS()})">
    ${tgt?`<circle r="${rad+6}" fill="none" stroke="#8a1f1f" stroke-width="2" stroke-dasharray="3 3"/>`:""}
    ${mine?`<circle r="${rad+3.5}" fill="none" stroke="#fff" stroke-width="2"/>`:""}
    ${selected===p.id?`<circle r="${rad+8}" fill="none" stroke="#000" stroke-width="1.5"/>`:""}
@@ -642,7 +669,7 @@ function lab(p,rad){ const k=LBL[p.id];
  if(k==="b") return `<text y="${rad+13}" text-anchor="middle">${p.name}</text>`;
  return `<text y="${-rad-4}" text-anchor="middle">${p.name}</text>`; }
 function renderLegend(){
- const alive = Object.values(S.realms).filter(r=>r.alive).sort((a,b)=>owned(b.id).length-owned(a.id).length);
+ const alive = Object.values(S.realms).filter(r=>r.alive && known(r.id)).sort((a,b)=>owned(b.id).length-owned(a.id).length);
  $("legend").innerHTML = alive.map(r=>`<div><i style="background:${r.color}"></i>${r.name}${r.id===S.player?" (you)":""}${atWar(S.player,r.id)?" ⚔":""}</div>`).join("");
 }
 const TABS = [["realm","Realm"],["court","Court"],["war","War"],["colonies","Colonies"],["chronicle","Chronicle"]];
@@ -666,6 +693,7 @@ function renderPanel(){
   h += `<h4>Royal deeds</h4>`;
   h += btn("Muster troops", add>0?`+${add} men for ${Math.round(add*0.12)} gold`:"Army at full strength", actMuster, !ap||add<=0||S.gold<Math.round(add*0.12));
   { const ma=Math.min(1000, cap+2000-r.army), mc=Math.round(ma*0.3); h += btn("Hire mercenaries", ma>0?`+${ma} men for ${mc} gold · costs no deed, can exceed capacity`:"No more sellswords to be had", actMercs, S.over||ma<=0||S.gold<mc); }
+  { const un=nearestUnknown(); h += btn("Send explorers", un?"80 gold · charts the nearest unknown realm (85% success). Or click fogged land on the map.":"The known world is fully charted", ()=>actExplore(), !ap||!un||S.gold<80); }
   h += btn("Levy extra taxes", `+${Math.round(income(S.player)*0.6)} gold, −8 stability`, actTax, !ap);
   h += btn("Hold a grand feast", "80 gold · +15 prestige, +stability, +spouse affection", actFeast, !ap||S.gold<80);
   const canEmp = n>=18 && S.prestige>=250;
@@ -702,7 +730,8 @@ function renderPanel(){
  if(tab==="war"){
   h += `<h2>War Council</h2><p class="note">Declare war, then click towns ringed in red on the map to assault them. Each assault costs a deed.</p>`;
   const NB = neighbours(S.player);
-  const others = Object.values(S.realms).filter(o=>o.alive && o.id!==S.player).sort((a,b)=>owned(b.id).length-owned(a.id).length);
+  const others = Object.values(S.realms).filter(o=>o.alive && o.id!==S.player && known(o.id)).sort((a,b)=>owned(b.id).length-owned(a.id).length);
+  if(!others.length) h += `<p class="note">Your scouts have found no other realm yet. Send explorers from the Realm tab.</p>`;
   for(const o of others){
    const w=atWar(S.player,o.id), t=truce(S.player,o.id), al=allied(S.player,o.id), nb=NB.includes(o.id);
    const st = w?"<b style='color:#8a1f1f'>AT WAR</b>":al?"Ally":t?`Truce until ${S.realms[S.player].truce[o.id]}`:"At peace";
@@ -729,7 +758,11 @@ function renderPanel(){
  $("panel").innerHTML = h;
 }
 function renderCard(){
- const c=$("card"); const p=S.places.find(x=>x.id===selected);
+ const c=$("card");
+ if(selected && String(selected).startsWith("fog:")){ const rid=selected.slice(4), ap=canAct();
+  c.innerHTML = `<button class="x" aria-label="Close">×</button><h3>Uncharted Lands</h3><div class="sub">Hidden in fog</div><p class="note">Your cartographers know nothing of what lies here. Explorers will chart the realm that holds these lands.</p>` + btn("Send explorers", "80 gold · 85% chance of success", ()=>actExplore(rid), !ap||S.gold<80);
+  c.style.display="block"; return; }
+ const p=S.places.find(x=>x.id===selected);
  if(!p){ c.style.display="none"; return; }
  const o=S.realms[p.owner], mine=p.owner===S.player, ap=canAct();
  let h = `<button class="x" aria-label="Close">×</button><h3>${p.name}</h3><div class="sub"><b style="color:${o.color}">●</b> ${o.name}${p.capital?" · capital":""}${p.port?" · port":""}</div>
@@ -750,6 +783,8 @@ function renderCard(){
 let CELLEL=[];
 function buildMap(){
  const svg=$("map");
+ const FOGC=["#a8a493","#b7b3a2","#9f9b8c","#c0bcab"];
+ const fog = CELLS.map((c,i)=>`<path class="fogc" data-i="${i}" visibility="hidden" fill="${FOGC[c[2]%4]}" fill-opacity=".95" d="${c[0]}"/>`).join("");
  const cells = CELLS.map((c,i)=>`<path class="cell" data-i="${i}" data-t="${c[1]}" d="${c[0]}"/>`).join("");
  svg.innerHTML = `<defs>
   <clipPath id="landclip"><path d="${LAND_PATH}"/></clipPath>
@@ -761,6 +796,7 @@ function buildMap(){
   <linearGradient id="gy" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="800"><stop offset=".02" stop-color="#000"/><stop offset=".13" stop-color="#fff"/><stop offset=".87" stop-color="#fff"/><stop offset=".98" stop-color="#000"/></linearGradient>
   <mask id="fadex" maskUnits="userSpaceOnUse" x="-400" y="-400" width="1800" height="1600"><rect x="-400" y="-400" width="1800" height="1600" fill="url(#gx)"/></mask>
   <mask id="fadey" maskUnits="userSpaceOnUse" x="-400" y="-400" width="1800" height="1600"><rect x="-400" y="-400" width="1800" height="1600" fill="url(#gy)"/></mask>
+  <filter id="fogf" x="-5%" y="-5%" width="110%" height="110%"><feTurbulence type="fractalNoise" baseFrequency=".025" numOctaves="3" seed="5" result="t"/><feDisplacementMap in="SourceGraphic" in2="t" scale="12" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="3"/></filter>
   <radialGradient id="vig" cx="50%" cy="50%" r="72%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".4"/></radialGradient>
  </defs>
  <rect x="-300" y="-300" width="1600" height="1400" style="fill:var(--sea)"/>
@@ -775,6 +811,7 @@ function buildMap(){
   <path d="${LAND_PATH}" style="fill:var(--land)" filter="url(#paper)"/>
   <g clip-path="url(#landclip)">${cells}</g>
   <path d="${LAND_PATH}" fill="none" style="stroke:var(--coast)" stroke-width="1.2" stroke-linejoin="round"/>
+  <g clip-path="url(#landclip)"><g filter="url(#fogf)">${fog}</g></g>
  </g></g>
  <text class="sealabel" x="120" y="590">The Western Ocean</text>
  <text class="sealabel" x="205" y="455" font-size="17">The Narrow Sea</text>
@@ -784,37 +821,65 @@ function buildMap(){
  <g opacity=".8"><path d="M60,430 l-40,0 m0,0 l10,-7 m-10,7 l10,7" stroke="#d6e6dd" stroke-width="2" fill="none"/><text x="20" y="455" font-family="IM Fell English" font-style="italic" font-size="13" fill="#d6e6dd">to the New World</text></g>
  <g id="places"></g>
  <rect x="-500" y="-500" width="2000" height="1800" fill="url(#vig)" pointer-events="none"/>`;
- CELLEL=[];
+ CELLEL=[]; FOGEL=[];
 }
 function renderCells(){
  if(!CELLEL.length) CELLEL=[...document.querySelectorAll("#map .cell")];
+ cellInit(); if(!FOGEL.length) FOGEL=[...document.querySelectorAll('#map .fogc')];
+ for(const el of FOGEL) el.setAttribute('visibility', fogged(+el.dataset.i)?'visible':'hidden');
  const si = selected ? S.places.findIndex(x=>x.id===selected) : -1;
  for(const el of CELLEL){
   const i=+el.dataset.i, ti=+el.dataset.t;
-  if(ti<0){ el.setAttribute("fill","#3b2a16"); el.setAttribute("fill-opacity",(CELLS[i][2]*0.012).toFixed(3)); continue; }
+  if(ti<0 || fogged(i)){ el.setAttribute("fill","#3b2a16"); el.setAttribute("fill-opacity",(CELLS[i][2]*0.012).toFixed(3)); continue; }
   const col=S.realms[S.places[ti].owner].color;
   el.setAttribute("fill",col);
   el.setAttribute("fill-opacity", TOWNCELL[ti]===i ? "0.92" : (0.36+CELLS[i][2]*0.026).toFixed(3));
   el.classList.toggle("sel", ti===si);
  }
 }
-function setVB(){ $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); }
+let anim=null;
+const PS = () => Math.min(1, Math.pow(vb.w/1000, .7)).toFixed(3);
+function setVB(){ $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const k=PS(); for(const g of document.querySelectorAll("#places .place")) g.setAttribute("transform",`translate(${g.dataset.x},${g.dataset.y}) scale(${k})`); }
+function aspect(){ const r=$("map").getBoundingClientRect(); return (r.width>10&&r.height>10)? r.width/r.height : 1.25; }
+const maxW = () => Math.max(1000, 800*aspect());
+function clampBox(b){ if(b.w>=1300) b.x=(1000-b.w)/2; else b.x=clamp(b.x,-150,1150-b.w); if(b.h>=1000) b.y=(800-b.h)/2; else b.y=clamp(b.y,-100,900-b.h); return b; }
+function clampVB(){ clampBox(vb); }
 function zoom(f, cx, cy){
- const nw = clamp(vb.w*f, 250, 1000), nh = nw*0.8;
+ const A=aspect(), nw = clamp(vb.w*f, 250, maxW()), nh = nw/A;
  cx = cx ?? vb.x+vb.w/2; cy = cy ?? vb.y+vb.h/2;
  vb.x = cx - (cx-vb.x)*(nw/vb.w); vb.y = cy - (cy-vb.y)*(nh/vb.h); vb.w=nw; vb.h=nh; clampVB(); setVB();
 }
-function clampVB(){ vb.x=clamp(vb.x,-100,1100-vb.w); vb.y=clamp(vb.y,-80,880-vb.h); }
-function centerOnRealm(rid){ const ps=owned(rid); if(!ps.length) return; const cx=ps.reduce((s,p)=>s+p.x,0)/ps.length, cy=ps.reduce((s,p)=>s+p.y,0)/ps.length; vb={x:0,y:0,w:1000,h:800}; setVB(); }
+function fitAspect(){ const A=aspect(), cx=vb.x+vb.w/2, cy=vb.y+vb.h/2; vb.w=clamp(vb.w,250,maxW()); vb.h=vb.w/A; vb.x=cx-vb.w/2; vb.y=cy-vb.h/2; clampVB(); setVB(); }
+function homeTarget(){
+ const ps = S ? owned(S.player) : []; const A=aspect();
+ if(!ps.length){ const w=maxW(); return clampBox({x:500-w/2,y:400-w/A/2,w,h:w/A}); }
+ const xs=ps.map(p=>p.x), ys=ps.map(p=>p.y), x0=Math.min(...xs), x1=Math.max(...xs), y0=Math.min(...ys), y1=Math.max(...ys);
+ let w = Math.max(x1-x0+320, (y1-y0+260)*A); w = clamp(w,420,maxW()); const h=w/A;
+ return clampBox({x:(x0+x1)/2-w/2, y:(y0+y1)/2-h/2, w, h});
+}
+function animateTo(t, ms=850){
+ cancelAnimationFrame(anim);
+ if(matchMedia("(prefers-reduced-motion: reduce)").matches || ms<=0){ vb={...t}; setVB(); return; }
+ const f={...vb}, t0=performance.now(), ease=u=>u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
+ const step=now=>{ const u=Math.min(1,(now-t0)/ms), e=ease(u), A=aspect();
+  const lw=Math.exp(Math.log(f.w)+(Math.log(t.w)-Math.log(f.w))*e);
+  const cx=(f.x+f.w/2)+((t.x+t.w/2)-(f.x+f.w/2))*e, cy=(f.y+f.h/2)+((t.y+t.h/2)-(f.y+f.h/2))*e;
+  vb.w=lw; vb.h=lw/A; vb.x=cx-vb.w/2; vb.y=cy-vb.h/2; clampVB(); setVB();
+  if(u<1) anim=requestAnimationFrame(step); };
+ anim=requestAnimationFrame(step);
+}
+function goHome(animated=true){ animateTo(homeTarget(), animated?850:0); }
 function svgPoint(e){ const svg=$("map"), pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
 function bindMap(){
  const svg=$("map"); let drag=null, moved=0;
- svg.addEventListener("wheel", e=>{ e.preventDefault(); const p=svgPoint(e); zoom(e.deltaY>0?1.15:0.87, p.x, p.y); }, {passive:false});
- svg.addEventListener("pointerdown", e=>{ drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y}; moved=0; });
+ svg.addEventListener("wheel", e=>{ e.preventDefault(); cancelAnimationFrame(anim); const p=svgPoint(e); zoom(e.deltaY>0?1.15:0.87, p.x, p.y); }, {passive:false});
+ svg.addEventListener("pointerdown", e=>{ cancelAnimationFrame(anim); drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y}; moved=0; });
  window.addEventListener("pointermove", e=>{ if(!drag) return; const r=svg.getBoundingClientRect(); const s=Math.max(vb.w/r.width, vb.h/r.height);
   const dx=e.clientX-drag.x, dy=e.clientY-drag.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); if(moved>4){ svg.classList.add("drag"); vb.x=drag.vx-dx*s; vb.y=drag.vy-dy*s; clampVB(); setVB(); } });
- window.addEventListener("pointerup", e=>{ if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell"); if(g){ selected=g.dataset.id; render(); } else if(cl && +cl.dataset.t>=0){ selected=S.places[+cl.dataset.t].id; render(); } } drag=null; svg.classList.remove("drag"); });
- $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>{vb={x:0,y:0,w:1000,h:800};setVB();};
+ window.addEventListener("pointerup", e=>{ if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell,.fogc"); if(g){ selected=g.dataset.id; render(); } else if(cl){ const ci=+cl.dataset.i; if(fogged(ci)){ selected="fog:"+cellRealm(ci); render(); } else if(+cl.dataset.t>=0){ selected=S.places[+cl.dataset.t].id; render(); } } } drag=null; svg.classList.remove("drag"); });
+ $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>goHome(true);
+ $("sidetog").onclick=()=>{ const c=$("app").classList.toggle("collapsed"); $("sidetog").textContent=c?"▸":"◂"; $("sidetog").setAttribute("aria-label",c?"Show side panel":"Hide side panel"); $("sidetog").title=c?"Show side panel":"Hide side panel"; };
+ new ResizeObserver(()=>fitAspect()).observe($("map").parentElement); fitAspect();
 }
 
 /* ---------- start screen ---------- */
@@ -830,7 +895,7 @@ function startScreen(){
   <label for="dy">Dynasty</label><input id="dy" value="${REALMS.albion.dyn}" maxlength="24">`,
   choices:[
    {label:"Take the throne", fn:()=>{ const nm=$("nm")?.value.trim(); }, keep:true},
-   ...(saved && !saved.over ? [{label:`Continue saved reign (${saved.year}, ${saved.realms[saved.player].name})`, fn:()=>{ S=saved; render(); }}] : [])
+   ...(saved && !saved.over ? [{label:`Continue saved reign (${saved.year}, ${saved.realms[saved.player].name})`, fn:()=>{ S=saved; render(); goHome(false); }}] : [])
   ],
   onshow:()=>{
    $("rg").onclick=e=>{ const b=e.target.closest("button"); if(!b) return; choice=b.dataset.r; [...$("rg").children].forEach(x=>x.classList.toggle("on",x===b)); $("dy").value=REALMS[choice].dyn; };
@@ -851,7 +916,7 @@ buildMap(); bindMap();
 $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
-$("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); };
+$("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
 $("thow").onclick = () => modal({title:"How to Rule", body:`<p>Each year you have a few <b>deeds</b>: taxes, mustering, feasts, courting, tutoring, declaring war, assaulting towns. Click a town on the map for local actions.</p><p>Press <b>End Year</b> to let time pass: income arrives, enemies march, children are born, and fate intervenes.</p><p>Marry to gain allies and heirs. Win wars to grow. Hold 18 towns with 250 prestige to proclaim an Empire. When you die, the crown passes down. With no heir, the dynasty ends.</p>`});
 }
 </script>
