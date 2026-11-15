@@ -237,7 +237,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.1.10";
+const VERSION = "pre-alpha v0.1.11";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -626,7 +626,7 @@ function showModal(){
  (m.choices||[{label:"Continue"}]).forEach(c=>{
   const b = document.createElement("button"); b.className="btn"+(c.red?" red":"");
   b.innerHTML = c.label + (c.sub?`<small>${c.sub}</small>`:""); b.disabled = !!c.disabled;
-  b.onclick = () => { if(c.keep && c.fn){ c.fn(); return; } mq.shift(); if(c.fn){ try{ c.fn(); }catch(e){ console.warn(e); } } render(); showModal(); };
+  b.onclick = () => { if(c.keep && c.fn){ c.fn(); return; } mq.shift(); if(c.fn){ try{ c.fn(); }catch(e){ console.warn(e); } } if(S && !S.over) save(); render(); showModal(); };
   ch.appendChild(b);
  });
  $("modalbg").style.display="flex";
@@ -790,7 +790,10 @@ const living = p => !!p && p.died==null;
 const spouse = () => living(person(S.spouseId)) ? person(S.spouseId) : null;
 function newPerson(o){ const id="p"+(S.nextId++); S.people[id] = {id, died:null, father:null, mother:null, spouses:[], children:[], claims:[], ...o}; return S.people[id]; }
 function heir(){ const r=ruler(); const h=person(S.heirId); if(living(h) && r.children.includes(h.id)) return h;
- return r.children.map(person).filter(living).sort((a,b)=>a.born-b.born)[0] || null; }
+ const kid = r.children.map(person).filter(living).sort((a,b)=>a.born-b.born)[0]; if(kid) return kid;
+ // no living child: the eldest line's eldest living grandchild inherits
+ for(const c of r.children.map(person).filter(Boolean).sort((a,b)=>a.born-b.born)){ const g=c.children.map(person).filter(living).sort((a,b)=>a.born-b.born)[0]; if(g) return g; }
+ return null; }
 const deathChance = a => a<40 ? 0.002 : (a-38)*0.0025;   // per season
 
 /* ---------- knights ---------- */
@@ -991,17 +994,55 @@ function actChildPropose(cid, sid){ const c=person(cid), s=c?.suitors?.find(x=>x
  else { S.knights.forEach(k=>{ if(k) k.loy=Math.min(10,k.loy+1); }); extra=`<p>The nobility are honoured: every knight's loyalty rises.</p>`; log(`${c.name} weds ${s.name} of House ${s.house}.`, true); }
  modal({title:"A Royal Match", body:`<p>${c.name} and ${s.name} are wed before the whole court. The dowry brings ${s.dowry} gold.</p>${extra}`}); after(); }
 function renderChildCourt(c){
- if(childWed(c)){ const sp=c.spouses.map(person).find(living); return `<p class="note">Wed to ${sp.name} of House ${sp.house}${sp.realm&&S.realms[sp.realm]?`, ${S.realms[sp.realm].name}`:""}.</p>`; }
- if(age(c)<10) return `<p class="note">Too young for suitors. Courts will start to send matches when ${c.name} is ten.</p>`;
+ const gk=c.children.map(person).filter(Boolean), gkLine = gk.length ? `<div class="row"><span>Children</span><span>${gk.map(k=>`${k.name}${living(k)?` (${age(k)})`:" †"}`).join(", ")}</span></div>` : "";
+ if(childWed(c)){ const sp=c.spouses.map(person).find(living); return `<p class="note">Wed to ${sp.name} of House ${sp.house}${sp.realm&&S.realms[sp.realm]?`, ${S.realms[sp.realm].name}`:""}.${gk.length?"":" Children of their own may come in time."}</p>${gkLine}`; }
  if(!c.suitors?.length) childSuitors(c);
- let h=`<p class="note">${age(c)<16?`Win the suitors over now; a match can be proposed when ${c.name} is sixteen.`:"Each suitor can be courted once a season."}</p>`;
+ let h=gkLine+`<p class="note">${age(c)<16?`Win the suitors over now; a match can be proposed when ${c.name} is sixteen.`:"Each suitor can be courted once a season."}</p>` + browseBtn(c.id) + (BROWSE===c.id ? renderBrowse(c.id) : "");
  for(const s of c.suitors){ const done=s.acted===turn(), R2=s.realm&&S.realms[s.realm];
   h += `<div class="person"><b>${s.name}</b> <span class="meta">· aged ${S.year-s.born} · ${s.trait}</span><div class="meta">${suitorLine(s)}${R2?` <b style="color:${R2.color}">●</b>`:""} · dowry ${s.dowry} gold</div>
    <div class="meta">Affection for ${c.name}: ${s.aff}</div><div class="aff"><i style="width:${s.aff}%"></i></div><div class="btnrow">`;
   for(const kind in LOVE){ const L=LOVE[kind]; h += btn(L.label, done?"Courted this season":(L.g?`${L.g} gold`:"Free"), ()=>actChildWoo(c.id,s.id,kind), S.over||done||S.gold<L.g); }
-  h += btn("Propose a match", age(c)<16?`When ${c.name} is 16`:done?"Wait until next season":`${clamp(s.aff,5,95)}% chance`, ()=>actChildPropose(c.id,s.id), S.over||done||age(c)<16) + `</div></div>`; }
+  h += btn("Propose a match", age(c)<16?`When ${c.name} is 16`:done?"Wait until next season":`${clamp(s.aff,5,95)}% chance`, ()=>actChildPropose(c.id,s.id), S.over||done||age(c)<16) + btn("Send away", "", ()=>actSendAway(c.id,s.id), S.over, true) + `</div></div>`; }
  return h;
 }
+/* grandchildren: married royal children have children of their own */
+function bearGrandchild(c, summary){
+ const sp=c.spouses.map(person).find(living), mother=c.gender==="f"?c:sp, father=c.gender==="f"?sp:c, g=Math.random()<0.5?"m":"f";
+ const house = c.gender==="m" ? S.dynasty : sp.house;   // a daughter's children take their father's house
+ const k=newPerson({name:pick(g==="m"?MALE:FEMALE), gender:g, born:S.year, house, origin:sp.realm||S.player, father:father.id, mother:mother.id});
+ k.claims=[...new Set([...(c.claims||[]), ...(sp.claims||[]), ...(sp.realm && S.realms[sp.realm]?.alive ? [sp.realm] : [])])];
+ c.children.push(k.id); sp.children.push(k.id); c.lastBirthT=turn();
+ summary.push(`<b>${c.name} and ${sp.name} have a ${g==="m"?"son":"daughter"}</b>, a ${g==="m"?"grandson":"granddaughter"} for the crown.${k.claims.length?` The child holds a claim to ${k.claims.map(x=>S.realms[x].name).join(" and ")}.`:""}`);
+ S.events.push({kind:"nameGrandchild", id:k.id});
+}
+/* Looking through suitors: every known court not at war with us, and the great houses of our own nobility,
+   can put forward a match. Inviting one to court costs an envoy's journey. */
+const SUITOR_CAP = 6, INVITE_COST = 20;
+let BROWSE = null;   // "ruler" or a child's id while the list of potential suitors is open
+function mkSuitor(r, want, born){ const rel = want==="f" ? ["daughter","niece","sister","cousin","granddaughter"] : ["son","nephew","brother","cousin","grandson"];
+ return r ? {id:"s"+(S.nextId++), name:pick(want==="m"?MALE:FEMALE), gender:want, born, house:r.ruler.house, realm:r.id, rel:pick(rel), aff:RI(5,25), trait:pick(LOVE_TRAITS), dowry:RI(60,220), acted:-1}
+  : {id:"s"+(S.nextId++), name:pick(want==="m"?MALE:FEMALE), gender:want, born, house:pick(NOBLE_HOUSES), realm:null, rel:"noble", aff:RI(15,35), trait:pick(LOVE_TRAITS), dowry:RI(20,80), acted:-1}; }
+const browseTarget = key => key==="ruler" ? ruler() : person(key);
+const browseSuitors = key => key==="ruler" ? S.suitors : (browseTarget(key).suitors ||= []);
+function catalogFor(key){
+ S.catalog ||= {}; const C=S.catalog[key]; if(C && turn()-C.t<4) return C.list;
+ const t=browseTarget(key), want=t.gender==="m"?"f":"m", born = () => key==="ruler" ? S.year-RI(16,30) : t.born+RI(-3,3);
+ const list = Object.values(S.realms).filter(r=>r.alive && r.id!==S.player && r.ruler && known(r.id) && !atWar(S.player,r.id)).map(r=>mkSuitor(r,want,born()));
+ for(let k=0;k<4;k++) list.push(mkSuitor(null,want,born()));
+ S.catalog[key]={t:turn(), list}; return list;
+}
+function actInvite(key, sid){ const L=catalogFor(key), s=L.find(x=>x.id===sid), cur=browseSuitors(key); if(!s || S.over || S.gold<INVITE_COST || cur.length>=SUITOR_CAP) return;
+ S.gold-=INVITE_COST; cur.push(s); S.catalog[key].list=L.filter(x=>x!==s); if(s.realm) S.explored[s.realm]=true;
+ toast(`${s.name} accepts the invitation to court.`); after(); }
+function actSendAway(key, sid){ const t=browseTarget(key); if(key==="ruler") S.suitors=S.suitors.filter(x=>x.id!==sid); else t.suitors=t.suitors.filter(x=>x.id!==sid); after(); }
+function renderBrowse(key){
+ const L=catalogFor(key), cur=browseSuitors(key), full=cur.length>=SUITOR_CAP, t=browseTarget(key);
+ let h=`<div style="margin:6px 0 12px;padding:8px 10px;border:1px solid #6b4a1e55;border-radius:6px;background:#0000000d"><b>Potential suitors for ${key==="ruler"?"the sovereign":t.name}</b><p class="note">${L.length} matches are on offer from the courts we know and our own nobility. Inviting one to court costs ${INVITE_COST} gold; up to ${SUITOR_CAP} can be at court at once${full?" (the court is full: send one away first)":""}. The list changes every year.</p>`;
+ for(const s of [...L].sort((a,b)=>(!!b.realm-!!a.realm) || (S.realms[b.realm]?.might??0)-(S.realms[a.realm]?.might??0))){ const R2=s.realm&&S.realms[s.realm];
+  h += `<div class="row"><span><b>${s.name}</b>, ${S.year-s.born} · ${s.trait}<br><span class="meta">${suitorLine(s)}${R2?` <b style="color:${R2.color}">●</b> · ${powerName(R2)}`:""} · dowry ${s.dowry}</span></span><span style="flex:none;white-space:nowrap">${btn(`Invite · ${INVITE_COST}g`, "", ()=>actInvite(key,s.id), S.over||full||S.gold<INVITE_COST)}</span></div>`; }
+ return h + btn("Close the list", "", ()=>{ BROWSE=null; render(); }) + `</div>`;
+}
+const browseBtn = key => btn(BROWSE===key?"Close the list of potential suitors":"Look through potential suitors", BROWSE===key?"":"Every court we know and our own nobility · invite the ones you like", ()=>{ BROWSE = BROWSE===key ? null : key; render(); });
 function courtSeason(summary){
  const r=ruler(), sp=spouse();
  if(sp){
@@ -1014,6 +1055,8 @@ function courtSeason(summary){
   else if(Math.random()<deathChance(age(sp))){ sp.died=S.year; S.spouseId=null; summary.push(`<b>${sp.name} has died.</b> The court is draped in black.`); log(`${sp.name}, royal consort, has died.`, true); }
  }
  for(const p of Object.values(S.people)) if(p.elder && living(p) && Math.random()<deathChance(age(p))){ p.died=S.year; summary.push(`${p.name}, ${p.gender==="f"?(p.spouses.length&&person(p.spouses[0])?.ruled?"the queen mother":"sister of the sovereign"):"brother of the sovereign"}, has died, aged ${age(p)}.`); log(`${p.name} has died, aged ${age(p)}.`); }
+ for(const c of r.children.map(person)){ if(!living(c) || !childWed(c)) continue; const sp=c.spouses.map(person).find(living), mo=c.gender==="f"?c:sp;
+  if(age(mo)>=16 && age(mo)<=42 && turn()-(c.lastBirthT??-99)>=4 && Math.random()<0.06) bearGrandchild(c, summary); }
  for(const c of r.children.map(person)) if(living(c) && c.suitors?.length && !childWed(c) && turn()-(c.suitorsT??0)>=8) childSuitors(c, c.suitors.filter(x=>x.aff>=30 && (!x.realm || S.realms[x.realm]?.alive && !atWar(S.player,x.realm))));
  for(const c of r.children.map(person)) if(living(c) && Math.random() < (age(c)<5?0.006:0.002)){ c.died=S.year; summary.push(`<b>Grief: ${c.name} has died, aged ${age(c)}.</b>`); log(`${c.name} has died, aged ${age(c)}.`, true); }
  // suitors you have warmed to stay at court; cold ones drift away and new ones arrive
@@ -1085,11 +1128,12 @@ function renderRomance(){
  } else {
   h += `<h4>Suitors at court</h4><p class="note">A match from another kingdom brings a dowry and an alliance, and any child of that blood may one day inherit its crown. A match from your own nobility pleases your knights. Each suitor can be courted once a season.</p>`;
   if(!S.suitors.length) genSuitors();
+  h += browseBtn("ruler") + (BROWSE==="ruler" ? renderBrowse("ruler") : "");
   for(const s of S.suitors){ const done=s.acted===turn(), R2=s.realm&&S.realms[s.realm];
    h += `<div class="person"><b>${s.name}</b> <span class="meta">· aged ${S.year-s.born} · ${s.trait}</span><div class="meta">${suitorLine(s)}${R2?` <b style="color:${R2.color}">●</b>`:""} · dowry ${s.dowry} gold</div>
     <div class="meta">Affection ${s.aff} · a proposal would succeed about ${clamp(s.aff,5,95)}% of the time</div><div class="aff"><i style="width:${s.aff}%"></i></div><div class="btnrow">`;
    for(const kind in LOVE){ const L=LOVE[kind]; h += btn(L.label, done?"Courted this season":(L.g?`${L.g} gold`:"Free"), ()=>actWoo(s.id,kind), S.over||done||S.gold<L.g); }
-   h += btn("Propose marriage", done?"Wait until next season":`${clamp(s.aff,5,95)}% chance`, ()=>actPropose(s.id), S.over||done) + `</div></div>`; }
+   h += btn("Propose marriage", done?"Wait until next season":`${clamp(s.aff,5,95)}% chance`, ()=>actPropose(s.id), S.over||done) + btn("Send away", "", ()=>actSendAway("ruler",s.id), S.over, true) + `</div></div>`; }
   h += `<p class="note">Romantic suitors treasure letters, greedy ones gifts, merry ones feasts. The proud scorn letters, the pious scorn gifts, and the shy dread a feast.</p>`;
  }
  const kids=r.children.map(person).filter(living), hh=heir();
@@ -1594,6 +1638,9 @@ const EVENTS = {
  nameBaby: e => { const c=person(e.id); if(!c) return null; const g=c.gender==="m";
   return {title:`A ${g?"Prince":"Princess"} Is Born`, body:`<p>The bells ring out across ${pr().name}: a healthy ${g?"son":"daughter"} for the royal house. What shall the child be called?</p><label for="babyname">The ${g?"prince's":"princess's"} name</label><input id="babyname" value="${c.name}" maxlength="22">`,
    choices:[{label:"So shall the child be named", fn:()=>{ const v=($("babyname")?.value||"").trim(); if(v) c.name=v; const r=ruler(), sp=person(c.mother===r.id?c.father:c.mother); log(`${sp?.name||"The consort"} and ${r.name} welcome a ${g?"son":"daughter"}, ${c.name}.`, true); }}]}; },
+ nameGrandchild: e => { const c=person(e.id); if(!c) return null; const g=c.gender==="m", fa=person(c.father), mo=person(c.mother), ours=[fa,mo].find(x=>x && ruler().children.includes(x.id));
+  return {title:`A ${g?"Grandson":"Granddaughter"} for the Crown`, body:`<p>${ours?.name||"Our child"} has a healthy ${g?"son":"daughter"}${c.house!==S.dynasty?`, of House ${c.house}`:", of our own house"}. The family asks the sovereign to name the child.</p><label for="babyname">The child's name</label><input id="babyname" value="${c.name}" maxlength="22">`,
+   choices:[{label:"So shall the child be named", fn:()=>{ const v=($("babyname")?.value||"").trim(); if(v) c.name=v; log(`${fa?.name} and ${mo?.name} welcome a ${g?"son":"daughter"}, ${c.name}: a ${g?"grandson":"granddaughter"} for ${ruler().name}.`, true); }}]}; },
  plague: () => { const p=pick(owned(S.player)); if(!p) return null; return {title:`Pestilence in ${p.name}`, body:`<p>Sickness spreads through the crowded streets of ${p.name}.</p>`,
   choices:[{label:"Pay for quarantine and physicians", sub:"60 gold", disabled:S.gold<60, fn:()=>{S.gold-=60;}},{label:"Seal the gates and wait", sub:"Many in the town will die", fn:()=>{ const d=killPeople(S.player, p.pop*R(0.10,0.20)*(p.bld?.chapel?0.5:1), p); log(`Plague ravages ${p.name}: ${d.toLocaleString()} dead.`, true); }}]}; },
  harvest: () => { const g=RI(30,70); S.gold+=g; return {title:"A Bountiful Harvest", body:`<p>Granaries overflow across ${pr().name}. The treasury gains ${g} gold.</p>`}; },
