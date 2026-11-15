@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.2.8**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.2.9**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -49,3 +49,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.2.6 — family tree: zoom in and out (buttons or Ctrl + scroll, 35–250%), drag to move around; click anyone to light up their bloodline (everyone who shares blood with them: ancestors, descendants, brothers and sisters, cousins), with spouses who married in dimmed. By default it shows the bloodline of the reigning monarch.
 - v0.2.7 — Cities notch (8th): the capital first, then every city from most to fewest people, with a search box; develop, fortify or open any city's map from the list. City maps: houses now fill in from the outskirts towards the centre, and the market, chapel and tavern take the sites nearest the town square, with the smithy, mill and barracks further out (existing cities are laid out afresh).
 - v0.2.8 — Social Web notch (9th): a web of everyone connected to the sovereign (family, knights and dukes, the suitors you have courted or invited, and the monarch of every kingdom discovered), coloured by relations; click anyone to see their ties. Relations with each kingdom (−100 to +100) now shape war declarations, trade and peace. Exploration page: send a diplomat (50 gold, 1 deed) to map a whole kingdom and improve relations. Marching into enemy land now fights a battle, with a battle report. Wars are settled: land taken is only occupied, a war score tracks the fighting, and peace terms (white peace, keep what we hold, tribute, or concede) decide who keeps what; a kingdom down to its last city surrenders instead of being wiped out, and capturing a city no longer takes its whole countryside. Laying trade routes no longer takes a deed.
+- v0.2.9 — conquest can end a kingdom again, but it is hard: a kingdom's last city defends at 1.5×, and taking it conquers the kingdom only if the attacker has a war score of 60+ and already holds at least as much of its land as it still holds; otherwise it surrenders. The War page shows how close you are. Applies to every kingdom, including yours.

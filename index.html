@@ -288,7 +288,7 @@ const TERRAIN="ccmmscccccmmsscacmmmcccccmmccccccmmcmmffcccmmmmmmmccccmmmmmcccccm
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.2.8";
+const VERSION = "pre-alpha v0.2.9";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -633,7 +633,7 @@ function setPeace(a,b){
 }
 const truce = (a,b) => (S.realms[a].truce[b]||0) > S.year;
 // a town defends with its walls, its size and a share of its realm's militants; an attacker needs a clear edge to take it
-const defenseOf = place => place.fort*250 + place.dev*60 + strength(place.owner)*0.75 + (place.capital?300:0) + (place.bld?.castle ? CASTLE[place.bld.castle].def : 0);
+const defenseOf = place => (owned(place.owner).length===1 ? 1.5 : 1)*(place.fort*250 + place.dev*60 + strength(place.owner)*0.75 + (place.capital?300:0) + (place.bld?.castle ? CASTLE[place.bld.castle].def : 0));   // a kingdom fights hardest for its last city
 function battle(att, place){
  const def = place.owner, A=armyOf(att), D=armyOf(def);
  const win = A.strength*R(0.75,1.25) > defenseOf(place)*R(0.8,1.2);
@@ -643,6 +643,12 @@ function battle(att, place){
  const dDead = killPeople(def, D.troops*(win?R(0.08,0.15):R(0.03,0.07)) + (win ? place.pop*R(0.03,0.07) : 0), place);
  if(win){
   S.realms[def].lost[att] = (S.realms[def].lost[att]||0) + 1;
+  if(owned(def).length<=1 && canAnnex(att,def)){   // overrun: the kingdom is conquered and ends
+   const n=tileCount(def)+occupiedBy(att,def).length; addScore(att,def,30); seize(place.tile, att); place.capital=false;
+   for(const k of Object.keys(S.occ||{})) if(S.occ[k]===def) delete S.occ[k];
+   destroyRealm(def, att); if(S.wscore) delete S.wscore[wkey(att,def)];
+   return {win, place:place.name, aDead, dDead, annexed:true, lands:n};
+  }
   if(owned(def).length<=1){   // the last city: the defender surrenders and the war is settled on the victor's terms
    addScore(att,def,30); const pay=Math.round(Math.min(300, 60+40*(S.realms[def]?.lost?.[att]||1)));
    const st=settleWar(att, def, att, pay, def);
@@ -665,6 +671,10 @@ function seize(i, by){ S.occ ||= {}; const from=S.tiles[i]; if(!from || from===b
  if(S.occ[i]===by) delete S.occ[i]; else if(S.occ[i]==null) S.occ[i]=from;
  S.tiles[i]=by; const t=TOWNAT.get(i); if(t!=null) S.places[t].owner=by; delDev(i);
  if(by===S.player && S.occ[i]!=null) markConquered([i]); }
+/* Conquering a whole kingdom is hard: its last city must fall while the attacker has a war score of 60 or more
+   and already holds at least as much of the kingdom's land as the kingdom still holds itself. */
+const ANNEX_SCORE = 60;
+const canAnnex = (att, def) => warScore(att,def)>=ANNEX_SCORE && occupiedBy(att,def).length>=tileCount(def);
 const occupiedBy = (holder, from) => Object.keys(S.occ||{}).map(Number).filter(i=>S.tiles[i]===holder && S.occ[i]===from);
 /* keeper: the realm that keeps the land it occupies from the other; "none" returns everything, "both" keeps the lines as they stand */
 function settleWar(a, b, keeper, tribute=0, payer=null){
@@ -1794,6 +1804,7 @@ function actAttack(p){
  if(!atWar(S.player,p.owner)||!reachable(S.player,p)||!useAP()) return;
  const foe = S.realms[p.owner].name, res = battle(S.player,p);
  log(res.win?`Victory! ${p.name} taken from ${foe}. ${res.aDead} of ours fell.`:`Our assault on ${p.name} was repulsed. ${res.aDead} of ours fell.`, true);
+ if(res.annexed){ modal({title:`${foe} Is Conquered`, body:`<p>${p.name}, the last city of ${foe}, falls to our army. The kingdom of ${foe} is no more: all ${res.lands} of its lands are ours. Conquered land must be integrated into districts.</p>`}); log(`We conquer ${foe}.`, true); after(); return; }
  if(res.surrender){ modal({title:`${foe} Surrenders`, body:`<p>With ${p.name}, their last city, stormed, ${foe} surrenders. We keep the ${res.terms.kept} lands we hold and receive ${res.terms.tribute} gold. The war is over, and a truce of five years begins.</p>`}); log(`${foe} surrenders: we keep ${res.terms.kept} lands and ${res.terms.tribute} gold.`, true); after(); return; }
  modal({title: res.win?`${p.name} is ours!`:`Repulsed at ${p.name}`, body:`<p>${res.win?"Our banners fly over the walls. We hold the city until the war is settled.":"The defenders held the walls."}</p><div class="row"><span>Our dead</span><span>${res.aDead.toLocaleString()}</span></div><div class="row"><span>${foe}'s dead, soldiers and townsfolk</span><span>${res.dDead.toLocaleString()}</span></div>`});
  if(res.win) selected = p.id; after();
@@ -1915,7 +1926,8 @@ function endSeason(){
    if(r.ap>0 && Math.random()<(winter?0.05:0.10+0.10*T)){ r.ap--;
     const targets = owned(e).filter(p=>reachable(r.id,p)).sort((a,b)=>defenseOf(a)-defenseOf(b));
     if(targets.length){ const t=targets[0], res=battle(r.id,t);
-     if(e===S.player && res.surrender){ summary.push(`<b>${r.name} stormed ${t.name}, our last city.</b> We were forced to surrender: they keep the ${res.terms.kept} lands they hold, and we paid ${res.terms.tribute} gold. The war is over.`); log(`${r.name} forces our surrender at ${t.name}.`, true); }
+     if(res.annexed){ if(told(r.id,e)) news.push(`<b>${r.name} has conquered ${S.realms[e].name}.</b>`); }
+     else if(e===S.player && res.surrender){ summary.push(`<b>${r.name} stormed ${t.name}, our last city.</b> We were forced to surrender: they keep the ${res.terms.kept} lands they hold, and we paid ${res.terms.tribute} gold. The war is over.`); log(`${r.name} forces our surrender at ${t.name}.`, true); }
      else if(e===S.player){ summary.push(res.win?`<b>${r.name} captured ${t.name}!</b> ${res.dDead.toLocaleString()} of our people died.`:`${r.name} assaulted ${t.name}, but our walls held. ${res.dDead.toLocaleString()} of ours fell, and ${res.aDead.toLocaleString()} of theirs.`); if(res.win) log(`${r.name} captured ${t.name}!`, true); }
      else if(res.win && res.surrender){ log(`${S.realms[e].name} surrenders to ${r.name} after the fall of ${t.name}.`); if(told(r.id,e)) news.push(`${S.realms[e].name} surrenders to ${r.name}: the war is settled.`); }
      else if(res.win){ log(`${r.name} seized ${t.name} from ${S.realms[e].name}.`); if(told(r.id,e)) news.push(`${r.name} seized ${t.name} from ${S.realms[e].name}.`); if(!S.realms[e].alive && told(e)) news.push(`<b>${S.realms[e].name} has fallen to ${r.name}.</b>`); } }
@@ -2091,7 +2103,7 @@ function renderPanel(){
  }
  if(page==="war"){
   { const A=armyOf(S.player); h += `<h2>War Council</h2><div class="row"><span>Our militants</span><span>${A.troops.toLocaleString()} of ${A.max.toLocaleString()} who could serve</span></div><div class="row"><span>Fighting quality</span><span>×${A.quality.toFixed(2)} · strength ${A.strength.toLocaleString()}</span></div>`; }
-  h += `<p class="note">Declare war, then march into bordering enemy lands (outlined red) to give battle, and assault towns ringed in red with deeds. Land taken is only occupied until the war is settled: the peace treaty decides who keeps what. A kingdom down to its last city surrenders when it falls.</p>`;
+  h += `<p class="note">Declare war, then march into bordering enemy lands (outlined red) to give battle, and assault towns ringed in red with deeds. Land taken is only occupied until the war is settled: the peace treaty decides who keeps what. A kingdom down to its last city fights hardest for it and surrenders when it falls, unless we have overrun it: with a war score of 60 or more and holding as much of its land as it still holds, taking the last city conquers the kingdom.</p>`;
   const NB = neighbours(S.player);
   const others = Object.values(S.realms).filter(o=>o.alive && o.id!==S.player && known(o.id)).sort((a,b)=>owned(b.id).length-owned(a.id).length);
   if(!others.length) h += `<p class="note">Your scouts have found no other realm yet.</p>`;
@@ -2101,6 +2113,7 @@ function renderPanel(){
    h += `<div class="person"><b style="color:${o.color}">●</b> <b>${o.name}</b> <span class="meta">· ${powerName(o)} · ${owned(o.id).length} towns, ${tileCount(o.id)} lands · ${st}${nb?"":" · out of reach"}</span><div class="meta">${rulerOf(o.id)} · about ${armyOf(o.id).troops.toLocaleString()} militants</div>`;
    if(o.atWar.length) h += `<div class="meta">Fighting: ${o.atWar.map(x=>S.realms[x].name).join(", ")}</div>`;
    h += `</div>`;
+   if(w && owned(o.id).length===1){ const oc=occupiedBy(S.player,o.id).length, rem=tileCount(o.id), sc=warScore(S.player,o.id); h += `<div class="meta">${canAnnex(S.player,o.id)?`<b style="color:#2f5a1a">If their last city falls, ${o.name} is conquered.</b>`:`Down to its last city: storming it forces a surrender. To conquer ${o.name} outright we need a war score of ${ANNEX_SCORE} (now ${sc}) and to hold at least as much of its land as it still holds (we hold ${oc}, it holds ${rem}).`}</div>`; }
    h += `<div class="meta">Relations: ${relName(o)}${w?` · war score ${warScore(S.player,o.id)>0?"+":""}${warScore(S.player,o.id)} · we occupy ${occupiedBy(S.player,o.id).length} of their lands, they occupy ${occupiedBy(o.id,S.player).length} of ours`:""}</div>`;
    if(w) h += btn(`Offer terms of peace to ${o.name}`, "Choose the terms · 1 deed", ()=>actPeace(o.id), !ap);
    else if(S.allies[o.id]) h += `<p class="note">Allied to us by marriage.</p>`;
