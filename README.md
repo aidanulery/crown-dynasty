@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.3.2**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.3.3**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -53,3 +53,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.3.0 — 400 more old European names for random generation (150 men's and 150 women's first names, 50 royal and 50 noble house names); the sovereign's default name is now random. Every kingdom has a heraldic flag (yours is shown beside the notches). International Relations notch (10th): what every kingdom thinks of you and why, with diplomats (now able to open contact with any kingdom), trade, war and peace, treaties bartered with gold (non-aggression pact, defensive alliance, trade route rights through their land) and marriages for your children. The fog is gone: the whole map and every city can be seen, but what has been built beyond your borders (developments, a city's size and walls) stays hidden until explorers have been there.
 - v0.3.1 — Social Web fixed: the web now fills its page in every browser (no longer relies on CSS :has), sizes its rings to the people in them so small webs aren't tiny, links the sovereign to their parents, and can be zoomed (buttons or scroll) and dragged.
 - v0.3.2 — fix: the Social Web crashed (blank page) once a diplomat had returned from any court, because the diplomat's contact was stored among the suitors met. Contacts now live in their own record and older saves with the bad entry load fine.
+- v0.3.3 — building in cities now costs a deed: houses (one or five at a time), city buildings, the castle, developing, fortifying and laying down ships, in the city view and on the Cities page. Other kingdoms follow the same rule.
