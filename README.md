@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.1.1**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.1.2**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -28,3 +28,4 @@ node tools/audit-coast.mjs src/mapdata.js
 - v0.0.10 — 34 smaller kingdoms with wild, unexplored land between them; random ruler names each match; 12 gilded notches across the top (Explore, War, Romance, 8 reserved, Chronicle) replace the left bar; pages open as paper sheets over the full-width map; darker gilded old-paper UI. Earlier saves are not carried over.
 - v0.1.0 — economy: +3 gold per held tile each season; tile developments (farm +6 food, fishery +5 food on coastal tiles, village +4 resources, gold mine level IV→I: +5/+10/+15/+25 gold); Food and Resources counters; towns and villages eat food, famine halves taxes and empties villages or borderlands; buildings cost gold and resources. Generator now flags coastal tiles. v0.0.10 saves carry over.
 - v0.1.1 — people: towns hold 100 per development level, villages add 150/300; taxes +1 gold per 50 people; every 100 people eat 1 food. Resources now come only from held land left undeveloped (+1 a tile). Every build (including town development, walls and ships) costs resources. Villages grow each season into market villages and then into new, player-named cities with their own marker on the map. v0.1.0 saves carry over.
+- v0.1.2 — farms, fisheries and gold mines must be within two tiles of an owned village or city; a tile can hold one of each of farm, fishery and gold mine, but a village needs a tile to itself; stacked map badges; header notch row no longer clips at mid widths. v0.1.1 saves carry over.

@@ -32,7 +32,7 @@ header{position:relative;z-index:6;display:grid;grid-template-columns:auto minma
 header .brand{display:flex;flex-direction:column;justify-content:center;height:68px}
 header h1{font:400 25px/1 "IM Fell English SC",serif;margin:0;letter-spacing:.02em;color:#1a0e04;text-shadow:0 1px 0 rgba(255,235,180,.35)}
 header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
-.notches{display:flex;gap:6px;justify-content:center;height:84px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 4px}
+.notches{display:flex;gap:6px;justify-content:safe center;height:84px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 4px}
 .notch{flex:none;width:54px;height:66px;margin-top:-3px;border-radius:0 0 12px 12px;display:flex;align-items:flex-end;justify-content:center;padding:0 0 7px;transition:transform .15s,height .15s;border:0}
 .notch.gilt{border:3px solid transparent;border-top:0}
 .notch.gilt::before{border-radius:0 0 13px 13px}
@@ -131,7 +131,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 #title .menu button:disabled{opacity:.4;cursor:not-allowed}
 #title .ver2{position:absolute;top:14px;left:18px;font:italic 14px "IM Fell English",serif;color:#a88f61}
 #title .rule{width:min(360px,70vw);height:2px;background:linear-gradient(90deg,transparent,#b8892d,transparent);margin:6px 0 10px}
-@media(max-width:1180px){
+@media(max-width:1420px){
  header{grid-template-columns:auto auto;height:auto;row-gap:0}
  header .brand{height:52px}.stats{height:52px;justify-self:end}
  .notches{grid-column:1/-1;grid-row:2;justify-content:flex-start;height:72px}
@@ -203,7 +203,7 @@ const MAPMETA={"SP":12,"NOM":144,"REG":[20,14,980,786],"LAND_TOTAL":304744.7};
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.1.1";
+const VERSION = "pre-alpha v0.1.2";
 const SAVE_KEY = "crown-dynasty-save-v11";
 const OLD_SAVE_KEYS = ["crown-dynasty-save-v10"];
 const $ = id => document.getElementById(id);
@@ -316,23 +316,50 @@ const MINE = [null, {lvl:"I",gold:25,g:180,r:85}, {lvl:"II",gold:15,g:120,r:60},
 // Village stages: 1 = village, 2 = market village; a grown market village can be raised into a new city.
 const VILLAGE = [null, {name:"Village", people:150, grow:6, up:{g:80,r:60,label:"Raise to a market village"}}, {name:"Market village", people:300, grow:8, up:{g:150,r:100,label:"Found a new city"}}];
 const DEV = {
- farm:   {name:"Farm",      food:6, g:40, r:15, blurb:"+6 food a season"},
- fish:   {name:"Fishery",   food:5, g:30, r:12, blurb:"+5 food a season · coastal tiles only", coastal:true},
+ farm:   {name:"Farm",      food:6, g:40, r:15, blurb:"+6 food a season · near a village or city"},
+ fish:   {name:"Fishery",   food:5, g:30, r:12, blurb:"+5 food a season · coast, near a village or city", coastal:true},
  village:{name:"Village",   g:80, r:50, blurb:`+${VILLAGE[1].people} people (taxes +${VILLAGE[1].people/PEOPLE_PER_GOLD} gold, they eat food) · grows into a market village, then a city`},
- mine:   {name:"Gold mine", g:MINE[4].g, r:MINE[4].r, blurb:`+${MINE[4].gold} gold a season at level IV, up to +${MINE[1].gold} at level I`}
+ mine:   {name:"Gold mine", g:MINE[4].g, r:MINE[4].r, blurb:`+${MINE[4].gold} gold a season at level IV, up to +${MINE[1].gold} at level I · near a village or city`}
 };
 const TOWNCOST = { develop:p=>({g:100*p.dev, r:20*p.dev}), fortify:p=>({g:90*p.fort, r:15*p.fort}), ships:{g:150, r:40} };
 const isCoastal = i => CELLS[i][5]===1;
+/* Developments: S.devs[tile] = {village:{lvl,grow}} or any mix of {farm:{}, fish:{}, mine:{lvl}}.
+   A village stands alone on its tile; farms, fisheries and mines may share a tile (one of each)
+   and must lie within SUPPORT_RANGE tiles of a village or city we own. */
+const SUPPORT_RANGE = 2, DEV_ORDER = ["village","farm","fish","mine"], WORKS = ["farm","fish","mine"];
+const devsAt = i => S.devs[i] || {};
+const hasDevs = i => !!S.devs[i] && Object.keys(S.devs[i]).length>0;
+function delDev(i,t){ if(!S.devs[i]) return; if(t) delete S.devs[i][t]; if(!t || !Object.keys(S.devs[i]).length) delete S.devs[i]; }
+let SUPPORT=null, SUPPORTKEY="";
+function supportSet(){
+ // tiles within SUPPORT_RANGE steps of an owned town/city tile or an owned village tile
+ const src=[]; for(const p of owned(S.player)) src.push(p.tile);
+ for(const k in S.devs) if(S.devs[k].village && S.tiles[+k]===S.player) src.push(+k);
+ const key=src.join(","); if(key===SUPPORTKEY && SUPPORT) return SUPPORT;
+ const dist=new Map(src.map(i=>[i,0])), q=[...src];
+ while(q.length){ const i=q.shift(), d=dist.get(i); if(d>=SUPPORT_RANGE) continue; for(const j of NEI[i]) if(!dist.has(j)){ dist.set(j,d+1); q.push(j); } }
+ SUPPORTKEY=key; SUPPORT=dist; return dist;
+}
+const inSupport = i => supportSet().has(i);
+function whyNot(i,t){   // reason a development can't be added here, or "" if it can (cost aside)
+ const here=devsAt(i), D=DEV[t];
+ if(here[t]) return "Already built here";
+ if(t==="village") return hasDevs(i) ? "A village needs a tile to itself" : "";
+ if(here.village) return "This tile holds a village";
+ if(D.coastal && !isCoastal(i)) return "Only on coastal tiles";
+ if(!inSupport(i)) return `Must be within ${SUPPORT_RANGE} tiles of one of our villages or cities`;
+ return "";
+}
 function economy(rid){
  const towns = owned(rid);
  const E = {tiles:0, wild:0, people:0, townPeople:0, villagePeople:0, goldMines:0, food:0, mines:0, farms:0, fish:0, villages:0};
- for(let i=0;i<S.tiles.length;i++){ if(S.tiles[i]!==rid) continue; E.tiles++; if(!TOWNAT.has(i) && !(rid===S.player && S.devs[i])) E.wild++; }
+ for(let i=0;i<S.tiles.length;i++){ if(S.tiles[i]!==rid) continue; E.tiles++; if(!TOWNAT.has(i) && !(rid===S.player && hasDevs(i))) E.wild++; }
  E.townPeople = towns.reduce((s,p)=>s+p.dev*100,0);
  if(rid===S.player) for(const k in S.devs){ const i=+k, d=S.devs[k]; if(S.tiles[i]!==rid) continue;
-  if(d.t==="mine"){ E.goldMines += MINE[d.lvl].gold; E.mines++; }
-  else if(d.t==="farm"){ E.food += DEV.farm.food; E.farms++; }
-  else if(d.t==="fish"){ E.food += DEV.fish.food; E.fish++; }
-  else if(d.t==="village"){ E.villagePeople += VILLAGE[d.lvl].people; E.villages++; } }
+  if(d.mine){ E.goldMines += MINE[d.mine.lvl].gold; E.mines++; }
+  if(d.farm){ E.food += DEV.farm.food; E.farms++; }
+  if(d.fish){ E.food += DEV.fish.food; E.fish++; }
+  if(d.village){ E.villagePeople += VILLAGE[d.village.lvl].people; E.villages++; } }
  E.people = E.townPeople + E.villagePeople;
  E.goldTiles = GOLD_PER_TILE*E.tiles; E.goldPeople = Math.floor(E.people/PEOPLE_PER_GOLD);
  E.gold = E.goldTiles + E.goldPeople + E.goldMines;
@@ -361,7 +388,7 @@ function battle(att, place){
  const win = strength(att)*0.5*R(0.75,1.25) > defenseOf(place)*R(0.8,1.2);
  if(win){
   place.owner = att; place.fort = Math.max(1, place.fort-1); const wasCap = place.capital; place.capital = false;
-  const k = placeIdx(place); S.tiles[place.tile] = att; delete S.devs[place.tile]; CELLS.forEach((c,i)=>{ if(c[1]===k && S.tiles[i]===def) S.tiles[i]=att; });
+  const k = placeIdx(place); S.tiles[place.tile] = att; delDev(place.tile); CELLS.forEach((c,i)=>{ if(c[1]===k && S.tiles[i]===def) S.tiles[i]=att; });
   S.realms[def].lost[att] = (S.realms[def].lost[att]||0) + 1;
   if(wasCap){ const rest = owned(def); if(rest.length) rest.sort((a,b)=>b.dev-a.dev)[0].capital = true; }
   if(!owned(def).length) destroyRealm(def, att);
@@ -386,7 +413,7 @@ function destroyRealm(rid, by){
 function log(t, big){ for(const r of Object.values(S.realms)){ if(r.id!==S.player && !S.explored[r.id]) t = t.split(r.name).join("a distant realm"); }
  S.log.unshift({y:S.year, s:S.season, t, big:!!big}); if(S.log.length>300) S.log.length=300; }
 function save(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e){} }
-function load(){ try{ let s = localStorage.getItem(SAVE_KEY); for(const k of OLD_SAVE_KEYS) if(!s) s = localStorage.getItem(k); if(!s) return null; const o = JSON.parse(s); if(!o.tiles || o.tiles.length!==CELLS.length) return null; if(o.food==null){ o.food=60; o.res=60; o.devs={}; o.starving=0; } o.places.forEach((p,k)=>{ if(p.tile==null) p.tile=TOWNCELL[k]; }); for(const k in o.devs){ const d=o.devs[k]; if(d.t==='village' && d.lvl==null){ d.lvl=1; d.grow=0; } } return o; }catch(e){ return null; } }
+function load(){ try{ let s = localStorage.getItem(SAVE_KEY); for(const k of OLD_SAVE_KEYS) if(!s) s = localStorage.getItem(k); if(!s) return null; const o = JSON.parse(s); if(!o.tiles || o.tiles.length!==CELLS.length) return null; if(o.food==null){ o.food=60; o.res=60; o.devs={}; o.starving=0; } o.places.forEach((p,k)=>{ if(p.tile==null) p.tile=TOWNCELL[k]; }); for(const k in o.devs){ const d=o.devs[k]; if(d.t){ const t=d.t; o.devs[k] = {[t]: t==='village'?{lvl:d.lvl||1, grow:d.grow||0} : t==='mine'?{lvl:d.lvl||4}:{}}; } } return o; }catch(e){ return null; } }
 
 /* ---------- modals ---------- */
 const mq = [];
@@ -514,19 +541,19 @@ function actPeace(rid){
 }
 const canPay = (g,r) => S.gold>=g && S.res>=r;
 function actBuild(i,t){
- const d=DEV[t]; if(S.over || S.tiles[i]!==S.player || TOWNAT.has(i) || S.devs[i] || (d.coastal && !isCoastal(i)) || !canPay(d.g,d.r)) return;
- S.gold-=d.g; S.res-=d.r; S.devs[i] = t==="mine" ? {t, lvl:4} : t==="village" ? {t, lvl:1, grow:0} : {t};
+ const d=DEV[t]; if(S.over || S.tiles[i]!==S.player || TOWNAT.has(i) || whyNot(i,t) || !canPay(d.g,d.r)) return;
+ S.gold-=d.g; S.res-=d.r; (S.devs[i] ||= {})[t] = t==="mine" ? {lvl:4} : t==="village" ? {lvl:1, grow:0} : {};
  toast(t==="mine" ? `A level IV gold mine opens: +${MINE[4].gold} gold a season.` : t==="village" ? `Families settle a new village: +${VILLAGE[1].people} people.` : `A new ${d.name.toLowerCase()} is built.`); after();
 }
 function actUpgradeMine(i){
- const d=S.devs[i]; if(!d || d.t!=="mine" || d.lvl<=1 || S.tiles[i]!==S.player) return; const nx=MINE[d.lvl-1];
+ const d=devsAt(i).mine; if(!d || d.lvl<=1 || S.tiles[i]!==S.player) return; const nx=MINE[d.lvl-1];
  if(!canPay(nx.g,nx.r)) return; S.gold-=nx.g; S.res-=nx.r; d.lvl--; toast(`The mine is dug deeper: level ${nx.lvl}, +${nx.gold} gold a season.`); after();
 }
 const CITY_A = ["Ash","Wex","Mar","Thorn","Hal","Brad","Kings","Ox","Rad","Wil","Elm","Stan","Lyn","Hart","Fen","Dun","Bel","Cor","Mont","Roche","Val","Beau","Gra","Sel","Ard","Hol","Ber","Lau","Fal","Wend"];
 const CITY_B = ["bury","ford","ham","wick","stead","mouth","ton","by","field","minster","gate","bridge","mere","haven","court","mont","ville","berg","dorf","holm","burgh","vale"];
 function cityName(){ for(let t=0;t<50;t++){ const n = pick(CITY_A)+pick(CITY_B); if(!S.places.some(p=>p.name===n)) return n; } return "New "+pick(CITY_A)+"ton"; }
 function actUpgradeVillage(i){
- const d=S.devs[i]; if(S.over || !d || d.t!=="village" || S.tiles[i]!==S.player) return;
+ const d=devsAt(i).village; if(S.over || !d || S.tiles[i]!==S.player) return;
  const st=VILLAGE[d.lvl]; if(d.grow < st.grow || !canPay(st.up.g, st.up.r)) return;
  if(d.lvl===1){ S.gold-=st.up.g; S.res-=st.up.r; d.lvl=2; d.grow=0; toast(`The village becomes a market village: +${VILLAGE[2].people-VILLAGE[1].people} people.`); after(); return; }
  // market village -> a new city
@@ -535,14 +562,14 @@ function actUpgradeVillage(i){
   choices:[{label:"Grant the charter", sub:`${st.up.g} gold, ${st.up.r} resources`, fn:()=>foundCity(i, ($("cityname")?.value||"").trim() || suggested)},{label:"Not yet"}]});
 }
 function foundCity(i, name){
- const d=S.devs[i], st=VILLAGE[2]; if(!d || d.t!=="village" || d.lvl!==2 || S.tiles[i]!==S.player || !canPay(st.up.g, st.up.r)) return;
- S.gold-=st.up.g; S.res-=st.up.r; delete S.devs[i]; cellInit();
+ const d=devsAt(i).village, st=VILLAGE[2]; if(!d || d.lvl!==2 || S.tiles[i]!==S.player || !canPay(st.up.g, st.up.r)) return;
+ S.gold-=st.up.g; S.res-=st.up.r; delDev(i); cellInit();
  const [x,y]=CELLC[i];
  S.places.push({id:"city"+(S.nextId++), name, x:+x.toFixed(1), y:+y.toFixed(1), owner:S.player, dev:3, fort:1, port:isCoastal(i), capital:false, tile:i, founded:turn()});
  log(`The city of ${name} is chartered by royal decree.`, true);
  selected = S.places[S.places.length-1].id; after();
 }
-function actRaze(i){ if(S.tiles[i]!==S.player || !S.devs[i]) return; delete S.devs[i]; toast("The works are torn down."); after(); }
+function actRaze(i,t){ if(S.tiles[i]!==S.player || !devsAt(i)[t]) return; delDev(i,t); toast(`The ${DEV[t].name.toLowerCase()} is torn down.`); after(); }
 function actOccupy(i){
  const o=S.tiles[i];
  if(!o || !atWar(S.player,o) || TOWNAT.has(i) || !tileAdj(S.player,i) || S.marches<1) return;
@@ -569,14 +596,14 @@ function endSeason(){
  S.gold += inc; S.res += E.res; S.food += E.netFood;
  if(S.food < 0){
   S.food = 0; S.starving++;
-  const vil = Object.keys(S.devs).filter(k=>S.devs[k].t==="village" && S.tiles[+k]===S.player);
-  if(vil.length){ const k=pick(vil); delete S.devs[k]; summary.push(`<b>Famine!</b> The granaries are empty. Starving families abandon a village and its people scatter.`); log("Famine: a village is abandoned.", true); }
+  const vil = Object.keys(S.devs).filter(k=>S.devs[k].village && S.tiles[+k]===S.player);
+  if(vil.length){ const k=pick(vil); delDev(+k,'village'); summary.push(`<b>Famine!</b> The granaries are empty. Starving families abandon a village and its people scatter.`); log("Famine: a village is abandoned.", true); }
   else { const edge=S.tiles.map((o,i)=>i).filter(i=>S.tiles[i]===S.player && !TOWNAT.has(i) && NEI[i].some(j=>S.tiles[j]!==S.player));
-   if(edge.length){ const i=pick(edge); S.tiles[i]=null; delete S.devs[i]; summary.push(`<b>Famine!</b> The granaries are empty. Starving people flee, and a borderland falls wild.`); log("Famine: hungry people abandon the borderlands.", true); }
+   if(edge.length){ const i=pick(edge); S.tiles[i]=null; delDev(i); summary.push(`<b>Famine!</b> The granaries are empty. Starving people flee, and a borderland falls wild.`); log("Famine: hungry people abandon the borderlands.", true); }
    else summary.push(`<b>Famine!</b> The granaries are empty and the people go hungry.`); }
   summary.push("Taxes will bring in only half while the people starve. Build farms or fisheries.");
  } else S.starving = 0;
- if(!S.starving) for(const k in S.devs){ const d=S.devs[k]; if(d.t==='village' && S.tiles[+k]===S.player){ const before=d.grow||0; d.grow=before+1; if(before<VILLAGE[d.lvl].grow && d.grow>=VILLAGE[d.lvl].grow) summary.push(d.lvl===1?'A village has grown large enough to become a market village.':'A market village is ready to be chartered as a city.'); } }
+ if(!S.starving) for(const k in S.devs){ const d=S.devs[k].village; if(d && S.tiles[+k]===S.player){ const before=d.grow||0; d.grow=before+1; if(before<VILLAGE[d.lvl].grow && d.grow>=VILLAGE[d.lvl].grow) summary.push(d.lvl===1?'A village has grown large enough to become a market village.':'A market village is ready to be chartered as a city.'); } }
  // AI realms
  for(const r of Object.values(S.realms)){
   if(!r.alive || r.id===S.player) continue;
@@ -666,8 +693,11 @@ const DEVICON = {
 };
 function renderDevs(){
  cellInit(); const k=PS();
- $("devs").innerHTML = Object.keys(S.devs).filter(i=>S.seen[+i] && S.tiles[+i]===S.player).map(i=>{ const d=S.devs[i], [x,y]=CELLC[+i];
-  return `<g class="dv" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${k})">${DEVICON[d.t==='village'&&d.lvl===2?'market':d.t]}${d.t==="mine"?`<text x="5.5" y="-3.2" font-size="5" font-weight="700" fill="#f0c040" stroke="#2a1d12" stroke-width="1.2" paint-order="stroke" font-family="Spectral,serif">${MINE[d.lvl].lvl}</text>`:""}</g>`; }).join("");
+ $("devs").innerHTML = Object.keys(S.devs).filter(i=>S.seen[+i] && S.tiles[+i]===S.player).map(i=>{ const here=S.devs[i], [x,y]=CELLC[+i];
+  const kinds = DEV_ORDER.filter(t=>here[t]), off = kinds.length===1?[0]:kinds.length===2?[-5.6,5.6]:[-11,0,11];
+  const icons = kinds.map((t,n)=>{ const icon = t==="village" && here.village.lvl===2 ? DEVICON.market : DEVICON[t];
+   return `<g transform="translate(${off[n]},0)">${icon}${t==="mine"?`<text x="3.2" y="-3.6" font-size="4.6" font-weight="700" fill="#f0c040" stroke="#2a1d12" stroke-width="1.2" paint-order="stroke" font-family="Spectral,serif">${MINE[here.mine.lvl].lvl}</text>`:""}</g>`; }).join("");
+  return `<g class="dv" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${k})">${icons}</g>`; }).join("");
 }
 function renderPlaces(){
  const war = pr().atWar;
@@ -765,23 +795,27 @@ function renderCard(){
   let h = `<button class="x" aria-label="Close">×</button><h3>${o?(o===S.player?"Our lands":"Lands of "+S.realms[o].name):"Unclaimed wilds"}</h3><div class="sub">${o?`<b style="color:${S.realms[o].color}">●</b> `:""}${home?"Countryside of "+home:"Far from any town"}</div>`;
   if(!o) h += btn("Claim this land", adj?"1 march · 10 gold":"Must border our lands", ()=>actClaim(i), !ap||!adj||S.gold<10);
   else if(o===S.player){
-   const d=S.devs[i];
+   const here=devsAt(i), kinds=DEV_ORDER.filter(t=>here[t]);
    h += `<div class="row"><span>Taxes</span><span>+${GOLD_PER_TILE} gold a season</span></div><div class="row"><span>Coast</span><span>${isCoastal(i)?"yes":"inland"}</span></div>`;
-   if(d){
-    if(d.t==="mine"){ h += `<div class="row"><span>Gold mine</span><span>level ${MINE[d.lvl].lvl} · +${MINE[d.lvl].gold} gold</span></div>`;
+   h += `<div class="row"><span>Near a village or city</span><span>${inSupport(i)?"yes":"no"}</span></div>`;
+   if(!kinds.length) h += `<div class="row"><span>Left wild</span><span>+${RES_PER_WILD_TILE} resource a season</span></div>`;
+   for(const t of kinds){
+    h += `<h4 style="margin:10px 0 2px;font:400 17px 'IM Fell English',serif;color:var(--accent)">${t==="village"?VILLAGE[here.village.lvl].name:DEV[t].name}</h4>`;
+    if(t==="mine"){ const d=here.mine; h += `<div class="row"><span>Level ${MINE[d.lvl].lvl}</span><span>+${MINE[d.lvl].gold} gold a season</span></div>`;
      if(d.lvl>1){ const nx=MINE[d.lvl-1]; h += btn(`Dig deeper to level ${nx.lvl}`, `${nx.g} gold, ${nx.r} resources · +${nx.gold} gold a season`, ()=>actUpgradeMine(i), S.over||!canPay(nx.g,nx.r)); }
      else h += `<p class="note">The richest vein: level I.</p>`; }
-    else if(d.t==="village"){ const st=VILLAGE[d.lvl], g=Math.min(d.grow||0, st.grow), ready=g>=st.grow;
-     h += `<div class="row"><span>${st.name}</span><span>${st.people} people · +${st.people/PEOPLE_PER_GOLD} gold</span></div>`;
-     h += `<div class="row"><span>Growth</span><span>${g} / ${st.grow} seasons</span></div><div class="bar" style="height:6px;background:#0002;border-radius:3px;overflow:hidden;margin:4px 0"><i style="display:block;height:100%;width:${100*g/st.grow}%;background:${ready?"#4a6a2a":"#8a6a2a"}"></i></div>`;
+    else if(t==="village"){ const d=here.village, st=VILLAGE[d.lvl], g=Math.min(d.grow||0, st.grow), ready=g>=st.grow;
+     h += `<div class="row"><span>${st.people} people</span><span>+${st.people/PEOPLE_PER_GOLD} gold a season</span></div>`;
+     h += `<div class="row"><span>Growth</span><span>${g} / ${st.grow} seasons</span></div><div style="height:6px;background:#0002;border-radius:3px;overflow:hidden;margin:4px 0"><i style="display:block;height:100%;width:${100*g/st.grow}%;background:${ready?"#4a6a2a":"#8a6a2a"}"></i></div>`;
      h += btn(st.up.label, ready ? `${st.up.g} gold, ${st.up.r} resources${d.lvl===2?" · a new city with its own name on the map":` · +${VILLAGE[2].people-st.people} people`}` : `Ready in ${st.grow-g} more season${st.grow-g===1?"":"s"} (villages grow while nobody starves)`, ()=>actUpgradeVillage(i), S.over||!ready||!canPay(st.up.g,st.up.r)); }
-    else h += `<div class="row"><span>${DEV[d.t].name}</span><span>${DEV[d.t].blurb.split(" · ")[0]}</span></div>`;
-    h += btn("Tear down", "Frees the tile; wild land yields resources again", ()=>actRaze(i), S.over);
-   } else {
-    h += `<div class="row"><span>Left wild</span><span>+${RES_PER_WILD_TILE} resource a season</span></div>`;
-    h += `<h4 style="margin:10px 0 2px;font:400 17px 'IM Fell English',serif;color:var(--accent)">Develop this land</h4><p class="note" style="margin:0 0 4px">Building here ends its resource yield.</p>`;
-    for(const t of ["village","farm","fish","mine"]){ const D=DEV[t], coastBad = D.coastal && !isCoastal(i);
-     h += btn(`Build a ${D.name.toLowerCase()}`, coastBad ? "Only on coastal tiles" : `${D.g} gold, ${D.r} resources · ${D.blurb}`, ()=>actBuild(i,t), S.over||coastBad||!canPay(D.g,D.r)); }
+    else h += `<div class="row"><span>Yield</span><span>${DEV[t].blurb.split(" · ")[0]}</span></div>`;
+    h += btn(`Tear down the ${(t==="village"?VILLAGE[here.village.lvl].name:DEV[t].name).toLowerCase()}`, kinds.length===1?"The land goes back to yielding resources":"", ()=>actRaze(i,t), S.over);
+   }
+   const options = DEV_ORDER.filter(t=>!here[t] && !(t==="village" && kinds.length));
+   if(options.length && !here.village){
+    h += `<h4 style="margin:12px 0 2px;font:400 17px 'IM Fell English',serif;color:var(--accent)">${kinds.length?"Add to this land":"Develop this land"}</h4>${kinds.length?"":`<p class="note" style="margin:0 0 4px">Building here ends its resource yield.</p>`}`;
+    for(const t of options){ const D=DEV[t], why=whyNot(i,t);
+     h += btn(`Build a ${D.name.toLowerCase()}`, why || `${D.g} gold, ${D.r} resources · ${D.blurb}`, ()=>actBuild(i,t), S.over||!!why||!canPay(D.g,D.r)); }
    }
   }
   else if(atWar(S.player,o)) h += btn("Occupy this land", adj?"1 march":"Must border lands we hold", ()=>actOccupy(i), !ap||!adj, true);
@@ -979,7 +1013,7 @@ $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
 $("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
-$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have two <b>deeds</b> (developing or fortifying a town, building ships, exploring, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Every 100 people eat 1 food a season; if the granaries run dry, your people starve.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or build ships in a port town to send fleets over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
+$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have two <b>deeds</b> (developing or fortifying a town, building ships, exploring, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Every 100 people eat 1 food a season; if the granaries run dry, your people starve.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or build ships in a port town to send fleets over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
 }
 </script>
 </body>
