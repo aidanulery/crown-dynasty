@@ -95,6 +95,16 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .page.full .tree.drag{cursor:grabbing;user-select:none}
 .tree>ul{padding:26px 30px 30px !important}
 .pc[data-pid]{cursor:pointer}
+.page.full .panel:has(.web){display:flex;flex-direction:column}
+.page.full .panel:has(.web)>*{flex:none}
+.page.full .panel:has(.web)>.web{flex:1 1 auto}
+.web{min-height:340px;border:1px solid #6b4a1e55;border-radius:6px;background:rgba(255,245,220,.18)}
+.web svg{width:100%;height:100%;display:block}
+.web .wn{cursor:pointer}.web .wn:hover circle{stroke:#a3302a;stroke-width:2.5}
+.web text{font:16px 'IM Fell English',serif;fill:#2a1808;text-anchor:middle;paint-order:stroke;stroke:#f2e3bd;stroke-width:3px;pointer-events:none}
+.web .ini{font:700 15px serif;fill:#fff;stroke:none}
+.weblegend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12.5px;margin:4px 0 8px}
+.weblegend i{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:4px;vertical-align:-1px;border:1px solid #2a1808}
 .pc[data-pid]:hover{box-shadow:0 0 0 2px #b8892d,0 2px 4px #0003}
 .tree.lineage .pc{opacity:.32;filter:grayscale(.8)}
 .tree.lineage .pc.blood{opacity:1;filter:none}
@@ -278,7 +288,7 @@ const TERRAIN="ccmmscccccmmsscacmmmcccccmmccccccmmcmmffcccmmmmmmmccccmmmmmcccccm
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.2.7";
+const VERSION = "pre-alpha v0.2.8";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -404,6 +414,7 @@ const strength = rid => armyOf(rid).strength;
 /* Power: every other kingdom is dealt a random might (army strength and wealth) and temper (appetite for war). */
 const POWER = [{name:"Feeble",m:0.6,w:2},{name:"Weak",m:0.8,w:3},{name:"Middling",m:1.0,w:4},{name:"Strong",m:1.25,w:3},{name:"Mighty",m:1.55,w:2}];
 function rollPower(cap){ const pool=POWER.filter(p=>p.m<=cap); let t=Math.random()*pool.reduce((a,p)=>a+p.w,0); for(const p of pool){ t-=p.w; if(t<=0) return +(p.m*R(0.93,1.07)).toFixed(2); } return 1; }
+const relName = r => { const v=r.rel||0; return `${v>0?"+":""}${v} (${v>=50?"friendly":v>=20?"warm":v>-20?"neutral":v>-50?"cool":"hostile"})`; };
 const powerName = r => r.might==null ? "" : r.might>=1.4 ? "Mighty" : r.might>=1.12 ? "Strong" : r.might>=0.9 ? "Middling" : r.might>=0.7 ? "Weak" : "Feeble";
 function assignPowers(fresh){
  const nb = new Set(neighboursByLand(S.player));
@@ -582,15 +593,14 @@ function starveCutNets(rid, nets, summary){
   summary.push(`<b>${netName(N)} ${N.members.length>1?"are":"is"} cut off from the royal granary</b> and ${-bal} food short a season${died?`: ${died.toLocaleString()} people starved`:""}. Lay trade routes to link ${N.members.length>1?"them":"it"} to the capital's network, or build farms nearby.`);
   if(died) log(`Hunger in ${netName(N)}, cut off from the royal granary: ${died} dead.`); }
 }
-function actHireCrew(i){
+function actHireCrew(i){   // laying trade routes takes no deed; each segment costs gold
  if(S.over || S.tiles[i]!==S.player) return;
- if(crewLeft()<1){ if(!useAP()) return; S.crew={t:turn(), left:CREW_SEGMENTS}; log(`A road crew sets out to lay trade routes.`); }
- ROUTE={from:i}; selected="tile:"+i; save(); render();
+ ROUTE={from:i}; selected="tile:"+i; render();
 }
 function actLayRoute(j){
  const i=ROUTE?.from; if(i==null || S.tiles[j]!==S.player) return;
  if(!NEI[i].includes(j)){ ROUTE.from=j; selected="tile:"+j; render(); return; }   // jump the crew to another of our lands
- if(!hasRoute(i,j)){ if(crewLeft()<1 || S.gold<ROUTE_COST) return; S.gold-=ROUTE_COST; S.crew.left--; S.routes.push(rkey(i,j)); }
+ if(!hasRoute(i,j)){ if(S.gold<ROUTE_COST) return toast(`A trade route costs ${ROUTE_COST} gold.`); S.gold-=ROUTE_COST; S.routes.push(rkey(i,j)); }
  ROUTE.from=j; selected="tile:"+j; save(); render();
 }
 function actClearRoutes(i){ S.routes=(S.routes||[]).filter(k=>!k.split("-").map(Number).includes(i)); toast("The trade routes through this land are abandoned."); after(); }
@@ -632,20 +642,50 @@ function battle(att, place){
  const aDead = killPeople(att, A.troops*(win?R(0.04,0.09):R(0.10,0.18)));
  const dDead = killPeople(def, D.troops*(win?R(0.08,0.15):R(0.03,0.07)) + (win ? place.pop*R(0.03,0.07) : 0), place);
  if(win){
-  place.owner = att; place.fort = Math.max(1, place.fort-1); const wasCap = place.capital; place.capital = false;
-  const k = placeIdx(place), taken=[place.tile]; S.homes.forEach((h,i)=>{ if(h===k && S.tiles[i]===def) taken.push(i); }); S.tiles[place.tile] = att; delDev(place.tile); for(const i of taken) S.tiles[i]=att; if(att===S.player) markConquered(taken);
   S.realms[def].lost[att] = (S.realms[def].lost[att]||0) + 1;
+  if(owned(def).length<=1){   // the last city: the defender surrenders and the war is settled on the victor's terms
+   addScore(att,def,30); const pay=Math.round(Math.min(300, 60+40*(S.realms[def]?.lost?.[att]||1)));
+   const st=settleWar(att, def, att, pay, def);
+   return {win, place:place.name, aDead, dDead, surrender:true, terms:st};
+  }
+  place.fort = Math.max(1, place.fort-1); const wasCap = place.capital; place.capital = false;
+  seize(place.tile, att); addScore(att,def,20);
   if(wasCap){ const rest = owned(def); if(rest.length) rest.sort((a,b)=>b.dev-a.dev)[0].capital = true; }
-  if(!owned(def).length) destroyRealm(def, att);
- }
+ } else addScore(att,def,-6);
  return {win, place:place.name, aDead, dDead};
 }
 let LASTFIGHT = {a:0, d:0};
+/* Wars are settled, not won in one stroke. Land taken during a war is only occupied (S.occ: tile -> owner before
+   the war) and each pair at war keeps a war score; the peace treaty decides who keeps what. A kingdom down to its
+   last city cannot be wiped out by assault: storming it forces a surrender on the victor's terms. */
+const wkey = (a,b) => a<b ? a+"|"+b : b+"|"+a;
+const warScore = (a,b) => { const v=(S.wscore||{})[wkey(a,b)]||0; return a<b ? v : -v; };
+function addScore(a,b,n){ S.wscore ||= {}; const k=wkey(a,b); S.wscore[k]=clamp((S.wscore[k]||0)+(a<b?n:-n),-100,100); }
+function seize(i, by){ S.occ ||= {}; const from=S.tiles[i]; if(!from || from===by) return;
+ if(S.occ[i]===by) delete S.occ[i]; else if(S.occ[i]==null) S.occ[i]=from;
+ S.tiles[i]=by; const t=TOWNAT.get(i); if(t!=null) S.places[t].owner=by; delDev(i);
+ if(by===S.player && S.occ[i]!=null) markConquered([i]); }
+const occupiedBy = (holder, from) => Object.keys(S.occ||{}).map(Number).filter(i=>S.tiles[i]===holder && S.occ[i]===from);
+/* keeper: the realm that keeps the land it occupies from the other; "none" returns everything, "both" keeps the lines as they stand */
+function settleWar(a, b, keeper, tribute=0, payer=null){
+ S.occ ||= {}; let kept=0, back=0;
+ for(const k of Object.keys(S.occ)){ const i=+k, orig=S.occ[i], holder=S.tiles[i];
+  if(!((orig===a && holder===b) || (orig===b && holder===a))) continue;
+  if(keeper==="both" || holder===keeper){ delete S.occ[i]; kept++; continue; }
+  S.tiles[i]=orig; const t=TOWNAT.get(i); if(t!=null){ S.places[t].owner=orig; } delete S.occ[i]; back++; }
+ for(const r of [a,b]) if(!owned(r).some(p=>p.capital) && owned(r).length) owned(r).sort((x,y)=>y.dev-x.dev)[0].capital=true;
+ if(tribute && payer){ const other=payer===a?b:a; const pay=Math.min(tribute, Math.max(0, payer===S.player?S.gold:S.realms[payer].gold));
+  if(payer===S.player) S.gold-=pay; else S.realms[payer].gold-=pay; if(other===S.player) S.gold+=pay; else S.realms[other].gold+=pay; tribute=pay; }
+ if(S.wscore) delete S.wscore[wkey(a,b)];
+ setPeace(a,b); for(const r of [a,b]) if(r!==S.player && (a===S.player||b===S.player)) S.realms[r].rel=clamp((S.realms[r].rel||0)+10,-100,100);
+ return {kept, back, tribute};
+}
 function tileSkirmish(att, def){
  if(!def){ LASTFIGHT={a:0,d:0}; return true; }
  const A=armyOf(att), D=armyOf(def), a=A.strength+1, d=D.strength+1;
  const win = Math.random() < clamp(0.55 + (a - d*0.6)/(a+d)*0.8, 0.15, 0.92);
- LASTFIGHT = { a: killPeople(att, A.troops*(win?R(0.005,0.015):R(0.015,0.035))), d: killPeople(def, D.troops*(win?R(0.015,0.035):R(0.005,0.015))) };
+ LASTFIGHT = { a: killPeople(att, A.troops*(win?R(0.005,0.015):R(0.015,0.035))), d: killPeople(def, D.troops*(win?R(0.015,0.035):R(0.005,0.015))), aT: Math.round(A.troops*R(0.15,0.3)), dT: Math.round(D.troops*R(0.15,0.3)) };
+ addScore(att, def, win?5:-3);
  return win;
 }
 function destroyRealm(rid, by){
@@ -745,6 +785,17 @@ function actExplore(i){
  S.expeditions.push({id:S.nextId++, tile:i, start:turn(), eta:turn()+pl.seasons, sea:pl.sea, port:pl.sea?pl.port.id:null, portName:pl.sea?pl.port.name:null, ships:pl.sea?1:0});
  log(pl.sea ? `An exploring fleet sails from ${pl.port.name}. They expect to return by ${when(turn()+pl.seasons)}.` : `Scouts ride out into the uncharted country. They will report at season's end.`);
  if(selected && String(selected).startsWith("fog:")) selected=null; after();
+}
+/* Diplomats: a mission to a known court reveals the whole kingdom and improves relations. */
+const DIPLOMAT_COST = 50;
+function actDiplomat(rid){ const r=S.realms[rid]; if(!r?.alive || S.over || !known(rid) || S.gold<DIPLOMAT_COST || (S.diplomats||[]).some(d=>d.rid===rid) || !useAP()) return;
+ S.gold-=DIPLOMAT_COST; (S.diplomats ||= []).push({rid, eta:turn()+1}); log(`A diplomat sets out for the court of ${r.name}.`); toast(`Our diplomat rides for ${r.name}. They will report at season's end.`); after(); }
+function resolveDiplomats(summary){
+ for(const d of [...(S.diplomats||[])]){ if(turn()<d.eta) continue; S.diplomats=S.diplomats.filter(x=>x!==d); const r=S.realms[d.rid]; if(!r?.alive) continue;
+  let n=0; for(let i=0;i<S.tiles.length;i++) if(S.tiles[i]===d.rid && !S.seen[i]){ S.seen[i]=1; n++; } S.explored[d.rid]=true; S.met ||= {}; S.met["k:"+d.rid]=turn();
+  const g = atWar(S.player,d.rid) ? RI(4,10) : RI(12,22); r.rel=clamp((r.rel||0)+g,-100,100);
+  summary.push(`<b>Our diplomat returns from ${r.name}</b>${n?` with maps of all ${n} of its lands we had not seen`:""}. ${rulerOf(d.rid)} received them; relations improve by ${g} (now ${relName(r)}).`);
+  log(`Our diplomat at the court of ${r.name}: relations +${g}.`); }
 }
 function revealBlob(start){
  const g = cellRealm(start); let hidden=0;
@@ -893,13 +944,13 @@ function seedFarms(){   // every kingdom starts with two farms beside each town
 /* Other kingdoms play by our rules: every build or upgrade costs gold and resources and takes one of their
    three deeds a season, works must lie within two tiles of a village or city, villages need farms beside
    them, and settlements must be linked to the capital by trade routes or go hungry. */
-function aiPay(r, g, res){ if(r.gold<g || r.res<res || r.ap<1) return false; r.gold-=g; r.res-=res; r.ap--; return true; }
+function aiPay(r, g, res, deed=true){ if(r.gold<g || r.res<res || (deed && r.ap<1)) return false; r.gold-=g; r.res-=res; if(deed) r.ap--; return true; }
 function aiBuild(r, i, t){ const D=DEV[t]; if(whyNot(i,t,r.id) || !aiPay(r, D.g, D.r)) return false; (S.devs[i] ||= {})[t] = t==="mine" ? {lvl:4} : t==="village" ? {lvl:1, grow:0} : {}; return true; }
 function aiRoutes(r){   // a road crew (one deed) links a cut-off settlement to the capital's network, up to 8 segments
  const T=tradeNets(r.id); if(!T.royal) return false;
  const goal=new Set(T.royal.members.map(m=>m.tile)); const cut=T.nets.filter(n=>!n.royal).flatMap(n=>n.members);
  for(const m of cut){ const path=routePath(r.id, m.tile, goal); if(!path.length || path.length>CREW_SEGMENTS) continue;
-  const fresh=path.filter(([a,b])=>!hasRoute(a,b,r.id)); if(!aiPay(r, ROUTE_COST*fresh.length, 0)) return false;
+  const fresh=path.filter(([a,b])=>!hasRoute(a,b,r.id)); if(!aiPay(r, ROUTE_COST*fresh.length, 0, false)) return false;
   for(const [a,b] of fresh) routesOf(r.id).push(rkey(a,b)); return true; }
  return false;
 }
@@ -963,11 +1014,11 @@ function genSuitors(keep=[]){
  for(let k=nobles;k<2;k++) list.push({id:"s"+(S.nextId++), name:pick(want==="m"?MALE:FEMALE), gender:want, born:S.year-RI(16,27), house:pick(NOBLE_HOUSES), realm:null, rel:"noble", aff:RI(15,35), trait:pick(LOVE_TRAITS), dowry:RI(20,80), acted:-1});
  S.suitors=list; S.suitorsT=turn();
 }
-function actWoo(id, kind){ const s=S.suitors.find(x=>x.id===id), L=LOVE[kind]; if(!s || S.over || s.acted===turn() || S.gold<L.g || spouse()) return;
+function actWoo(id, kind){ const s=S.suitors.find(x=>x.id===id), L=LOVE[kind]; if(!s || S.over || s.acted===turn() || S.gold<L.g || spouse()) return; meet(s,"ruler");
  S.gold-=L.g; s.acted=turn(); let g=RI(...L.gain); if(s.trait===L.likes) g*=2; if(s.trait===L.dislikes) g=Math.round(g/3);
  s.aff=clamp(s.aff+g,0,100);
  toast(s.trait===L.likes ? `${s.name} is delighted (+${g} affection).` : s.trait===L.dislikes ? `${s.name} is unmoved (+${g}).` : `${s.name} warms to you (+${g} affection).`); after(); }
-function actPropose(id){ const s=S.suitors.find(x=>x.id===id); if(!s || S.over || s.acted===turn() || spouse()) return;
+function actPropose(id){ const s=S.suitors.find(x=>x.id===id); if(!s || S.over || s.acted===turn() || spouse()) return; meet(s,"ruler");
  s.acted=turn();
  if(Math.random()*100 < clamp(s.aff,5,95)) return marry(s);
  const was=s.aff; s.aff=Math.max(0,s.aff-20); log(`${s.name} declines a royal proposal.`);
@@ -977,7 +1028,7 @@ function marry(s){
  r.spouses.push(p.id); p.spouses.push(r.id); S.spouseId=p.id; S.spouseAff=Math.max(40,s.aff); S.suitors=[];
  S.gold+=s.dowry;
  let extra="";
- if(s.realm){ const R2=S.realms[s.realm]; S.allies[s.realm]=true; if(atWar(S.player,s.realm)) setPeace(S.player,s.realm);
+ if(s.realm){ const R2=S.realms[s.realm]; S.allies[s.realm]=true; R2.rel=Math.max(R2.rel||0,50); if(atWar(S.player,s.realm)) setPeace(S.player,s.realm);
   extra=`<p>${R2.name} is now bound to us by blood: an alliance stands, and any child of this marriage carries a claim to its crown.</p>`;
   log(`${rulerTitle()} ${r.name} weds ${s.name} of House ${s.house}, ${s.rel} to the ruler of ${R2.name}. An alliance is sealed.`, true); }
  else { S.knights.forEach(k=>{ if(k) k.loy=Math.min(10,k.loy+1); }); extra=`<p>The nobility rejoice that one of their own sits beside the throne: every knight's loyalty rises.</p>`;
@@ -1031,10 +1082,10 @@ function childSuitors(c, keep=[]){
  c.suitors=list; c.suitorsT=turn();
 }
 const childWed = c => c.spouses.some(x=>living(person(x)));
-function actChildWoo(cid, sid, kind){ const c=person(cid), s=c?.suitors?.find(x=>x.id===sid), L=LOVE[kind]; if(!s || S.over || s.acted===turn() || S.gold<L.g || childWed(c)) return;
+function actChildWoo(cid, sid, kind){ const c=person(cid), s=c?.suitors?.find(x=>x.id===sid), L=LOVE[kind]; if(!s || S.over || s.acted===turn() || S.gold<L.g || childWed(c)) return; meet(s,cid);
  S.gold-=L.g; s.acted=turn(); let g=RI(...L.gain); if(s.trait===L.likes) g*=2; if(s.trait===L.dislikes) g=Math.round(g/3);
  s.aff=clamp(s.aff+g,0,100); toast(`${s.name} ${s.trait===L.likes?"is delighted":s.trait===L.dislikes?"is unmoved":"warms to"}${s.trait===L.likes||s.trait===L.dislikes?"":` ${c.name}`} (+${g} affection).`); after(); }
-function actChildPropose(cid, sid){ const c=person(cid), s=c?.suitors?.find(x=>x.id===sid); if(!s || S.over || s.acted===turn() || childWed(c) || age(c)<16) return;
+function actChildPropose(cid, sid){ const c=person(cid), s=c?.suitors?.find(x=>x.id===sid); if(!s || S.over || s.acted===turn() || childWed(c) || age(c)<16) return; meet(s,cid);
  s.acted=turn();
  if(Math.random()*100 >= clamp(s.aff,5,95)){ s.aff=Math.max(0,s.aff-20); log(`${s.name} declines a match with ${c.name}.`); toast(`${s.name} declines the match with ${c.name}.`); after(); return; }
  const sp=newPerson({name:s.name, gender:s.gender, born:s.born, house:s.house, origin:s.realm||"noble", realm:s.realm, rel:s.rel, wed:S.year});
@@ -1082,7 +1133,7 @@ function catalogFor(key){
  S.catalog[key]={t:turn(), list}; return list;
 }
 function actInvite(key, sid){ const L=catalogFor(key), s=L.find(x=>x.id===sid), cur=browseSuitors(key); if(!s || S.over || S.gold<INVITE_COST || cur.length>=SUITOR_CAP) return;
- S.gold-=INVITE_COST; cur.push(s); S.catalog[key].list=L.filter(x=>x!==s); if(s.realm) S.explored[s.realm]=true;
+ S.gold-=INVITE_COST; cur.push(s); meet(s, key); S.catalog[key].list=L.filter(x=>x!==s); if(s.realm) S.explored[s.realm]=true;
  toast(`${s.name} accepts the invitation to court.`); after(); }
 function actSendAway(key, sid){ const t=browseTarget(key); if(key==="ruler") S.suitors=S.suitors.filter(x=>x.id!==sid); else t.suitors=t.suitors.filter(x=>x.id!==sid); after(); }
 function renderBrowse(key){
@@ -1248,6 +1299,76 @@ function renderCitiesPage(){
   h += btn("Open the city map", "Houses, castle and buildings", ()=>{ page=null; openCity(p.id); render(); });
   h += `</div></div>`; }
  return h + `</div>`;
+}
+/* =====================================================================
+   Social web: everyone connected to the sovereign — family, court, the suitors we have courted and the
+   monarchs of every kingdom we have discovered — drawn as a web around the throne.
+   ===================================================================== */
+let WEBFOCUS = null;
+function meet(s, of){ S.met ||= {}; if(!S.met[s.id]) S.met[s.id] = {id:s.id, name:s.name, gender:s.gender, born:s.born, house:s.house, realm:s.realm, rel:s.rel, of, t:turn()}; }
+function relTo(p, r){   // how p is related to the sovereign r
+ if(p.id===r.id) return "the sovereign";
+ if(r.spouses.includes(p.id)) return r.gender==="m" ? "queen" : "consort";
+ if(r.children.includes(p.id)) return p.gender==="m"?"son":"daughter";
+ if(p.id===r.father||p.id===r.mother) return p.gender==="m"?"father":"mother";
+ const par=[r.father,r.mother].map(person).filter(Boolean);
+ if(par.some(x=>x.children.includes(p.id))) return p.gender==="m"?"brother":"sister";
+ if(r.children.map(person).some(c=>c?.children.includes(p.id))) return p.gender==="m"?"grandson":"granddaughter";
+ if(r.children.map(person).some(c=>c?.spouses.includes(p.id))) return p.gender==="m"?"son-in-law":"daughter-in-law";
+ const sibs=par.flatMap(x=>x.children).filter(x=>x!==r.id).map(person).filter(Boolean);
+ if(sibs.some(x=>x.children.includes(p.id))) return p.gender==="m"?"nephew":"niece";
+ if(sibs.some(x=>x.spouses.includes(p.id))) return p.gender==="m"?"brother-in-law":"sister-in-law";
+ return "kin";
+}
+function webGraph(){
+ const r=ruler(), N=new Map(), E=[]; const add=(id,o)=>{ if(!N.has(id)) N.set(id,{id,...o}); return N.get(id); };
+ add(r.id,{name:r.name, kind:"you", ring:0, sub:`${rulerTitle()} of ${pr().name}`});
+ // family: everyone of the sovereign's blood still living, and their husbands and wives
+ const fam=[...bloodOf(r)].map(person).filter(p=>living(p) && p.id!==r.id);
+ const sps=[r,...fam].flatMap(p=>p.spouses.map(person)).filter(p=>living(p) && p.id!==r.id && !p.left);
+ for(const p of [...fam,...sps]) add(p.id,{name:p.name, kind:"family", ring:1, sub:`${relTo(p,r)}, aged ${age(p)}`, person:p});
+ for(const n of N.values()) if(n.person){ const p=n.person; const link=[p.father,p.mother].find(x=>N.has(x)); if(link) E.push([link,p.id,"family"]); }
+ for(const n of N.values()) if(n.person||n.kind==="you"){ const p=n.person||r; for(const x of p.spouses) if(N.has(x) && p.id<x) E.push([p.id,x,"spouse"]); }
+ for(const n of [...N.values()]) if(n.kind==="family" && !E.some(e=>e[1]===n.id||e[0]===n.id)) E.push([r.id,n.id,"family"]);
+ // the court: knights and the dukes and duchesses of our districts
+ for(const k of S.knights.filter(Boolean)) { add(k.id,{name:k.name, kind:"court", ring:2, sub:`knight · strength ${k.str}, loyalty ${k.loy}`}); E.push([r.id,k.id,"court"]); }
+ for(const d of S.districts||[]){ const p=person(d.duke); if(!living(p)) continue; if(!N.has(p.id)){ add(p.id,{name:p.name, kind:"court", ring:2, sub:`${dukeTitle(p)} of ${d.name}`}); E.push([r.id,p.id,"court"]); } else N.get(p.id).sub += ` · ${dukeTitle(p)} of ${d.name}`; }
+ // suitors we have courted or invited (for ourselves or for our children)
+ const wedIds=new Set(Object.values(S.people).map(p=>p.name+"|"+p.house+"|"+p.born));
+ for(const m of Object.values(S.met||{})){ if(m.id.startsWith("k:")) continue; const target = m.of==="ruler" ? r.id : m.of; if(!N.has(target) || wedIds.has(m.name+"|"+m.house+"|"+m.born)) continue;
+  add(m.id,{name:m.name, kind:"suitor", ring:2, sub:`suitor of ${target===r.id?"the sovereign":N.get(target).name} · ${m.realm&&S.realms[m.realm]?`${m.rel} of House ${m.house}, ${S.realms[m.realm].name}`:`House ${m.house}, nobility`}`}); E.push([target,m.id,"suitor"]); }
+ // monarchs of every kingdom we have discovered
+ for(const k of Object.values(S.realms)){ if(!k.alive || k.id===S.player || !known(k.id) || !k.ruler) continue; const id="k:"+k.id;
+  add(id,{name:k.ruler.name, kind:"monarch", ring:3, rid:k.id, sub:`${rulerOf(k.id)} · ${k.name} · relations ${relName(k)}${S.allies[k.id]?" · ally":""}${atWar(S.player,k.id)?" · AT WAR":""}`, color:k.color});
+  E.push([r.id,id, atWar(S.player,k.id)?"war":S.allies[k.id]?"ally":(k.rel||0)>=20?"warm":(k.rel||0)<=-20?"cold":"monarch"]);
+  for(const p of [...N.values()].filter(n=>n.person && n.person.realm===k.id)) E.push([p.id,id,"kin"]); }
+ return {N:[...N.values()], E};
+}
+function renderSocialWeb(){
+ const {N,E}=webGraph(), RAD=[0,150,265,390], rings=[[],[],[],[]];
+ for(const n of N) rings[n.ring].push(n);
+ rings[3].sort((a,b)=>(S.realms[b.rid].rel||0)-(S.realms[a.rid].rel||0));
+ for(let k=0;k<4;k++){ const L=rings[k], off=k*0.37; L.forEach((n,i)=>{ const a=off+i/Math.max(1,L.length)*Math.PI*2 - Math.PI/2, rad=RAD[k]+(k===3&&L.length>24?(i%2)*38:0); n.x=Math.cos(a)*rad; n.y=Math.sin(a)*rad; }); }
+ const P=new Map(N.map(n=>[n.id,n])), F=WEBFOCUS && P.get(WEBFOCUS);
+ const EC={family:"#6b4a1e",spouse:"#a3302a",court:"#6a6a6a",suitor:"#c9416a",kin:"#7a5ab0",war:"#b01818",ally:"#2f7a2a",warm:"#5a9a4a",cold:"#b0603a",monarch:"#8a7a60"};
+ const NC={you:"#d9a83a",family:"#8a5a2a",court:"#5a6a7a",suitor:"#c9416a"};
+ const near = F ? new Set([F.id, ...E.filter(e=>e[0]===F.id||e[1]===F.id).flatMap(e=>[e[0],e[1]])]) : null;
+ let g=`<svg viewBox="-500 -450 1000 910" role="img" aria-label="Social web">`;
+ for(const k of [1,2,3]) g+=`<circle r="${RAD[k]}" fill="none" stroke="#6b4a1e" stroke-opacity=".18" stroke-dasharray="3 5"/>`;
+ for(const [a,b,t] of E){ const A=P.get(a), B=P.get(b); if(!A||!B) continue; const dim = near && !(near.has(a)&&near.has(b));
+  g+=`<line x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}" stroke="${EC[t]}" stroke-width="${t==="war"||t==="ally"?2.4:1.5}" ${t==="suitor"||t==="kin"?'stroke-dasharray="5 4"':""} opacity="${dim?.12:.75}"/>`; }
+ for(const n of N){ const r0=n.kind==="you"?34:n.kind==="monarch"?21:22, dim = near && !near.has(n.id), ini=n.name.replace(/^(Sir|Dame) /,"").split(" ").map(w=>w[0]).slice(0,2).join("");
+  g+=`<g class="wn" data-id="${n.id}" transform="translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})" opacity="${dim?.25:1}"><title>${n.name} — ${n.sub}</title><circle r="${r0}" fill="${n.color||NC[n.kind]}" stroke="${F&&F.id===n.id?"#a3302a":"#2a1808"}" stroke-width="${F&&F.id===n.id?3:1.2}"/>${n.kind==="monarch"?`<path transform="translate(0 -8) scale(1.3)" d="M-7 -3 L-8 -10 -3.5 -6.5 0 -12 3.5 -6.5 8 -10 7 -3Z" fill="#f2d98d" stroke="#2a1808" stroke-width=".8"/>`:""}<text class="ini" y="${n.kind==="monarch"?9:5}">${ini}</text><text y="${r0+17}">${n.name}</text></g>`; }
+ g+=`</svg>`;
+ const cnt=k=>N.filter(n=>n.kind===k).length;
+ let h=`<h2>Social Web</h2><p class="note">Everyone connected to ${rulerTitle()} ${ruler().name}: family in the inner ring, the court and suitors in the middle, and the monarchs of every kingdom we have discovered on the outside. Discovering a kingdom adds its monarch; courting or inviting a suitor adds them. Click anyone to see their ties.</p>`;
+ h+=`<div class="weblegend"><span><i style="background:${NC.family}"></i>Family (${cnt("family")})</span><span><i style="background:${NC.court}"></i>Court (${cnt("court")})</span><span><i style="background:${NC.suitor}"></i>Suitors (${cnt("suitor")})</span><span><i style="background:#888"></i>Monarchs (${cnt("monarch")}), in their kingdom's colour</span><span style="color:${EC.ally}">━ ally</span><span style="color:${EC.warm}">━ warm</span><span style="color:${EC.cold}">━ cool</span><span style="color:${EC.war}">━ at war</span><span style="color:${EC.kin}">┅ kin by marriage</span></div>`;
+ if(F){ h+=`<div class="person" style="border:1px solid #b8892d"><b>${F.name}</b> <span class="meta">· ${F.sub}</span><div class="btnrow" style="margin-top:4px">`;
+  if(F.kind==="monarch"){ const away=(S.diplomats||[]).some(d=>d.rid===F.rid); h+=btn(`Send a diplomat to ${S.realms[F.rid].name}`, away?"A diplomat is on the way":`${DIPLOMAT_COST} gold · 1 deed · reveals the kingdom, improves relations`, ()=>actDiplomat(F.rid), !canAct()||away||S.gold<DIPLOMAT_COST); }
+  if(F.kind==="suitor") h+=btn("Go to the Romance page", "", ()=>{ page="romance"; render(); });
+  if(F.kind==="family") h+=btn("Show in the family tree", "", ()=>{ FTFOCUS=F.id; page="family"; render(); });
+  h+=btn("Clear", "", ()=>{ WEBFOCUS=null; render(); }) + `</div></div>`; }
+ return h + `<div class="web">${g}</div>`;
 }
 /* ---------- pages ---------- */
 const HELM = ICON_HELM();
@@ -1605,7 +1726,7 @@ function tradePartners(){
 function actOpenTrade(rid){
  const r=S.realms[rid]; if(!r?.alive || S.over || (S.trade||{})[rid] || atWar(S.player,rid) || S.gold<80 || !useAP()) return;
  S.gold-=80; S.trade ||= {};
- if(S.allies[rid] || Math.random()<0.7){ S.trade[rid]={since:turn(), bought:-1}; log(`A trade agreement is signed with ${r.name}.`, true); toast(`Merchants from ${r.name} arrive: +${tradeValue(rid)} gold a season.`); }
+ if(S.allies[rid] || Math.random()<clamp(0.7+(r.rel||0)/200,0.2,0.98)){ r.rel=clamp((r.rel||0)+5,-100,100); S.trade[rid]={since:turn(), bought:-1}; log(`A trade agreement is signed with ${r.name}.`, true); toast(`Merchants from ${r.name} arrive: +${tradeValue(rid)} gold a season.`); }
  else { log(`${r.name} refuses to trade with us.`); toast(`${r.name}'s council refuses the agreement.`); }
  after();
 }
@@ -1673,22 +1794,31 @@ function actAttack(p){
  if(!atWar(S.player,p.owner)||!reachable(S.player,p)||!useAP()) return;
  const foe = S.realms[p.owner].name, res = battle(S.player,p);
  log(res.win?`Victory! ${p.name} taken from ${foe}. ${res.aDead} of ours fell.`:`Our assault on ${p.name} was repulsed. ${res.aDead} of ours fell.`, true);
- modal({title: res.win?`${p.name} is ours!`:`Repulsed at ${p.name}`, body:`<p>${res.win?"Our banners fly over the walls, and the countryside around it is ours.":"The defenders held the walls."}</p><div class="row"><span>Our dead</span><span>${res.aDead.toLocaleString()}</span></div><div class="row"><span>${foe}'s dead, soldiers and townsfolk</span><span>${res.dDead.toLocaleString()}</span></div>`});
+ if(res.surrender){ modal({title:`${foe} Surrenders`, body:`<p>With ${p.name}, their last city, stormed, ${foe} surrenders. We keep the ${res.terms.kept} lands we hold and receive ${res.terms.tribute} gold. The war is over, and a truce of five years begins.</p>`}); log(`${foe} surrenders: we keep ${res.terms.kept} lands and ${res.terms.tribute} gold.`, true); after(); return; }
+ modal({title: res.win?`${p.name} is ours!`:`Repulsed at ${p.name}`, body:`<p>${res.win?"Our banners fly over the walls. We hold the city until the war is settled.":"The defenders held the walls."}</p><div class="row"><span>Our dead</span><span>${res.aDead.toLocaleString()}</span></div><div class="row"><span>${foe}'s dead, soldiers and townsfolk</span><span>${res.dDead.toLocaleString()}</span></div>`});
  if(res.win) selected = p.id; after();
 }
 function actDeclare(rid){
  if(truce(S.player,rid)||atWar(S.player,rid)||S.allies[rid]||!useAP()) return;
+ S.realms[rid].rel = clamp((S.realms[rid].rel||0)-40,-100,100);
  setWar(S.player,rid); log(`War is declared upon ${S.realms[rid].name}!`, true); after();
 }
 function peaceChance(rid){
  const e=S.realms[rid], me=pr();
- return clamp(Math.round(30 + (e.lost[S.player]||0)*15 - (me.lost[rid]||0)*12 + (strength(S.player)>strength(rid)?15:-10) + (S.year-(e.warStart[S.player]||S.year))*5), 5, 95);
+ return clamp(Math.round(30 + warScore(S.player,rid)/3 + (e.rel||0)/5 + (e.lost[S.player]||0)*15 - (me.lost[rid]||0)*12 + (strength(S.player)>strength(rid)?15:-10) + (S.year-(e.warStart[S.player]||S.year))*5), 5, 95);
 }
+function peaceTerms(rid){ const sc=warScore(S.player,rid), base=peaceChance(rid), ours=occupiedBy(S.player,rid).length, theirs=occupiedBy(rid,S.player).length, pay=clamp(Math.round(sc*3),40,250);
+ const T=[{k:"white", label:"White peace", sub:`all occupied land handed back: we return ${ours}, they return ${theirs}`, keeper:"none", chance:base}];
+ if(ours) T.push({k:"keep", label:"Keep the lands we hold", sub:`${ours} land${ours>1?"s":""}; they recover theirs`, keeper:S.player, chance:clamp(base-25+sc/2,3,95)});
+ if(ours && sc>=40) T.push({k:"tribute", label:`Keep our gains and take ${pay} gold`, sub:"a victor's peace", keeper:S.player, pay, chance:clamp(base-40+sc/2,3,95)});
+ if(theirs) T.push({k:"concede", label:"Concede the lands they hold", sub:`${theirs} land${theirs>1?"s":""} go to ${S.realms[rid].name}`, keeper:rid, chance:clamp(base+35,5,98)});
+ return T; }
 function actPeace(rid){
- if(!useAP()) return;
- if(Math.random()*100<peaceChance(rid)){ setPeace(S.player,rid); log(`Peace is signed with ${S.realms[rid].name}. A truce of five years begins.`, true); }
- else log(`${S.realms[rid].name} rejects our envoys. The war goes on.`);
- after();
+ if(!canAct() || !atWar(S.player,rid)) return; const r=S.realms[rid], sc=warScore(S.player,rid);
+ modal({title:`Terms for ${r.name}`, body:`<p>Our envoys ride to ${r.name} under a white flag. What do we ask?</p><div class="row"><span>War score</span><span>${sc>0?"+":""}${sc}</span></div><div class="row"><span>Relations</span><span>${relName(r)}</span></div>`,
+  choices:[...peaceTerms(rid).map(t=>({label:t.label, sub:`${t.sub} · ${Math.round(t.chance)}% they accept · 1 deed`, fn:()=>{ if(!useAP()) return;
+   if(Math.random()*100<t.chance){ const st=settleWar(S.player,rid,t.keeper,t.pay||0,t.pay?rid:null); log(`Peace is signed with ${r.name}: ${t.label.toLowerCase()}${st.tribute?` (${st.tribute} gold)`:""}. A truce of five years begins.`, true); }
+   else { log(`${r.name} rejects our terms. The war goes on.`); toast(`${r.name} rejects our terms.`); } }})), {label:"Not now"}]});
 }
 const canPay = (g,r) => S.gold>=g && S.res>=r;
 function actBuild(i,t){
@@ -1725,9 +1855,14 @@ function actRaze(i,t){ if(S.tiles[i]!==S.player || !devsAt(i)[t]) return; delDev
 function actOccupy(i){
  const o=S.tiles[i];
  if(!o || !atWar(S.player,o) || TOWNAT.has(i) || !tileAdj(S.player,i) || S.marches<1) return;
- S.marches--;
- if(tileSkirmish(S.player,o)){ S.tiles[i]=S.player; markConquered([i]); toast(`Our soldiers take the land from ${S.realms[o].name}. ${LASTFIGHT.a} of ours fell, ${LASTFIGHT.d} of theirs.`); }
- else toast(`Our march was driven back by ${S.realms[o].name}. ${LASTFIGHT.a} of ours fell.`);
+ S.marches--; const foe=S.realms[o].name, home=S.places[S.homes[i]], where=home && home.owner===o ?`the fields outside ${home.name}`:`the borderlands of ${foe}`;
+ const win=tileSkirmish(S.player,o), F=LASTFIGHT; if(win) seize(i, S.player);
+ log(win?`Battle in ${where}: we defeat ${foe} and occupy the land.`:`Battle in ${where}: ${foe} drives our army back.`);
+ modal({title: win?"Victory in the Field":"Our Army Is Driven Back", body:`<p>Our soldiers march into ${where}, and ${foe} meets them in battle.</p>
+  <div class="row"><span>Our army</span><span>${F.aT.toLocaleString()} men</span></div><div class="row"><span>${foe}'s army</span><span>${F.dT.toLocaleString()} men</span></div>
+  <div class="row"><span>Our dead</span><span>${F.a.toLocaleString()}</span></div><div class="row"><span>Their dead</span><span>${F.d.toLocaleString()}</span></div>
+  <div class="row"><span>War score</span><span>${warScore(S.player,o)>0?"+":""}${warScore(S.player,o)}</span></div>
+  <p class="note">${win?"The land is ours to hold for now. Whether we keep it will be decided when the war is settled.":"The land stays in enemy hands."}</p>`});
  after();
 }
 function actClaim(i){
@@ -1780,28 +1915,30 @@ function endSeason(){
    if(r.ap>0 && Math.random()<(winter?0.05:0.10+0.10*T)){ r.ap--;
     const targets = owned(e).filter(p=>reachable(r.id,p)).sort((a,b)=>defenseOf(a)-defenseOf(b));
     if(targets.length){ const t=targets[0], res=battle(r.id,t);
-     if(e===S.player){ summary.push(res.win?`<b>${r.name} captured ${t.name}!</b> ${res.dDead.toLocaleString()} of our people died.`:`${r.name} assaulted ${t.name}, but our walls held. ${res.dDead.toLocaleString()} of ours fell, and ${res.aDead.toLocaleString()} of theirs.`); if(res.win) log(`${r.name} captured ${t.name}!`, true); }
+     if(e===S.player && res.surrender){ summary.push(`<b>${r.name} stormed ${t.name}, our last city.</b> We were forced to surrender: they keep the ${res.terms.kept} lands they hold, and we paid ${res.terms.tribute} gold. The war is over.`); log(`${r.name} forces our surrender at ${t.name}.`, true); }
+     else if(e===S.player){ summary.push(res.win?`<b>${r.name} captured ${t.name}!</b> ${res.dDead.toLocaleString()} of our people died.`:`${r.name} assaulted ${t.name}, but our walls held. ${res.dDead.toLocaleString()} of ours fell, and ${res.aDead.toLocaleString()} of theirs.`); if(res.win) log(`${r.name} captured ${t.name}!`, true); }
+     else if(res.win && res.surrender){ log(`${S.realms[e].name} surrenders to ${r.name} after the fall of ${t.name}.`); if(told(r.id,e)) news.push(`${S.realms[e].name} surrenders to ${r.name}: the war is settled.`); }
      else if(res.win){ log(`${r.name} seized ${t.name} from ${S.realms[e].name}.`); if(told(r.id,e)) news.push(`${r.name} seized ${t.name} from ${S.realms[e].name}.`); if(!S.realms[e].alive && told(e)) news.push(`<b>${S.realms[e].name} has fallen to ${r.name}.</b>`); } }
    }
    const yrs = S.year - (r.warStart[e]||S.year);
    if(S.realms[e]?.alive && atWar(r.id,e)){
-    if(e!==S.player && yrs>=2 && Math.random()<0.05+0.03*yrs+0.05*((r.lost[e]||0)+(S.realms[e].lost[r.id]||0))){ setPeace(r.id,e); log(`${r.name} and ${S.realms[e].name} make peace.`); if(told(r.id,e)) news.push(`${r.name} and ${S.realms[e].name} make peace.`); }
-    else if(e===S.player && yrs>=2 && ((r.lost[S.player]||0)>=2 || strength(r.id)<strength(S.player)*0.6) && Math.random()<0.13)
-     S.events.push({kind:"peaceOffer", realm:r.id, pay:Math.min(Math.round(r.gold), RI(60,160))});
+    if(e!==S.player && yrs>=2 && Math.random()<0.05+0.03*yrs+0.05*((r.lost[e]||0)+(S.realms[e].lost[r.id]||0))){ const sc=warScore(r.id,e), win=sc>=10?r.id:sc<=-10?e:null, st=settleWar(r.id,e, win||"none"); const txt=win?`${S.realms[win].name} keeps ${st.kept} lands it took`:`all occupied land is returned`; log(`${r.name} and ${S.realms[e].name} make peace: ${txt}.`); if(told(r.id,e)) news.push(`${r.name} and ${S.realms[e].name} make peace: ${txt}.`); }
+    else if(e===S.player && yrs>=1 && Math.random()<0.10+0.03*yrs){ const sc=warScore(S.player,r.id);
+     S.events.push({kind:"peaceOffer", realm:r.id, score:sc, pay: sc>=15 ? Math.min(Math.round(Math.max(0,r.gold)), RI(60,160)) : 0}); }
    }
   }
   { const front=[], wild=[];
     for(let i=0;i<S.tiles.length;i++){ const t=S.tiles[i]; if(t===r.id || TOWNAT.has(i) || !tileAdj(r.id,i)) continue; if(t===null) wild.push(i); else if(atWar(r.id,t)) front.push(i); }
     let lostHere=0; const tries = winter ? 0 : 1 + (Math.random()<0.5?1:0) + (M>=1.12?1:0);
-    let fellHere=0; for(let n=0;n<tries && front.length && marches>0;n++){ marches--; const i=front.splice(Math.floor(Math.random()*front.length),1)[0], d=S.tiles[i]; const w=tileSkirmish(r.id,d); if(d===S.player) fellHere+=LASTFIGHT.d; if(w){ S.tiles[i]=r.id; if(d===S.player) lostHere++; } }
+    let fellHere=0; for(let n=0;n<tries && front.length && marches>0;n++){ marches--; const i=front.splice(Math.floor(Math.random()*front.length),1)[0], d=S.tiles[i]; const w=tileSkirmish(r.id,d); if(d===S.player) fellHere+=LASTFIGHT.d; if(w){ seize(i, r.id); if(d===S.player) lostHere++; } }
     if(lostHere || fellHere) summary.push(`${lostHere?`${r.name} occupied ${lostHere} of our lands. `:`We held our borders against ${r.name}. `}${fellHere} of our people died in the fighting.`);
     let grab = (winter?0.3:1)*(0.10+0.18*M); while(wild.length && marches>0 && r.gold>=10 && Math.random()<grab){ S.tiles[wild.splice(Math.floor(Math.random()*wild.length),1)[0]]=r.id; marches--; r.gold-=10; grab*=0.5; }
     aiCityWorks(r);
     for(let k=0;k<DEEDS_PER_SEASON && r.ap>0 && Math.random()<0.55+0.15*M;k++) if(!aiDevelop(r)) break; }
   if(!winter && (r.atWar.length===0 || (r.atWar.length===1 && M>=1.4)) && Math.random()<0.03*T*M*(r.atWar.length?0.4:1)){
-   const opts = neighbours(r.id).filter(o=>!atWar(r.id,o) && !truce(r.id,o) && !(o===S.player && S.allies[r.id]) && strength(o) < strength(r.id)*(o===S.player?0.85:0.95)).sort((a,b)=>strength(a)-strength(b));
+   const opts = neighbours(r.id).filter(o=>!atWar(r.id,o) && !truce(r.id,o) && !(o===S.player && (S.allies[r.id] || (r.rel||0)>=40 || Math.random()<(r.rel||0)/80)) && strength(o) < strength(r.id)*(o===S.player?0.85:0.95)).sort((a,b)=>strength(a)-strength(b));
    if(opts.length){ const t = Math.random()<0.6 ? opts[0] : pick(opts); setWar(r.id,t);
-    if(t===S.player){ summary.push(`<b>${r.name} has declared war upon us!</b>`); log(`${r.name} declares war upon us!`, true); callAllies(r.id, summary); }
+    if(t===S.player){ r.rel=clamp((r.rel||0)-20,-100,100); summary.push(`<b>${r.name} has declared war upon us!</b>`); log(`${r.name} declares war upon us!`, true); callAllies(r.id, summary); }
     else { log(`${r.name} declares war on ${S.realms[t].name}.`); if(told(r.id,t)) news.push(`${r.name} declares war on ${S.realms[t].name}.`); } }
   }
  }
@@ -1812,7 +1949,8 @@ function endSeason(){
  S.season++;
  if(S.season>3){ S.season=0; S.year++; for(const r of Object.values(S.realms)) if(r.ruler) r.ruler.age++; }
  for(const p of owned(S.player)) if(p.keel!=null && turn()>=p.keel){ p.fleet=(p.fleet||0)+1; p.keel=null; summary.push(`A new ship is launched at ${p.name}: ${p.fleet} at its quays.`); }
- resolveExpeditions(summary);
+ resolveExpeditions(summary); resolveDiplomats(summary);
+ for(const r of Object.values(S.realms)) if(r.rel){ if(S.allies[r.id] && r.rel<50) r.rel++; else r.rel -= Math.sign(r.rel); }
  if(!winter && Math.random()<0.3) S.events.push({kind:pick(["plague","harvest","envoy"])});
  S.ap = apMax(); S.marches = maxMarches();
  if(S.year>=1650 && !S.over) gameOver(`The year 1650 dawns, and the chroniclers close their book on House ${S.dynasty}.`);
@@ -1837,8 +1975,10 @@ const EVENTS = {
  envoy: () => { const ns=neighbours(S.player).filter(r=>!atWar(S.player,r)); if(!ns.length) return null; const r=pick(ns); reveal(r); const ask=RI(50,120);
   return {title:`An Envoy from ${S.realms[r].name}`, body:`<p>The envoy of ${S.realms[r].name} demands ${ask} gold as tribute, "for the sake of peace".</p>`,
   choices:[{label:"Pay the tribute", disabled:S.gold<ask, fn:()=>{S.gold-=ask;}},{label:"Send them away", sub:"They may remember this", fn:()=>{ if(Math.random()<0.35 && !truce(S.player,r)){ setWar(r,S.player); log(`${S.realms[r].name} declares war over the insult!`,true);} }}]};},
- peaceOffer: e => { const r=S.realms[e.realm]; if(!r.alive||!atWar(S.player,e.realm)) return null; return {title:`${r.name} Sues for Peace`, body:`<p>Battered, ${r.name} offers ${e.pay} gold for an end to the war.</p>`,
-  choices:[{label:"Accept peace", fn:()=>{S.gold+=e.pay; r.gold-=e.pay; setPeace(S.player,e.realm); log(`${r.name} pays ${e.pay} gold for peace.`,true);}},{label:"Fight on"}]};}
+ peaceOffer: e => { const r=S.realms[e.realm]; if(!r.alive||!atWar(S.player,e.realm)) return null; const sc=warScore(S.player,e.realm), ours=occupiedBy(S.player,e.realm).length, theirs=occupiedBy(e.realm,S.player).length;
+  const terms = sc>=15 ? {keeper:S.player, pay:e.pay, txt:`we keep the ${ours} lands we hold and they pay ${e.pay} gold`} : sc<=-15 ? {keeper:e.realm, pay:0, txt:`they keep the ${theirs} lands they hold`} : {keeper:"none", pay:0, txt:"all occupied land is returned on both sides"};
+  return {title:`${r.name} Offers Peace`, body:`<p>Envoys from ${r.name} come under a white flag. Their terms: ${terms.txt}.</p><div class="row"><span>War score</span><span>${sc>0?"+":""}${sc} (${sc>=15?"we are winning":sc<=-15?"we are losing":"evenly matched"})</span></div>`,
+  choices:[{label:"Accept their terms", fn:()=>{ const st=settleWar(S.player,e.realm,terms.keeper,terms.pay,terms.pay?e.realm:null); log(`Peace with ${r.name}: ${terms.txt}.`,true); }},{label:"Fight on"}]};}
 };
 
 /* ---------- rendering ---------- */
@@ -1911,12 +2051,13 @@ const ICON = {
  treasury:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M9 33 C5 25 9 17 15 14 L13 9 Q20 6 27 9 L25 14 C31 17 35 25 31 33 Q20 37 9 33Z" fill="#8a5a2a" stroke="#2a1808" stroke-width="1.3"/><path d="M14 14 Q20 16.5 26 14" stroke="#e8c66a" stroke-width="1.6" fill="none"/><text x="20" y="29" text-anchor="middle" font-family="IM Fell English SC,serif" font-size="11" fill="#f2d98d">G</text><g stroke="#5a3a10" stroke-width=".9"><ellipse cx="30" cy="31" rx="7" ry="2.6" fill="#e8c66a"/><ellipse cx="30" cy="28.6" rx="7" ry="2.6" fill="#f0d27a"/><ellipse cx="30" cy="26.2" rx="7" ry="2.6" fill="#f6e3a0"/></g></svg>`,
  districts:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 9 L17 5 L33 8 L35 22 L30 34 L15 35 L6 27Z" fill="#ead6a6" stroke="#3a240e" stroke-width="1.4" stroke-linejoin="round"/><path d="M17 5 L19 18 L6 21 M19 18 L33 20 M19 18 L22 34.5" fill="none" stroke="#3a240e" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 25 l3 3 M10 23 l3 3 M12 21.5 l3 3" stroke="#3a240e" stroke-width=".8" opacity=".6"/><path d="M24 11 l1.6 3.2 3.5.5-2.5 2.5.6 3.5-3.2-1.7-3.2 1.7.6-3.5-2.5-2.5 3.5-.5Z" fill="#c99a3f" stroke="#2a1808" stroke-width=".8"/></svg>`,
  cities:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M4 34 V20 h4 v-3 h2 v3 h3 V12 l4-5 4 5 v8 h3 v-3 h2 v3 h3 v-6 h2 v-2 h2 v2 h2 V34Z" fill="#d8c08a" stroke="#2a1808" stroke-width="1.3" stroke-linejoin="round"/><path d="M17 7 V3 l4 1.5 -4 1.5" fill="#a3302a" stroke="#2a1808" stroke-width=".8"/><path d="M15 34 v-6 a2 2 0 0 1 4 0 v6 M7 25 h2 M30 22 h2 M24 26 h2" stroke="#2a1808" stroke-width="1.1" fill="none"/></svg>`,
+ social:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 20 L9 9 M20 20 L32 10 M20 20 L8 30 M20 20 L31 31 M9 9 L32 10 M8 30 L31 31" stroke="#3a240e" stroke-width="1.5" fill="none"/><circle cx="20" cy="20" r="5.5" fill="#d9a83a" stroke="#2a1808" stroke-width="1.2"/><circle cx="9" cy="9" r="4" fill="#ead6a6" stroke="#2a1808" stroke-width="1.1"/><circle cx="32" cy="10" r="4" fill="#c9414a" stroke="#2a1808" stroke-width="1.1"/><circle cx="8" cy="30" r="4" fill="#5a8a4a" stroke="#2a1808" stroke-width="1.1"/><circle cx="31" cy="31" r="4" fill="#4a6a9a" stroke="#2a1808" stroke-width="1.1"/></svg>`,
  empty:`<svg viewBox="0 0 40 40" aria-hidden="true"><circle class="rivet" cx="20" cy="20" r="3.2" fill="#7a5c34"/><path d="M20 12v3M20 25v3M12 20h3M25 20h3" stroke="#7a5c34" stroke-width="1" opacity=".45"/></svg>`
 };
 // HOOK: notches 7–11 are reserved for future pages.
 const NOTCHES = [
  {k:"explore", label:"Explore"}, {k:"war", label:"War"}, {k:"romance", label:"Romance"}, {k:"knights", label:"Knights"}, {k:"family", label:"Family tree"}, {k:"treasury", label:"Treasury"},
- {k:"districts", label:"Districts"}, {k:"cities", label:"Cities"}, null, null, null,
+ {k:"districts", label:"Districts"}, {k:"cities", label:"Cities"}, {k:"social", label:"Social web"}, null, null,
  {k:"chronicle", label:"Chronicle"}
 ];
 function renderNotches(){
@@ -1931,7 +2072,7 @@ function renderPanel(){
  BTN = {};
  $("page").classList.toggle("open", !!page);
  $("page").classList.toggle("wide", page==="knights" || page==="cities");
- $("page").classList.toggle("full", page==="family");
+ $("page").classList.toggle("full", page==="family" || page==="social");
  if(!page){ $("panel").innerHTML=""; return; }
  const ap=canAct(); let h="";
  if(page==="explore"){
@@ -1941,11 +2082,16 @@ function renderPanel(){
   h += btn("Send scouts overland", f>=0?"60 gold · maps about a fifth of the nearest hidden region by season's end":"No uncharted land can be reached on foot", ()=>actExplore(f), !ap||f<0||S.gold<60);
   h += `<p class="note">For lands over the sea, build a ship at the quays of a port city, then click the fog on the map to send it. A harbour city with a fleet of ${COLONY.ships} ships and well-stocked stores can send settlers to found a colony.</p>`;
   if(S.expeditions.length){ h += `<h4>Expeditions underway</h4>`; for(const e of S.expeditions) h += `<div class="row"><span>${e.kind==="colony"?"Colonists from "+e.portName:e.kind==="return"?"Colony fleet":e.sea?"Ship from "+e.portName:"Scouts"}: ${expStatus(e)}</span><span>${e.kind==="colony"?"landfall":"back"} ${when(e.eta)}</span></div>`; }
+  { const ks=Object.values(S.realms).filter(r=>r.alive && r.id!==S.player && known(r.id)).sort((a,b)=>a.name.localeCompare(b.name));
+   h += `<h4>Diplomats</h4><p class="note">A diplomat (${DIPLOMAT_COST} gold, 1 deed) reaches a court by season's end, maps the whole kingdom and improves relations.</p>`;
+   if(!ks.length) h += `<p class="note">We know of no other court yet.</p>`;
+   for(const r of ks){ const away=(S.diplomats||[]).some(d=>d.rid===r.id);
+    h += btn(`Send a diplomat to ${r.name}`, away?"A diplomat is on the way":`${rulerOf(r.id)} · relations ${relName(r)}`, ()=>actDiplomat(r.id), !ap||away||S.gold<DIPLOMAT_COST); } }
   h += `<h4>The map</h4><p class="note">Click one of our cities to walk its streets, or a foreign town to assault it. Click a land tile to claim wild land or, in wartime, occupy enemy land using marches.</p>`;
  }
  if(page==="war"){
   { const A=armyOf(S.player); h += `<h2>War Council</h2><div class="row"><span>Our militants</span><span>${A.troops.toLocaleString()} of ${A.max.toLocaleString()} who could serve</span></div><div class="row"><span>Fighting quality</span><span>×${A.quality.toFixed(2)} · strength ${A.strength.toLocaleString()}</span></div>`; }
-  h += `<p class="note">Declare war, then occupy bordering enemy tiles (outlined red) with marches, and assault towns ringed in red with deeds. Taking a town also takes its countryside.</p>`;
+  h += `<p class="note">Declare war, then march into bordering enemy lands (outlined red) to give battle, and assault towns ringed in red with deeds. Land taken is only occupied until the war is settled: the peace treaty decides who keeps what. A kingdom down to its last city surrenders when it falls.</p>`;
   const NB = neighbours(S.player);
   const others = Object.values(S.realms).filter(o=>o.alive && o.id!==S.player && known(o.id)).sort((a,b)=>owned(b.id).length-owned(a.id).length);
   if(!others.length) h += `<p class="note">Your scouts have found no other realm yet.</p>`;
@@ -1955,7 +2101,8 @@ function renderPanel(){
    h += `<div class="person"><b style="color:${o.color}">●</b> <b>${o.name}</b> <span class="meta">· ${powerName(o)} · ${owned(o.id).length} towns, ${tileCount(o.id)} lands · ${st}${nb?"":" · out of reach"}</span><div class="meta">${rulerOf(o.id)} · about ${armyOf(o.id).troops.toLocaleString()} militants</div>`;
    if(o.atWar.length) h += `<div class="meta">Fighting: ${o.atWar.map(x=>S.realms[x].name).join(", ")}</div>`;
    h += `</div>`;
-   if(w) h += btn(`Sue for peace with ${o.name}`, `${peaceChance(o.id)}% chance`, ()=>actPeace(o.id), !ap);
+   h += `<div class="meta">Relations: ${relName(o)}${w?` · war score ${warScore(S.player,o.id)>0?"+":""}${warScore(S.player,o.id)} · we occupy ${occupiedBy(S.player,o.id).length} of their lands, they occupy ${occupiedBy(o.id,S.player).length} of ours`:""}</div>`;
+   if(w) h += btn(`Offer terms of peace to ${o.name}`, "Choose the terms · 1 deed", ()=>actPeace(o.id), !ap);
    else if(S.allies[o.id]) h += `<p class="note">Allied to us by marriage.</p>`;
    else if(!t && nb) h += btn(`Declare war on ${o.name}`, "", ()=>actDeclare(o.id), !ap, true);
   }
@@ -1967,6 +2114,7 @@ function renderPanel(){
  if(page==="treasury") h += renderTreasury();
  if(page==="districts") h += renderDistrictPage();
  if(page==="cities") h += renderCitiesPage();
+ if(page==="social") h += renderSocialWeb();
  if(page==="family") h += renderFamily();
  if(page==="chronicle"){
   h += `<h2>Chronicle</h2><div class="log">` + S.log.map(e=>`<p>${e.big?"<b>":""}${SEASONS[e.s]} ${e.y}: ${e.t}${e.big?"</b>":""}</p>`).join("") + `</div>`;
@@ -1982,10 +2130,9 @@ function renderCard(){
  if(ROUTE){ const i=ROUTE.from, left=crewLeft();
   if(S.tiles[i]!==S.player) ROUTE=null;
   else { const T=tradeNets(), N=T.nets.find(n=>n.id===T.tileNet.get(i));
-   let h = `<button class="x" aria-label="Done">×</button><h3>Laying Trade Routes</h3><div class="sub">${left} segment${left===1?"":"s"} left this season · ${ROUTE_COST} gold each</div>`;
+   let h = `<button class="x" aria-label="Done">×</button><h3>Laying Trade Routes</h3><div class="sub">${ROUTE_COST} gold a segment · no deed needed</div>`;
    h += `<p class="note">Click a neighbouring land of ours (dashed white) to lay a route into it; the crew moves on with each one. Click any other land of ours to move the crew there. Link cities and villages into the capital's network so food and resources can reach them.</p>`;
    if(N) h += `<div class="row"><span>This land trades with</span><span>${N.royal?"the capital's network":"a cut-off network"}</span></div>`;
-   if(left<1) h += btn("Hire another crew", "1 deed · 8 more segments", ()=>actHireCrew(i), !canAct());
    h += btn("Done", "", ()=>{ ROUTE=null; render(); });
    c.innerHTML=h; c.style.display="block"; return; } }
  if(COLONY_PICK){ const p=S.places.find(x=>x.id===COLONY_PICK);
@@ -2029,7 +2176,7 @@ function renderCard(){
    { const T=tradeNets(), N=T.nets.find(n=>n.id===T.tileNet.get(i)), nr=routesAt(i), left=crewLeft();
     h += `<h4 style="margin:12px 0 2px;font:400 17px 'IM Fell English',serif;color:var(--accent)">Trade routes</h4><div class="row"><span>Routes from this land</span><span>${nr}</span></div>`;
     if(N) h += `<div class="row"><span>Its goods go to</span><span style="color:${N.royal?"inherit":"#8a1f1f"}">${N.royal?"the capital's network":"a network cut off from the capital"}</span></div>`;
-    h += btn("Lay trade routes from here", left?`${left} segments left this season · ${ROUTE_COST} gold each`:`1 deed · a road crew lays up to ${CREW_SEGMENTS} segments this season, ${ROUTE_COST} gold each`, ()=>actHireCrew(i), S.over||(!left&&!canAct()));
+    h += btn("Lay trade routes from here", `${ROUTE_COST} gold a segment · no deed needed`, ()=>actHireCrew(i), S.over);
     if(nr) h += btn("Abandon the routes through here", "", ()=>actClearRoutes(i), S.over, true); }
    const options = DEV_ORDER.filter(t=>!here[t] && !(t==="village" && kinds.length));
    if(options.length && !here.village){
@@ -2227,6 +2374,7 @@ $("pagex").onclick = () => { page=null; render(); };
 document.addEventListener("keydown", e=>{ if(e.key!=="Escape" || $("modalbg").style.display==="flex") return; if(cityId){ closeCity(); return; } if(page){ page=null; render(); } });
 document.addEventListener("click", e=>{
  const b=e.target.closest("[data-b]"); if(b && BTN[b.dataset.b] && !b.disabled){ BTN[b.dataset.b](); return; }
+ const wn=e.target.closest(".web .wn"); if(wn){ WEBFOCUS = WEBFOCUS===wn.dataset.id ? null : wn.dataset.id; render(); return; }
  const pc=e.target.closest("#ftree .pc[data-pid]"); if(pc){ if(FTDRAG){ FTDRAG=false; return; } FTFOCUS=pc.dataset.pid; FTKEEP=true; render(); return; }
  if(e.target.closest("#card .x")){ ROUTE=null; if(COLONY_PICK && !String(selected||"").startsWith("col:")) COLONY_PICK=null; selected=null; render(); }
 });
@@ -2249,7 +2397,7 @@ $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
 $("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
-$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have three <b>deeds</b> for work on the main map (building or upgrading a village, farm, fishery or mine, chartering a city, exploring, sending colonists, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Click one of your cities to walk its streets: build houses (every 100 people need one), a castle, blacksmiths, markets, mills and more, develop it and fortify its walls. Work inside a city needs no deeds. A port city builds ships at its quays; with a harbour it can keep a fleet, and a fleet of five with settlers, gold and resources stored in the city can sail off to found a colony on an unclaimed coast. <b>Trade routes</b>, the thin white lines on the map, join neighbouring lands into chains that link your cities and villages; a road crew costs a deed and lays up to eight segments in a season. Farms, fisheries, mines and wild land send their goods to the nearest city or village within two tiles, and harbour cities are linked by sea. Only the network holding your capital fills the royal granary and stores: a city or village cut off from it lives on its own farms and goes hungry if they fall short. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Set taxes, feed the poor and trade with neighbours from the <b>Treasury</b>. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or a ship from a port city over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
+$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have three <b>deeds</b> for work on the main map (building or upgrading a village, farm, fishery or mine, chartering a city, exploring, sending colonists, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Click one of your cities to walk its streets: build houses (every 100 people need one), a castle, blacksmiths, markets, mills and more, develop it and fortify its walls. Work inside a city needs no deeds. A port city builds ships at its quays; with a harbour it can keep a fleet, and a fleet of five with settlers, gold and resources stored in the city can sail off to found a colony on an unclaimed coast. <b>Trade routes</b>, the thin white lines on the map, join neighbouring lands into chains that link your cities and villages; each segment costs 5 gold and needs no deed. Farms, fisheries, mines and wild land send their goods to the nearest city or village within two tiles, and harbour cities are linked by sea. Only the network holding your capital fills the royal granary and stores: a city or village cut off from it lives on its own farms and goes hungry if they fall short. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Set taxes, feed the poor and trade with neighbours from the <b>Treasury</b>. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or a ship from a port city over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
 }
 </script>
 </body>
