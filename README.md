@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.2.6**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.2.7**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -47,3 +47,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.2.4 — every tile is assigned a terrain trait (plains, forest, mountain, coastal, marsh or swamp) from real geographic data: ETOPO1 elevation and relief, NASA Blue Marble satellite colour for forest cover, Natural Earth shaded relief for ruggedness, and the historically documented wetlands of the region. Data only (`TERRAIN` in `src/mapdata.js`, `terrainOf(i)` in the game); nothing uses it yet.
 - v0.2.5 — a toggle under the map buttons (eye) hides the map icons (town markers, development icons and trade-route lines), leaving only city names and borders; the choice is remembered.
 - v0.2.6 — family tree: zoom in and out (buttons or Ctrl + scroll, 35–250%), drag to move around; click anyone to light up their bloodline (everyone who shares blood with them: ancestors, descendants, brothers and sisters, cousins), with spouses who married in dimmed. By default it shows the bloodline of the reigning monarch.
+- v0.2.7 — Cities notch (8th): the capital first, then every city from most to fewest people, with a search box; develop, fortify or open any city's map from the list. City maps: houses now fill in from the outskirts towards the centre, and the market, chapel and tavern take the sites nearest the town square, with the smithy, mill and barracks further out (existing cities are laid out afresh).
