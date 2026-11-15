@@ -88,13 +88,17 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .page.wide{width:min(900px,calc(100% - 90px))}
 .page.full{left:12px;right:12px;top:96px;bottom:14px;width:auto;max-height:none;z-index:7}
 .page.full .panel{flex:1}
+.page.full.listpage .panel{padding-left:max(22px,calc((100% - 1150px)/2));padding-right:max(22px,calc((100% - 1150px)/2))}
+.page.full.listpage .btnrow{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.page.full.listpage .btnrow>.btn{margin:0}
 .page.full .tree{padding:14px 0 24px}
 .treebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 8px}
 .treebar .zb{width:34px;height:34px;padding:0;border:1px solid #6b4a1e;border-radius:6px;background:rgba(255,240,205,.5);font:400 20px/1 serif;color:#3a240e;cursor:pointer}
 .treebar .zb:hover{background:rgba(255,240,205,.85)}
 .cityrow .btnrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 @media (max-width:700px){.cityrow .btnrow{grid-template-columns:1fr}}
-.spygrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px;margin:4px 0}
+.spykings{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 14px}
+.spygrid{display:grid;grid-template-columns:1fr;gap:4px;margin:4px 0}
 .spygrid .btn{margin:0;padding:4px 8px;font-size:14px;min-height:0}
 .spygrid .btn small{font-size:11px}
 .treebar .btn{width:auto;flex:none;margin:0;padding:6px 14px}
@@ -286,7 +290,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.3.6";
+const VERSION = "pre-alpha v0.3.7";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -339,6 +343,7 @@ const SEA_RANGE = 430;
 const DEEDS_PER_SEASON = 3;
 let COLONY_PICK = null;
 let ROUTE = null;
+let ABROAD = [];   // news from other kingdoms gathered during the season
 let DEDIT = null, DUKEPICK = null;   // district being edited on the map ("new" while founding one); district choosing a duke         // {from: tile} while a road crew is laying trade routes   // id of the harbour city whose colonists are choosing a shore
 
 let S = null;            // game state
@@ -998,7 +1003,7 @@ function aiFoundCity(r, i){
  delDev(i); cellInit(); const [x,y]=CELLC[i], name=cityName();
  S.places.push({id:"city"+(S.nextId++), name, x:+x.toFixed(1), y:+y.toFixed(1), owner:r.id, dev:1, base:CITY_PEOPLE, pop:CITY_PEOPLE, houses:Math.ceil(CITY_PEOPLE/PEOPLE_PER_HOUSE), bld:{}, fort:1, port:isCoastal(i), capital:false, tile:i, founded:turn()});
  syncTowns(); rehome(S.places.length-1);
- log(`${r.name} charters the new city of ${name}.`); return true;
+ log(`${r.name} charters the new city of ${name}.`); if(known(r.id)) ABROAD.push(`${r.name} charters the new city of ${name}.`); return true;
 }
 function aiCityWorks(r){   // building in their cities takes a deed each time, as it does for us
  for(const p of owned(r.id)){ cityInit(p); if(r.ap<1) return;
@@ -1019,7 +1024,9 @@ function aiDevelop(r){
  // 4. grow villages into market villages and cities
  for(const i of mine){ const v=devsAt(i).village; if(!v || (v.grow||0)<VILLAGE[v.lvl].grow || v.cutoff) continue;
   if(v.lvl===1){ if(aiPay(r, VILLAGE[1].up.g, VILLAGE[1].up.r)){ v.lvl=2; v.grow=0; return true; } }
-  else if(Math.random()<0.3 && aiFoundCity(r,i)) return true; }
+  else if(Math.random()<0.45 && aiFoundCity(r,i)) return true; }
+ // a market village is ready for its charter: save resources for it rather than spend them on lesser works
+ if(mine.some(i=>{ const v=devsAt(i).village; return v && v.lvl===2 && (v.grow||0)>=VILLAGE[2].grow && !v.cutoff; }) && r.res < VILLAGE[2].up.r+20) return false;
  // 5. a new village beside an existing farm
  if(Math.random()<0.4){ const c=mine.filter(i=>!hasDevs(i) && NEI[i].some(j=>S.tiles[j]===r.id && devsAt(j).farm)); if(c.length && aiBuild(r,pick(c),"village")) return true; }
  // 6. dig a mine deeper, or open a new one
@@ -1304,13 +1311,13 @@ function renderDistrictPage(){ const TN=tradeNets(S.player);
  let h=`<h2>Districts</h2><p class="note">Our lands are divided into districts, outlined in dark ink on the map. A duke or duchess over a district raises +${DUKE_GOLD} gold a season from each of its lands and calms unrest. A district needs to be developed (a farm, fishery, mine or village for every six lands; a city counts for two, plus two per level of development) and supplied (most of its lands trading with the capital's network); neglect, heavy taxes and famine stir unrest, at 4 it riots, and a district that has rioted more than twice may revolt and break away. Land taken in war is hatched until it is integrated into a district (${INTEGRATE_COST} gold a land): until then it pays half taxes, yields no resources and cannot be built on.</p>`;
  if(DEDIT) h += `<div class="person" style="border:1px solid #b8892d"><b>${DEDIT==="new"?"Founding a new district":`Redrawing ${ED?.name||""}`}</b><div class="meta">${DEDIT==="new"?"Click any land of ours to be the first land of the new district.":`Click a land of ours bordering it (dashed) to bring it into the district, from another district or from conquered land. Up to ${DISTRICT_MAX} lands.`}</div></div>` + btn("Done", "", ()=>{ DEDIT=null; render(); });
  h += `<div class="row"><span>Districts</span><span>${S.districts.length}</span></div><div class="row"><span>Conquered land not yet integrated</span><span style="color:${U?"#8a1f1f":"inherit"}">${U} land${U===1?"":"s"}</span></div>`;
- if(!DEDIT) h += btn("Found a new district", "Pick its first land on the map", ()=>{ DEDIT="new"; render(); });
+ if(!DEDIT) h += btn("Found a new district", "Pick its first land on the map", ()=>{ DEDIT="new"; page=null; render(); });
  for(const D of S.districts){ const du=person(D.duke), towns=D.tiles.filter(t=>TOWNAT.has(t)).map(t=>S.places[TOWNAT.get(t)].name), vil=D.tiles.filter(t=>devsAt(t).village).length;
   const DN=districtNeeds(D, TN);
   h += `<div class="person"><b>${D.name}</b> <span class="meta">· ${districtMood(D)} · ${D.tiles.length} land${D.tiles.length===1?"":"s"}${towns.length?` · ${towns.join(", ")}`:""}${vil?` · ${vil} village${vil>1?"s":""}`:""}</span>
    <div class="meta" style="color:${DN.developed&&DN.supplied?"inherit":"#8a1f1f"}">Developed: ${DN.devs} of ${DN.need} needed${DN.developed?" ✓":" ✗"} · Supplied by the capital's trade: ${DN.sup} of ${DN.lands} lands${DN.supplied?" ✓":" ✗"}</div>
    <div class="meta">${living(du)?`${dukeTitle(du)} ${du.name}, aged ${age(du)}${du.noble?` · House ${du.house}`:du.house===S.dynasty?" · of the royal house":""} · +${D.tiles.length*DUKE_GOLD} gold a season`:"No duke or duchess"}</div><div class="btnrow">`;
-  h += btn(DEDIT===D.id?"Editing on the map":"Redraw on the map", "", ()=>{ DEDIT=D.id; render(); }, S.over||DEDIT===D.id);
+  h += btn(DEDIT===D.id?"Editing on the map":"Redraw on the map", "", ()=>{ DEDIT=D.id; page=null; render(); }, S.over||DEDIT===D.id);
   h += btn(living(du)?"Change the duke or duchess":"Appoint a duke or duchess", "", ()=>{ DUKEPICK = DUKEPICK===D.id ? null : D.id; render(); }, S.over);
   if(living(du)) h += btn("Dismiss", "", ()=>actDismissDuke(D.id), S.over, true);
   h += `</div>`;
@@ -1523,17 +1530,20 @@ function actAppointOfficer(k, pid){ const p=person(pid); if(!living(p) || S.over
  for(const o in (S.court||={})) if(S.court[o]===pid) S.court[o]=null; S.court[k]=pid; COURTPICK=null; if(S.courtCands?.[k]) S.courtCands[k].list=S.courtCands[k].list.filter(x=>x!==pid);
  log(`${p.name} is made ${OFFICES[k].name.toLowerCase()} of ${pr().name}.`, true); after(); }
 function actDismissOfficer(k){ const p=officer(k); if(!p) return; S.court[k]=null; log(`${p.name} is dismissed as ${OFFICES[k].name.toLowerCase()}.`); after(); }
-function actSpy(rid){ const sp=officer("spymaster"), r=S.realms[rid]; if(!sp || !r?.alive || S.over || S.gold<SPY_COST || (S.spies||[]).some(x=>x.rid===rid) || !useAP()) return;
- S.gold-=SPY_COST; (S.spies ||= []).push({rid, eta:turn()+1}); toast(`${sp.name}'s agents slip into ${r.name}. They report at season's end.`); after(); }
+function actSpy(pid){ const sp=officer("spymaster"), q=S.places.find(x=>x.id===pid), r=q&&S.realms[q.owner]; if(!sp || !q || q.owner===S.player || !r?.alive || S.over || S.gold<SPY_COST || (S.spies||[]).some(x=>x.pid===pid) || !useAP()) return;
+ S.gold-=SPY_COST; (S.spies ||= []).push({pid, rid:q.owner, eta:turn()+1}); toast(`${sp.name}'s agents slip into ${q.name}. They report at season's end.`); after(); }
 function resolveSpies(summary){
  for(const m of [...(S.spies||[])]){ if(turn()<m.eta) continue; S.spies=S.spies.filter(x=>x!==m); const r=S.realms[m.rid], sp=officer("spymaster"); if(!r?.alive) continue;
   const sk=sp?sp.skill:2;
-  if(Math.random()*100 < 35+sk*6){ const sec=pick(SECRETS.filter(x=>!(S.secrets?.[m.rid]||[]).includes(x))) || pick(SECRETS); ((S.secrets ||= {})[m.rid] ||= []).push(sec);
-   for(let i=0;i<S.tiles.length;i++) if(S.tiles[i]===m.rid) S.seen[i]=1; reveal(m.rid); S.explored[m.rid]=true;
-   summary.push(`<b>Our spies return from ${r.name}</b> with ${sec}, and maps of every land it holds. The secret can be used as leverage on the International Relations page.`); log(`Our spies learn ${sec} in ${r.name}.`); }
-  else if(Math.random()<0.4){ r.rel=clamp((r.rel||0)-20,-100,100); summary.push(`<b>Our agents were caught in ${r.name}.</b> Relations sour (now ${relName(r)}).`); log(`Our spies are caught in ${r.name}.`);
+  const q=S.places.find(x=>x.id===m.pid), where=q?q.name:r.name; if(q && q.owner!==m.rid) { summary.push(`Our agents in ${where} came home: the city changed hands before they could work.`); continue; }
+  if(Math.random()*100 < 35+sk*6 + (q?.fort?-(q.fort-1)*4:0)){ const sec=pick(SECRETS.filter(x=>!(S.secrets?.[m.rid]||[]).includes(x))) || pick(SECRETS); ((S.secrets ||= {})[m.rid] ||= []).push(sec);
+   let n=0; if(q){ const k=S.places.indexOf(q); for(let i=0;i<S.tiles.length;i++) if((i===q.tile || (S.homes[i]===k && S.tiles[i]===m.rid)) && !S.seen[i]){ S.seen[i]=1; n++; }
+    (S.intel ||= {})[q.id]={t:turn(), pop:q.pop??townPeople(q), dev:q.dev, fort:q.fort, castle:q.bld?.castle||0, def:Math.round(defenseOf(q)), army:armyOf(m.rid).troops}; }
+   reveal(m.rid); S.explored[m.rid]=true; const I=S.intel?.[q?.id];
+   summary.push(`<b>Our spies return from ${where}</b> in ${r.name} with ${sec}.${I?` They report ${I.pop.toLocaleString()} people, ${FORT_NAME[I.fort].toLowerCase()}${I.castle?` and a ${CASTLE[I.castle].name.toLowerCase()}`:""}, a defence of about ${I.def.toLocaleString()} against our strength of ${strength(S.player).toLocaleString()}, and ${r.name} able to field ${I.army.toLocaleString()} men.`:""}${n?` They mapped ${n} lands around the city.`:""} The secret can be used as leverage on the International Relations page.`); log(`Our spies in ${where} learn ${sec}.`); }
+  else if(Math.random()<0.4){ r.rel=clamp((r.rel||0)-20,-100,100); summary.push(`<b>Our agents were caught in ${where}.</b> ${r.name} is outraged (relations now ${relName(r)}).`); log(`Our spies are caught in ${where}.`);
    if(sp && Math.random()<0.15){ sp.died=S.year; S.court.spymaster=null; summary.push(`${sp.name}, our spymaster, was unmasked and executed.`); } }
-  else summary.push(`Our spies in ${r.name} learned nothing of use.`); }
+  else summary.push(`Our spies in ${where} learned nothing of use.`); }
 }
 function courtSeasonOfficers(summary){
  const j=officer("jester"); if(j){ if(spouse() && Math.random()<j.skill/10) S.spouseAff=clamp(S.spouseAff+1,0,100); for(const k of S.knights) if(k && Math.random()<j.skill*0.02) k.loy=Math.min(10,k.loy+1); S.jest=pick(JESTS); }
@@ -1559,10 +1569,14 @@ function renderCourt(){
    x += `</div>`; }
   h += courtCard(p, OFFICES[k].name, x);
   if(k==="spymaster" && p){
-   const ks=Object.values(S.realms).filter(o=>o.alive && o.id!==S.player).sort((a,b)=>a.name.localeCompare(b.name));
-   h += `<div style="margin:-4px 0 10px 14px;padding-left:10px;border-left:2px solid #6b4a1e55"><div class="meta">Send agents (${SPY_COST} gold, 1 deed, report by season's end · ${35+p.skill*6}% chance of a secret):</div><div class="spygrid">`;
-   for(const o of ks){ const away=(S.spies||[]).some(m=>m.rid===o.id), n=(S.secrets?.[o.id]||[]).length;
-    h += btn(`${o.name}`, away?"Agents at work":n?`${n} secret${n>1?"s":""} held`:"", ()=>actSpy(o.id), !canAct()||away||S.gold<SPY_COST); }
+   const ks=Object.values(S.realms).filter(o=>o.alive && o.id!==S.player && owned(o.id).length).sort((a,b)=>a.name.localeCompare(b.name));
+   h += `<div style="margin:-4px 0 10px 14px;padding-left:10px;border-left:2px solid #6b4a1e55"><div class="meta">Send agents into a city (${SPY_COST} gold, 1 deed, report by season's end · about ${35+p.skill*6}% chance of success, less behind strong walls). They bring back a secret of its kingdom, the city's size, walls and defence, and maps of its countryside.</div>`;
+   h += `<div class="spykings">`;
+   for(const o of ks){ const n=(S.secrets?.[o.id]||[]).length;
+    h += `<div><div style="display:flex;align-items:center;gap:8px;margin:6px 0 2px">${flagSVG(o.id,24)}<b>${o.name}</b><span class="meta">${n?`· ${n} secret${n>1?"s":""}`:""}</span></div><div class="spygrid">`;
+    for(const q of owned(o.id)){ const away=(S.spies||[]).some(m=>m.pid===q.id), I=S.intel?.[q.id];
+     h += btn(`${q.capital?"★ ":""}${q.name}`, away?"Agents at work":I?`spied ${when(I.t)}`:"", ()=>actSpy(q.id), !canAct()||away||S.gold<SPY_COST); }
+    h += `</div></div>`; }
    h += `</div>`;
    const held=Object.entries(S.secrets||{}).filter(([k2,v])=>v.length && S.realms[k2]?.alive);
    if(held.length) h += `<div class="meta" style="margin-top:4px">Secrets held:</div>` + held.map(([k2,v])=>`<div class="row"><span>${S.realms[k2].name}</span><span style="max-width:70%">${v.join("; ")}</span></div>`).join("");
@@ -2193,6 +2207,7 @@ function endSeason(){
     else { log(`${r.name} declares war on ${S.realms[t].name}.`); if(told(r.id,t)) news.push(`${r.name} declares war on ${S.realms[t].name}.`); } }
   }
  }
+ news.push(...ABROAD.splice(0));
  if(news.length) summary.push(`<b>Abroad:</b> ${news.slice(0,5).join(" ")}${news.length>5?` And ${news.length-5} more in the Chronicle.`:""}`);
  const endedLabel = when();
  courtSeason(summary);
@@ -2325,8 +2340,8 @@ function btn(label, sub, fn, dis, red){ const id="b"+Math.random().toString(36).
 function renderPanel(){
  BTN = {};
  $("page").classList.toggle("open", !!page);
- $("page").classList.toggle("wide", page==="knights" || page==="cities" || page==="nations" || page==="court");
- $("page").classList.toggle("full", page==="family" || page==="social");
+ $("page").classList.toggle("full", !!page);
+ $("page").classList.toggle("listpage", !!page && page!=="family" && page!=="social");
  if(!page){ $("panel").innerHTML=""; return; }
  const ap=canAct(); let h="";
  if(page==="explore"){
@@ -2385,6 +2400,10 @@ function renderPanel(){
 }
 function renderCard(){
  const c=$("card");
+ if(DEDIT){ const D = DEDIT==="new" ? null : S.districts.find(x=>x.id===DEDIT);
+  let h = `<h3>${D?`Redrawing ${D.name}`:"Founding a new district"}</h3><p class="note">${D?`Click a land of ours bordering ${D.name} (dashed) to bring it in, from another district or from conquered land (${INTEGRATE_COST} gold). Up to ${DISTRICT_MAX} lands; it now has ${D.tiles.length}.`:"Click any land of ours to be the first land of the new district."}</p>`;
+  h += btn("Done", "Back to the Districts page", ()=>{ DEDIT=null; page="districts"; render(); });
+  c.innerHTML=h; c.style.display="block"; return; }
  if(ROUTE){ const i=ROUTE.from, left=crewLeft();
   if(!routeOK(S.player,i)) ROUTE=null;
   else { const T=tradeNets(), N=T.nets.find(n=>n.id===T.tileNet.get(i));
@@ -2454,6 +2473,8 @@ function renderCard(){
  const o=S.realms[p.owner], mine=p.owner===S.player, ap=canAct();
  let h = `<button class="x" aria-label="Close">×</button><h3>${p.name}</h3><div class="sub"><b style="color:${o.color}">●</b> ${o.name}${p.capital?" · capital":""}${p.port?" · port":""}</div>
   ${mine?"":`<p class="note">${rulerOf(p.owner)}</p>`}${!S.seen[p.tile] ? `<p class="note">Unexplored: we know the city stands here, but not its size, its people or its walls.</p>` + (()=>{ const pl=planExplore(p.tile); return pl.ok ? btn(pl.sea?`Send a ship from ${pl.port.name}`:"Send scouts", `${pl.cost} gold · 1 deed`, ()=>actExplore(p.tile), !canAct()||S.gold<pl.cost) : `<p class="note">${pl.why}</p>`; })() : ""}<div class="row" ${S.seen[p.tile]?"":'style="display:none"'}><span>Development</span><span>level ${p.dev}</span></div><div class="row" ${S.seen[p.tile]?"":'style="display:none"'}><span>People</span><span>${(p.pop??townPeople(p)).toLocaleString()} of ${townPeople(p).toLocaleString()}${(p.pop??0)<townPeople(p)?" · recovering":""}</span></div>${p.founded!=null?`<div class="row"><span>Chartered</span><span>${when(p.founded)}</span></div>`:""}<div class="row" ${S.seen[p.tile]?"":'style="display:none"'}><span>Fortification</span><span>${p.fort}</span></div>`;
+ { const I=!mine && S.intel?.[p.id]; if(I) h += `<p class="note">Spy report, ${when(I.t)}: ${I.pop.toLocaleString()} people, ${FORT_NAME[I.fort].toLowerCase()}, defence about ${I.def.toLocaleString()} (our strength ${strength(S.player).toLocaleString()}).</p>`;
+   if(!mine && officer("spymaster")){ const away=(S.spies||[]).some(m=>m.pid===p.id); h += btn(`Send spies into ${p.name}`, away?"Agents at work":`${SPY_COST} gold · 1 deed`, ()=>actSpy(p.id), !canAct()||away||S.gold<SPY_COST); } }
  if(mine){
   h += btn("Walk the streets", "Build, develop and fortify in the city", ()=>{ selected=null; openCity(p.id); render(); });
  } else if(atWar(S.player,p.owner)){
