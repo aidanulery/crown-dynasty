@@ -284,7 +284,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.3.1";
+const VERSION = "pre-alpha v0.3.2";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -829,7 +829,7 @@ function actDiplomat(rid){ const r=S.realms[rid]; if(!r?.alive || S.over || S.go
  S.gold-=DIPLOMAT_COST; (S.diplomats ||= []).push({rid, eta:turn()+1}); log(`A diplomat sets out for the court of ${r.name}.`); toast(`Our diplomat rides for ${r.name}. They will report at season's end.`); after(); }
 function resolveDiplomats(summary){
  for(const d of [...(S.diplomats||[])]){ if(turn()<d.eta) continue; S.diplomats=S.diplomats.filter(x=>x!==d); const r=S.realms[d.rid]; if(!r?.alive) continue;
-  let n=0; for(let i=0;i<S.tiles.length;i++) if(S.tiles[i]===d.rid && !S.seen[i]){ S.seen[i]=1; n++; } reveal(d.rid); S.explored[d.rid]=true; S.met ||= {}; S.met["k:"+d.rid]=turn();
+  let n=0; for(let i=0;i<S.tiles.length;i++) if(S.tiles[i]===d.rid && !S.seen[i]){ S.seen[i]=1; n++; } reveal(d.rid); S.explored[d.rid]=true; (S.contacted ||= {})[d.rid]=turn();
   const g = atWar(S.player,d.rid) ? RI(4,10) : RI(12,22); r.rel=clamp((r.rel||0)+g,-100,100);
   summary.push(`<b>Our diplomat returns from ${r.name}</b>${n?` with maps of all ${n} of its lands we had not seen`:""}. ${rulerOf(d.rid)} received them; relations improve by ${g} (now ${relName(r)}).`);
   log(`Our diplomat at the court of ${r.name}: relations +${g}.`); }
@@ -1372,7 +1372,7 @@ function webGraph(){
  for(const d of S.districts||[]){ const p=person(d.duke); if(!living(p)) continue; if(!N.has(p.id)){ add(p.id,{name:p.name, kind:"court", ring:2, sub:`${dukeTitle(p)} of ${d.name}`}); E.push([r.id,p.id,"court"]); } else N.get(p.id).sub += ` · ${dukeTitle(p)} of ${d.name}`; }
  // suitors we have courted or invited (for ourselves or for our children)
  const wedIds=new Set(Object.values(S.people).map(p=>p.name+"|"+p.house+"|"+p.born));
- for(const m of Object.values(S.met||{})){ if(m.id.startsWith("k:")) continue; const target = m.of==="ruler" ? r.id : m.of; if(!N.has(target) || wedIds.has(m.name+"|"+m.house+"|"+m.born)) continue;
+ for(const m of Object.values(S.met||{})){ if(!m || typeof m!=="object" || !m.id) continue; const target = m.of==="ruler" ? r.id : m.of; if(!N.has(target) || wedIds.has(m.name+"|"+m.house+"|"+m.born)) continue;
   add(m.id,{name:m.name, kind:"suitor", ring:2, sub:`suitor of ${target===r.id?"the sovereign":N.get(target).name} · ${m.realm&&S.realms[m.realm]?`${m.rel} of House ${m.house}, ${S.realms[m.realm].name}`:`House ${m.house}, nobility`}`}); E.push([target,m.id,"suitor"]); }
  // monarchs of every kingdom we have discovered
  for(const k of Object.values(S.realms)){ if(!k.alive || k.id===S.player || !known(k.id) || !k.ruler) continue; const id="k:"+k.id;
