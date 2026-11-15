@@ -60,6 +60,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .cell{stroke:rgba(60,40,20,.35);stroke-width:.8;cursor:pointer;vector-effect:non-scaling-stroke}
 .cell.sel{stroke:#fff;stroke-width:2}
 .cell.tgt{stroke:#8a1f1f;stroke-width:1.6}
+.cell.col{stroke:#f0c850;stroke-width:2.6;fill:#e8c25a;fill-opacity:.28}
 .toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(36,21,8,.92);color:#f0dcae;padding:8px 16px;border-radius:6px;font-size:15px;pointer-events:none;opacity:0;transition:opacity .25s;max-width:60%;text-align:center;z-index:4}
 .toast.on{opacity:1}
 .mapctl{position:absolute;right:12px;top:22px;display:flex;flex-direction:column;gap:8px;z-index:3}
@@ -244,7 +245,7 @@ const MAPMETA={"SP":12,"NOM":144,"REG":[20,14,980,786],"LAND_TOTAL":304744.7};
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.1.6";
+const VERSION = "pre-alpha v0.1.7";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -294,7 +295,8 @@ const FEMALE = ["Isolde","Matilda","Eleanor","Rosamund","Beatrix","Cecily","Marg
 const EPITHETS = ["the Bold","the Pious","the Fair","the Young","the Lame","the Wise","the Stern","the Generous","the Lion","the Unready","the Black","the Red","the Good","the Cruel","the Fat","the Learned","Ironhand","the Builder","the Quiet","Longshanks"];
 const HOUSES = ["Varne","Mortaigne","Halloway","Corbeau","Ostrand","Dauvergne","Penhallow","Riesen","Blackmere","Montclair","Valdric","Hartwell","Lisieux","Strandberg","Croix-Haute","Aubrac","Rosenthal","Kervignac","Wendmoor","Saint-Clair","Falkenrode","Ormesby","Belcastel","Ruthven","Torvald","Grimaud"];
 const SEA_RANGE = 430;
-const DEEDS_PER_SEASON = 2;
+const DEEDS_PER_SEASON = 3;
+let COLONY_PICK = null;   // id of the harbour city whose colonists are choosing a shore
 
 let S = null;            // game state
 let page = null;   // which notch page is open
@@ -334,7 +336,7 @@ const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
 const placeIdx = p => S.places.indexOf(p);
 const tileOfTown = p => p.tile;
 let TOWNAT = new Map();   // tile index -> town index; rebuilt when towns are founded
-function syncTowns(){ if(!S) return; if(!S.homes) S.homes = CELLS.map(c=>c[1]); S.trade ||= {}; S.tax ||= "fair"; S.relief ??= 0; S.places.forEach((p,k)=>{ if(p.tile==null) p.tile = TOWNCELL[k]; if(p.pop==null) p.pop = townPeople(p); cityInit(p); }); TOWNAT = new Map(S.places.map((p,k)=>[p.tile,k])); }
+function syncTowns(){ if(!S) return; if(!S.homes) S.homes = CELLS.map(c=>c[1]); S.trade ||= {}; S.tax ||= "fair"; S.relief ??= 0; S.places.forEach((p,k)=>{ if(p.tile==null) p.tile = TOWNCELL[k]; if(p.pop==null) p.pop = townPeople(p); cityInit(p); fleetInit(p); }); TOWNAT = new Map(S.places.map((p,k)=>[p.tile,k])); }
 const tileCount = rid => S.tiles.reduce((n,t)=>n+(t===rid),0);
 const tileAdj = (rid,i) => NEI[i].some(j=>S.tiles[j]===rid);
 function reachable(rid, place){
@@ -546,18 +548,28 @@ function updateSight(){
  for(let i=0;i<S.tiles.length;i++){ const o=S.tiles[i]; if(S.seen[i] && o && !known(o)) reveal(o); }
 }
 function landReach(i){ cellInit(); const c=COMP[i]; return S.tiles.some((o,j)=>o===S.player && COMP[j]===c); }
-const shipsReady = p => p.ships!=null && turn()>=p.ships;
-const portBusy = p => S.expeditions.some(e=>e.port===p.id);
-const shipPorts = () => owned(S.player).filter(p=>p.port && shipsReady(p) && !portBusy(p));
+/* Fleets: every port keeps ships at its quays (p.fleet), and lays down one keel at a time (p.keel = the turn it is ready).
+   A port without a harbour has room for a single ship; a harbour moors a whole fleet. */
+const SHIP = {g:90, r:30}, FLEET_CAP_HARBOUR = 8;
+const COLONY = {ships:5, people:300, gold:300, res:120, keep:300, base:400};
+function fleetInit(p){
+ if(p.fleet==null){ const away = (S.expeditions||[]).filter(e=>e.port===p.id && !e.kind);
+  if(p.ships!=null && !away.length){ if(turn()>=p.ships) p.fleet=1; else { p.fleet=0; p.keel=p.ships; } } else p.fleet=0;
+  away.forEach(e=>{ if(e.ships==null) e.ships=1; }); delete p.ships; }
+ p.store ||= {gold:0, res:0};
+}
+const fleetCap = p => p.port ? (p.bld?.harbour ? FLEET_CAP_HARBOUR : 1) : 0;
+const shipsAtSea = p => S.expeditions.filter(e=>e.port===p.id).reduce((n,e)=>n+(e.ships||0),0);
+const fleetTotal = p => (p.fleet||0) + (p.keel!=null?1:0) + shipsAtSea(p);
+const shipPorts = () => owned(S.player).filter(p=>p.port && p.fleet>0);
 function planExplore(i){
  cellInit();
  if(S.expeditions.some(e=>e.tile===i)) return {ok:false, why:"Explorers are already bound for these lands."};
  if(landReach(i)) return {ok:true, sea:false, seasons:1, cost:60};
  const mine = owned(S.player).filter(p=>p.port);
  if(!mine.length) return {ok:false, why:"These lands lie over the sea, and we hold no port town."};
- if(!mine.some(p=>p.ships!=null)) return {ok:false, why:"These lands lie over the sea. Build ships in one of our port towns first."};
  const ports = shipPorts();
- if(!ports.length) return {ok:false, why: mine.some(p=>p.ships!=null && !shipsReady(p)) ? "Our ships are still being built." : "All our ships are already at sea."};
+ if(!ports.length) return {ok:false, why: mine.some(p=>p.keel!=null) ? "Our ships are still being built." : mine.some(p=>shipsAtSea(p)) ? "All our ships are already at sea." : "These lands lie over the sea. Build a ship at the quays of one of our port cities first."};
  const [x,y]=CELLC[i]; const port = ports.sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0];
  const d = Math.hypot(port.x-x, port.y-y);
  return {ok:true, sea:true, port, seasons: d<220?2:d<450?3:4, cost:120};
@@ -573,7 +585,8 @@ function actExplore(i){
  if(i==null || i<0) i = nearestFrontier(); if(i<0) return;
  const pl = planExplore(i); if(!pl.ok || S.gold<pl.cost || !useAP()) return;
  S.gold -= pl.cost;
- S.expeditions.push({id:S.nextId++, tile:i, start:turn(), eta:turn()+pl.seasons, sea:pl.sea, port:pl.sea?pl.port.id:null, portName:pl.sea?pl.port.name:null});
+ if(pl.sea) pl.port.fleet--;
+ S.expeditions.push({id:S.nextId++, tile:i, start:turn(), eta:turn()+pl.seasons, sea:pl.sea, port:pl.sea?pl.port.id:null, portName:pl.sea?pl.port.name:null, ships:pl.sea?1:0});
  log(pl.sea ? `An exploring fleet sails from ${pl.port.name}. They expect to return by ${when(turn()+pl.seasons)}.` : `Scouts ride out into the uncharted country. They will report at season's end.`);
  if(selected && String(selected).startsWith("fog:")) selected=null; after();
 }
@@ -588,21 +601,76 @@ function revealBlob(start){
 }
 function expStatus(e){
  const t=turn(), tot=e.eta-e.start, el=t-e.start;
+ if(e.kind==="colony") return `carrying ${e.people} settlers to found ${e.name}`;
+ if(e.kind==="return") return "sailing home";
  if(!e.sea) return "scouting the land";
  return el < tot/3 ? "sailing out" : el < tot*2/3 ? "mapping the coasts" : "sailing home";
+}
+function shipsHome(e, summary){
+ let p = S.places.find(x=>x.id===e.port && x.owner===S.player);
+ if(!p) p = owned(S.player).filter(q=>q.port).sort((a,b)=>Math.hypot(a.x-CELLC[e.tile][0],a.y-CELLC[e.tile][1])-Math.hypot(b.x-CELLC[e.tile][0],b.y-CELLC[e.tile][1]))[0];
+ if(!p){ summary.push(`With no port left to us, the ships from ${e.portName} are lost to the sea.`); return; }
+ p.fleet = (p.fleet||0) + e.ships;
+ if(p.id!==e.port) summary.push(`${e.portName} is lost to us, so its ships put in at ${p.name}.`);
 }
 function resolveExpeditions(summary){
  for(const e of [...S.expeditions]){
   if(turn() < e.eta) continue;
   S.expeditions = S.expeditions.filter(x=>x!==e);
+  if(e.kind==="return"){ shipsHome(e, summary); summary.push(`The colony fleet, ${e.ships} ships, is home from ${e.name}.`); continue; }
+  if(e.kind==="colony"){ landColony(e, summary); continue; }
   if(Math.random() < (e.sea?0.15:0.08)){ summary.push(e.sea?`<b>The fleet from ${e.portName} never returned.</b> Storms or worse.`:`Our scouts vanished in the wilds. Nothing is learned.`); log(e.sea?`The exploring fleet from ${e.portName} is lost.`:`A scouting party is lost.`); continue; }
+  if(e.sea) shipsHome(e, summary);
   const n = revealBlob(e.tile), o = cellRealm(e.tile);
   const who = o ? `the lands of <b>${S.realms[o].name}</b>` : "unclaimed wilds";
   summary.push(`<b>${e.sea?"Our fleet returns to "+e.portName:"Our scouts return"}</b> having charted ${n} tiles of ${who}.`);
   log(`Explorers chart ${n} tiles of ${o?S.realms[o].name:"wild country"}.`);
  }
 }
-function actBuildShips(p){ const c=TOWNCOST.ships; if(!p.port || p.owner!==S.player || p.ships!=null || !canPay(c.g,c.r) || !useAP()) return; S.gold-=c.g; S.res-=c.r; p.ships = turn()+1; log(`Shipwrights in ${p.name} lay down the keels of a new fleet. Ready by ${when(turn()+1)}.`); after(); }
+function actBuildShip(p){ if(!p.port || p.owner!==S.player || S.over || p.keel!=null || fleetTotal(p)>=fleetCap(p) || !canPay(SHIP.g,SHIP.r)) return;
+ S.gold-=SHIP.g; S.res-=SHIP.r; p.keel = turn()+1; toast(`Shipwrights in ${p.name} lay down a new keel. She sails by ${when(turn()+1)}.`); after(); }
+function actStock(p, kind, n){ if(p.owner!==S.player || S.over) return; const have = kind==="gold"?S.gold:S.res; n=Math.min(n,have); if(n<=0) return;
+ if(kind==="gold") S.gold-=n; else S.res-=n; p.store[kind]+=n; after(); }
+function actUnstock(p){ if(p.owner!==S.player) return; S.gold+=p.store.gold; S.res+=p.store.res; p.store={gold:0,res:0}; toast(`The stores of ${p.name} go back to the treasury.`); after(); }
+function colonyNeeds(p){ const C=COLONY; return [
+ ["Harbour", !!p.bld?.harbour, p.bld?.harbour?"built":"build one in the city"],
+ ["Ships at the quays", p.fleet>=C.ships, `${p.fleet||0} of ${C.ships}`],
+ ["Settlers", (p.pop||0)>=C.people+C.keep, `${Math.max(0,(p.pop||0)-C.keep)} of ${C.people} (the city keeps ${C.keep})`],
+ ["Gold in the stores", p.store.gold>=C.gold, `${p.store.gold} of ${C.gold}`],
+ ["Resources in the stores", p.store.res>=C.res, `${p.store.res} of ${C.res}`]]; }
+const colonyReady = p => p && p.owner===S.player && colonyNeeds(p).every(x=>x[1]);
+function colonyTarget(i){ cellInit(); return !fogged(i) && !S.tiles[i] && !TOWNAT.has(i) && isCoastal(i) && !S.expeditions.some(e=>e.kind==="colony" && e.tile===i); }
+function colonyVoyage(p, i){ const d=Math.hypot(p.x-CELLC[i][0], p.y-CELLC[i][1]); return d<220?1:d<450?2:3; }
+function actChooseShore(p){ if(!colonyReady(p)) return; COLONY_PICK = p.id; selected=null; closeCity(); render(); toast("Choose an unclaimed coast for the colony: the shores outlined in gold."); }
+function actSendColony(i, name){
+ const p=S.places.find(x=>x.id===COLONY_PICK); if(!colonyReady(p) || !colonyTarget(i) || !useAP()) return;
+ const C=COLONY, sea=colonyVoyage(p,i);
+ p.fleet-=C.ships; p.pop-=C.people; p.store.gold-=C.gold; p.store.res-=C.res;
+ S.expeditions.push({id:S.nextId++, kind:"colony", tile:i, start:turn(), eta:turn()+sea, sea:true, port:p.id, portName:p.name, ships:C.ships, people:C.people, gold:C.gold, res:C.res, name});
+ log(`${C.ships} ships sail from ${p.name} carrying ${C.people} settlers to found ${name}. They should make landfall by ${when(turn()+sea)}.`, true);
+ COLONY_PICK=null; selected=null; after();
+}
+function landColony(e, summary){
+ const back = () => S.expeditions.push({id:S.nextId++, kind:"return", tile:e.tile, start:turn(), eta:turn()+(e.eta-e.start), sea:true, port:e.port, portName:e.portName, ships:e.ships, name:e.name});
+ if(Math.random()<0.08){ summary.push(`<b>The colony fleet bound for ${e.name} was lost at sea</b>, with all ${e.people} settlers.`); log(`The colony fleet bound for ${e.name} is lost at sea with all hands.`, true); return; }
+ let i=e.tile;
+ if(S.tiles[i] || TOWNAT.has(i)){
+  const [x,y]=CELLC[e.tile]; let best=-1, bd=160;
+  for(let j=0;j<CELLS.length;j++){ if(S.tiles[j] || TOWNAT.has(j) || !isCoastal(j)) continue; const d=Math.hypot(CELLC[j][0]-x,CELLC[j][1]-y); if(d<bd){bd=d;best=j;} }
+  i=best; }
+ if(i<0){ const p=S.places.find(x=>x.id===e.port && x.owner===S.player); if(p){ p.pop+=e.people; p.store.gold+=e.gold; p.store.res+=e.res; }
+  summary.push(`Our colonists found the shore of ${e.name} already taken and no free coast nearby. They sail home.`); back(); return; }
+ foundColony(i, e.name, e.people);
+ summary.push(`<b>Our settlers make landfall and found the colony of ${e.name}!</b> ${e.people} people raise a stockade and fence the land around it. The ships sail home.`);
+ log(`The colony of ${e.name} is founded across the sea.`, true); back();
+}
+function foundColony(i, name, people){
+ cellInit(); const [x,y]=CELLC[i];
+ S.tiles[i]=S.player;
+ S.places.push({id:"col"+(S.nextId++), name, x:+x.toFixed(1), y:+y.toFixed(1), owner:S.player, dev:1, base:COLONY.base, pop:people, houses:Math.ceil(COLONY.base/PEOPLE_PER_HOUSE), bld:{}, fort:1, port:true, capital:false, tile:i, founded:turn(), colony:true, fleet:0, store:{gold:0,res:0}});
+ for(const j of NEI[i]) if(!S.tiles[j] && !TOWNAT.has(j)) S.tiles[j]=S.player;
+ syncTowns(); rehome(S.places.length-1); updateSight();
+}
 
 /* =====================================================================
    People, knights, romance, family & inheritance
@@ -910,6 +978,19 @@ function housingSeason(summary){
 /* ---------- actions ---------- */
 function actHouses(p, n){ cityInit(p); const free = cityLayout(p).houseSlots - p.houses; n = Math.min(n, free); if(n<=0 || S.over || S.gold < n*HOUSE_COST) return; S.gold -= n*HOUSE_COST; p.houses += n; toast(`${n} new house${n>1?"s":""} raised in ${p.name}.`); after(); }
 function actCastle(p){ cityInit(p); const nx=(p.bld.castle||0)+1, c=CASTLE[nx]; if(!c || S.over || S.gold<c.g) return; S.gold-=c.g; p.bld.castle=nx; log(`${nx===1?"A":"The"} ${c.name.toLowerCase()} ${nx===1?"is raised":"now crowns"} ${p.name}.`, true); after(); }
+function renderFleet(p){
+ const cap=fleetCap(p), tot=fleetTotal(p), sea=shipsAtSea(p), C=COLONY;
+ let h = `<h4>The fleet</h4><div class="row"><span>Ships at the quays</span><span>${p.fleet||0}${sea?` · ${sea} at sea`:""}${p.keel!=null?` · one on the slipway, ready ${when(p.keel)}`:""}</span></div><div class="row"><span>Moorings</span><span>${cap} ship${cap>1?"s":""}${p.bld.harbour?"":" · a harbour moors "+FLEET_CAP_HARBOUR}</span></div>`;
+ h += btn("Lay down a ship", p.keel!=null?"The shipwrights are busy until next season":tot>=cap?(p.bld.harbour?"Every mooring is taken":"Build a harbour to keep more than one ship"):`${SHIP.g} gold, ${SHIP.r} resources · ready next season`, ()=>actBuildShip(p), S.over||p.keel!=null||tot>=cap||!canPay(SHIP.g,SHIP.r));
+ h += `<p class="note">One ship can carry explorers over the sea. A fleet of ${C.ships} from a harbour city can carry settlers to found a colony.</p>`;
+ if(!p.bld.harbour) return h;
+ h += `<h4>A colony over the sea</h4>`;
+ for(const [k,ok,v] of colonyNeeds(p)) h += `<div class="row"><span>${ok?"✓ ":""}${k}</span><span style="color:${ok?"#2f5a1a":"#8a1f1f"}">${v}</span></div>`;
+ h += `<div class="btnrow">` + btn("Store 50 gold", "From the treasury", ()=>actStock(p,"gold",50), S.over||S.gold<1||p.store.gold>=C.gold) + btn("Store 25 resources", "From the treasury", ()=>actStock(p,"res",25), S.over||S.res<1||p.store.res>=C.res) + `</div>`;
+ if(p.store.gold||p.store.res) h += btn("Return the stores to the treasury", `${p.store.gold} gold, ${p.store.res} resources`, ()=>actUnstock(p), S.over);
+ h += btn("Choose a shore for the colony", colonyReady(p)?"Pick unclaimed coast on the map · sailing takes 1 deed":"Gather everything above first", ()=>actChooseShore(p), S.over||!colonyReady(p));
+ return h;
+}
 function actBuilding(p, k){ cityInit(p); const b=BLD[k]; if(!b || p.bld[k] || (b.port && !p.port) || S.over || S.gold<b.g) return; S.gold-=b.g; p.bld[k]=1; toast(`A ${b.name.toLowerCase()} opens in ${p.name}.`); after(); }
 
 /* ---------- layout ---------- */
@@ -1021,7 +1102,11 @@ function drawCity(p){
  s += drawWalls(L, p.fort);
  if(L.sea){ const sp=L.sea.pts.map(q=>q.map(v=>v.toFixed(1)).join(" ")); const far=[CX+L.sea.nx*1600, CY+L.sea.ny*1600];
   s += `<path d="M${sp.join("L")} L${(far[0]+L.sea.ny*1600).toFixed(1)} ${(far[1]-L.sea.nx*1600).toFixed(1)} L${(far[0]-L.sea.ny*1600).toFixed(1)} ${(far[1]+L.sea.nx*1600).toFixed(1)}Z" fill="#2c4a52"/><path d="M${sp.join("L")}" fill="none" stroke="#c9b98c" stroke-width="7" stroke-linejoin="round"/><path d="M${sp.join("L")}" fill="none" stroke="#8fb2b0" stroke-width="2" stroke-dasharray="6 5" transform="translate(${(L.sea.nx*12).toFixed(1)} ${(L.sea.ny*12).toFixed(1)})" opacity=".6"/>`;
-  if(b.harbour){ const hx=CX+L.sea.nx*(L.sea.d-4), hy=CY+L.sea.ny*(L.sea.d-4), ang=Math.atan2(L.sea.ny,L.sea.nx)*180/Math.PI-90; s += `<g transform="translate(${hx.toFixed(1)} ${hy.toFixed(1)}) rotate(${ang.toFixed(1)})"><title>Harbour</title>${BLDART.harbour}</g>`; labels.push([hx,hy-16,"Harbour"]); } }
+  if(b.harbour){ const hx=CX+L.sea.nx*(L.sea.d-4), hy=CY+L.sea.ny*(L.sea.d-4), ang=Math.atan2(L.sea.ny,L.sea.nx)*180/Math.PI-90; s += `<g transform="translate(${hx.toFixed(1)} ${hy.toFixed(1)}) rotate(${ang.toFixed(1)})"><title>Harbour</title>${BLDART.harbour}</g>`; labels.push([hx,hy-16,"Harbour"]); }
+  const nS=Math.min(p.fleet||0, FLEET_CAP_HARBOUR), tx=-L.sea.ny, ty=L.sea.nx, ang=Math.atan2(L.sea.ny,L.sea.nx)*180/Math.PI;
+  for(let k=0;k<nS;k++){ const row=Math.floor(k/4), col=(k%4)-1.5+(row%2?0.5:0), dd=L.sea.d+34+row*30, off=col*30+(b.harbour?0:24);
+   const sx=CX+L.sea.nx*dd+tx*off, sy=CY+L.sea.ny*dd+ty*off;
+   s += `<g transform="translate(${sx.toFixed(1)} ${sy.toFixed(1)}) rotate(${(ang+90).toFixed(1)})"><title>Ship</title><path d="M-9 2 Q0 9 9 2 L7 -1 H-7Z" fill="#5a3a1c" stroke="#2a1a0c" stroke-width=".8"/><path d="M0 -1 V-16" stroke="#3a2410" stroke-width="1.2"/><path d="M0 -15 L8 -5 H0Z" fill="#efe4c8" stroke="#6a5a3a" stroke-width=".6"/><path d="M0 -14 L-6 -5 H0Z" fill="#e2d4b0" stroke="#6a5a3a" stroke-width=".6"/></g>`; } }
  if(b.castle){ const [x,y]=L.castle; s += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})"><title>${CASTLE[b.castle].name}</title>${drawCastle(b.castle)}</g>`; labels.push([x, y+(b.castle>=3?(b.castle===4?72:58):44), CASTLE[b.castle].name]); }
  for(const [x,y,t] of labels) s += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" class="clab">${t}</text>`;
  s += `<g transform="translate(150 120)" opacity=".8"><circle r="26" fill="none" stroke="#2a1d12"/><path d="M0,-32 L5,0 0,32 -5,0Z" fill="#2a1d12"/><text y="-36" text-anchor="middle" font-family="IM Fell English" font-size="13" fill="#2a1d12">N</text></g>`;
@@ -1041,7 +1126,7 @@ function renderCity(){
  if(!GRASSN) GRASSN = noiseURL(256, 6, 4, [60,70,30], 0, .35, 31);
  $("citymap").innerHTML = drawCity(p);
  const need=housesNeeded(p), free=L.houseSlots-p.houses, short=need>p.houses;
- let h = `<button class="x" id="cityx" aria-label="Close the city">×</button><h2>${p.name}</h2><p class="note">${pr().name}${p.capital?" · royal capital":""}${p.port?" · port":""}${p.founded!=null?` · chartered ${when(p.founded)}`:""}</p>`;
+ let h = `<button class="x" id="cityx" aria-label="Close the city">×</button><h2>${p.name}</h2><p class="note">${pr().name}${p.capital?" · royal capital":""}${p.colony?" · colony":""}${p.port?" · port":""}${p.founded!=null?` · ${p.colony?"founded":"chartered"} ${when(p.founded)}`:""}</p>`;
  h += `<div class="row"><span>People</span><span>${(p.pop??townPeople(p)).toLocaleString()} of ${townPeople(p).toLocaleString()}</span></div>`;
  h += `<div class="row"><span>Homes</span><span style="color:${short?"#8a1f1f":"inherit"}">${p.houses} houses for ${housing(p).toLocaleString()} people${short?` · ${need-p.houses} more needed`:""}</span></div>`;
  h += `<div class="row"><span>Development</span><span>level ${p.dev}</span></div><div class="row"><span>Walls</span><span>${FORT_NAME[p.fort]}</span></div>`;
@@ -1055,10 +1140,9 @@ function renderCity(){
  for(const k in BLD){ const B=BLD[k]; if(B.port && !p.port) continue;
   h += b[k] ? `<div class="row"><span>${B.name} ✓</span><span style="max-width:65%">${B.blurb}</span></div>` : btn(`Build a ${B.name.toLowerCase()}`, `${B.g} gold · ${B.blurb}`, ()=>actBuilding(p,k), S.over||S.gold<B.g); }
  h += `<h4>The city</h4>`;
- { const c=TOWNCOST.develop(p); h += btn("Develop the city", `${c.g} gold, ${c.r} resources · 1 deed · +${PEOPLE_PER_DEV} people, more streets (they need ${Math.ceil(PEOPLE_PER_DEV/PEOPLE_PER_HOUSE)} more houses)`, ()=>actImprove(p), !ap||!canPay(c.g,c.r)); }
- { const c=TOWNCOST.fortify(p); h += btn("Fortify walls", p.fort>=4?"Walls at their height":`${c.g} gold, ${c.r} resources · 1 deed · ${FORT_NAME[p.fort+1].toLowerCase()}`, ()=>actFortify(p), !ap||p.fort>=4||!canPay(c.g,c.r)); }
- if(p.port){ h += `<div class="row"><span>Fleet</span><span>${p.ships==null?"none":!shipsReady(p)?"building, ready "+when(p.ships):portBusy(p)?"at sea":"in harbour"}</span></div>`;
-  if(p.ships==null) h += btn("Build ships", `${TOWNCOST.ships.g} gold, ${TOWNCOST.ships.r} resources · 1 deed · needed to explore overseas`, ()=>actBuildShips(p), !ap||!canPay(TOWNCOST.ships.g,TOWNCOST.ships.r)); }
+ { const c=TOWNCOST.develop(p); h += btn("Develop the city", `${c.g} gold, ${c.r} resources · +${PEOPLE_PER_DEV} people, more streets (they need ${Math.ceil(PEOPLE_PER_DEV/PEOPLE_PER_HOUSE)} more houses)`, ()=>actImprove(p), S.over||!canPay(c.g,c.r)); }
+ { const c=TOWNCOST.fortify(p); h += btn("Fortify walls", p.fort>=4?"Walls at their height":`${c.g} gold, ${c.r} resources · ${FORT_NAME[p.fort+1].toLowerCase()}`, ()=>actFortify(p), S.over||p.fort>=4||!canPay(c.g,c.r)); }
+ if(p.port) h += renderFleet(p);
  $("cityside").innerHTML = h;
  $("cityx").onclick = closeCity;
 }
@@ -1148,12 +1232,12 @@ function renderAllyBorders(){
  el.setAttribute("d",d); $("allyb2").setAttribute("d",d);
 }
 /* ---------- player actions ---------- */
-const apMax = () => (S.rulerId && age(ruler())<16) ? 1 : DEEDS_PER_SEASON;   // a child sovereign rules through a regency
+const apMax = () => (S.rulerId && age(ruler())<16) ? DEEDS_PER_SEASON-1 : DEEDS_PER_SEASON;   // a child sovereign rules through a regency
 function useAP(){ if(S.ap<1) return false; S.ap--; return true; }
 function canAct(){ return S.ap>0 && !S.over; }
 function after(){ syncTowns(); save(); render(); }
-function actImprove(p){ const c=TOWNCOST.develop(p); if(!canPay(c.g,c.r)||!useAP()) return; S.gold-=c.g; S.res-=c.r; p.dev++; p.pop=(p.pop??townPeople(p))+PEOPLE_PER_DEV; log(`${p.name} prospers: new markets and guildhalls (development ${p.dev}).`); after(); }
-function actFortify(p){ const c=TOWNCOST.fortify(p); if(p.fort>=4||!canPay(c.g,c.r)||!useAP()) return; S.gold-=c.g; S.res-=c.r; p.fort++; log(`The walls of ${p.name} are raised higher (fortification ${p.fort}).`); after(); }
+function actImprove(p){ const c=TOWNCOST.develop(p); if(S.over||!canPay(c.g,c.r)) return; S.gold-=c.g; S.res-=c.r; p.dev++; p.pop=(p.pop??townPeople(p))+PEOPLE_PER_DEV; log(`${p.name} prospers: new markets and guildhalls (development ${p.dev}).`); after(); }
+function actFortify(p){ const c=TOWNCOST.fortify(p); if(S.over||p.fort>=4||!canPay(c.g,c.r)) return; S.gold-=c.g; S.res-=c.r; p.fort++; log(`The walls of ${p.name} are raised higher (fortification ${p.fort}).`); after(); }
 function actAttack(p){
  if(!atWar(S.player,p.owner)||!reachable(S.player,p)||!useAP()) return;
  const foe = S.realms[p.owner].name, res = battle(S.player,p);
@@ -1177,28 +1261,28 @@ function actPeace(rid){
 }
 const canPay = (g,r) => S.gold>=g && S.res>=r;
 function actBuild(i,t){
- const d=DEV[t]; if(S.over || S.tiles[i]!==S.player || TOWNAT.has(i) || whyNot(i,t) || !canPay(d.g,d.r)) return;
+ const d=DEV[t]; if(S.over || S.tiles[i]!==S.player || TOWNAT.has(i) || whyNot(i,t) || !canPay(d.g,d.r) || !useAP()) return;
  S.gold-=d.g; S.res-=d.r; (S.devs[i] ||= {})[t] = t==="mine" ? {lvl:4} : t==="village" ? {lvl:1, grow:0} : {};
  toast(t==="mine" ? `A level IV gold mine opens: +${MINE[4].gold} gold a season.` : t==="village" ? `Families settle a new village: +${VILLAGE[1].people} people.` : `A new ${d.name.toLowerCase()} is built.`); after();
 }
 function actUpgradeMine(i){
  const d=devsAt(i).mine; if(!d || d.lvl<=1 || S.tiles[i]!==S.player) return; const nx=MINE[d.lvl-1];
- if(!canPay(nx.g,nx.r)) return; S.gold-=nx.g; S.res-=nx.r; d.lvl--; toast(`The mine is dug deeper: level ${nx.lvl}, +${nx.gold} gold a season.`); after();
+ if(!canPay(nx.g,nx.r) || !useAP()) return; S.gold-=nx.g; S.res-=nx.r; d.lvl--; toast(`The mine is dug deeper: level ${nx.lvl}, +${nx.gold} gold a season.`); after();
 }
 const CITY_A = ["Ash","Wex","Mar","Thorn","Hal","Brad","Kings","Ox","Rad","Wil","Elm","Stan","Lyn","Hart","Fen","Dun","Bel","Cor","Mont","Roche","Val","Beau","Gra","Sel","Ard","Hol","Ber","Lau","Fal","Wend"];
 const CITY_B = ["bury","ford","ham","wick","stead","mouth","ton","by","field","minster","gate","bridge","mere","haven","court","mont","ville","berg","dorf","holm","burgh","vale"];
 function cityName(){ for(let t=0;t<50;t++){ const n = pick(CITY_A)+pick(CITY_B); if(!S.places.some(p=>p.name===n)) return n; } return "New "+pick(CITY_A)+"ton"; }
 function actUpgradeVillage(i){
  const d=devsAt(i).village; if(S.over || !d || S.tiles[i]!==S.player) return;
- const st=VILLAGE[d.lvl]; if(d.grow < st.grow || !canPay(st.up.g, st.up.r)) return;
- if(d.lvl===1){ S.gold-=st.up.g; S.res-=st.up.r; d.lvl=2; d.grow=0; toast(`The village becomes a market village: +${VILLAGE[2].people-VILLAGE[1].people} people.`); after(); return; }
+ const st=VILLAGE[d.lvl]; if(d.grow < st.grow || !canPay(st.up.g, st.up.r) || !canAct()) return;
+ if(d.lvl===1){ useAP(); S.gold-=st.up.g; S.res-=st.up.r; d.lvl=2; d.grow=0; toast(`The village becomes a market village: +${VILLAGE[2].people-VILLAGE[1].people} people.`); after(); return; }
  // market village -> a new city
  const suggested = cityName();
  modal({title:"A New City", body:`<p>The market village has outgrown its fields. Merchants, masons and priests ask for a charter, and a city will rise here.</p><label for="cityname">Name the city</label><input id="cityname" value="${suggested}" maxlength="22">`,
-  choices:[{label:"Grant the charter", sub:`${st.up.g} gold, ${st.up.r} resources`, fn:()=>foundCity(i, ($("cityname")?.value||"").trim() || suggested)},{label:"Not yet"}]});
+  choices:[{label:"Grant the charter", sub:`${st.up.g} gold, ${st.up.r} resources · 1 deed`, fn:()=>foundCity(i, ($("cityname")?.value||"").trim() || suggested)},{label:"Not yet"}]});
 }
 function foundCity(i, name){
- const d=devsAt(i).village, st=VILLAGE[2]; if(!d || d.lvl!==2 || S.tiles[i]!==S.player || !canPay(st.up.g, st.up.r)) return;
+ const d=devsAt(i).village, st=VILLAGE[2]; if(!d || d.lvl!==2 || S.tiles[i]!==S.player || !canPay(st.up.g, st.up.r) || !useAP()) return;
  S.gold-=st.up.g; S.res-=st.up.r; delDev(i); cellInit();
  const [x,y]=CELLC[i];
  S.places.push({id:"city"+(S.nextId++), name, x:+x.toFixed(1), y:+y.toFixed(1), owner:S.player, dev:1, base:CITY_PEOPLE, pop:CITY_PEOPLE, houses:Math.ceil(CITY_PEOPLE/PEOPLE_PER_HOUSE), bld:{}, fort:1, port:isCoastal(i), capital:false, tile:i, founded:turn()});
@@ -1286,7 +1370,7 @@ function endSeason(){
  aiRulersSeason(summary);
  S.season++;
  if(S.season>3){ S.season=0; S.year++; for(const r of Object.values(S.realms)) if(r.ruler) r.ruler.age++; }
- for(const p of owned(S.player)) if(p.ships===turn()) summary.push(`The new fleet at ${p.name} is ready to sail.`);
+ for(const p of owned(S.player)) if(p.keel!=null && turn()>=p.keel){ p.fleet=(p.fleet||0)+1; p.keel=null; summary.push(`A new ship is launched at ${p.name}: ${p.fleet} at its quays.`); }
  resolveExpeditions(summary);
  if(!winter && Math.random()<0.3) S.events.push({kind:pick(["plague","harvest","envoy"])});
  S.ap = apMax(); S.marches = maxMarches();
@@ -1408,9 +1492,9 @@ function renderPanel(){
   h += `<h4>Into the fog</h4>`;
   const f=nearestFrontier();
   h += btn("Send scouts overland", f>=0?"60 gold · maps about a fifth of the nearest hidden region by season's end":"No uncharted land can be reached on foot", ()=>actExplore(f), !ap||f<0||S.gold<60);
-  h += `<p class="note">For lands over the sea, build ships in a port town, then click the fog on the map to send a fleet.</p>`;
-  if(S.expeditions.length){ h += `<h4>Expeditions underway</h4>`; for(const e of S.expeditions) h += `<div class="row"><span>${e.sea?"Fleet from "+e.portName:"Scouts"}: ${expStatus(e)}</span><span>back ${when(e.eta)}</span></div>`; }
-  h += `<h4>The map</h4><p class="note">Click a town to develop, fortify, build ships or assault it. Click a land tile to claim wild land or, in wartime, occupy enemy land using marches.</p>`;
+  h += `<p class="note">For lands over the sea, build a ship at the quays of a port city, then click the fog on the map to send it. A harbour city with a fleet of ${COLONY.ships} ships and well-stocked stores can send settlers to found a colony.</p>`;
+  if(S.expeditions.length){ h += `<h4>Expeditions underway</h4>`; for(const e of S.expeditions) h += `<div class="row"><span>${e.kind==="colony"?"Colonists from "+e.portName:e.kind==="return"?"Colony fleet":e.sea?"Ship from "+e.portName:"Scouts"}: ${expStatus(e)}</span><span>${e.kind==="colony"?"landfall":"back"} ${when(e.eta)}</span></div>`; }
+  h += `<h4>The map</h4><p class="note">Click one of our cities to walk its streets, or a foreign town to assault it. Click a land tile to claim wild land or, in wartime, occupy enemy land using marches.</p>`;
  }
  if(page==="war"){
   { const A=armyOf(S.player); h += `<h2>War Council</h2><div class="row"><span>Our militants</span><span>${A.troops.toLocaleString()} of ${A.max.toLocaleString()} who could serve</span></div><div class="row"><span>Fighting quality</span><span>×${A.quality.toFixed(2)} · strength ${A.strength.toLocaleString()}</span></div>`; }
@@ -1443,10 +1527,20 @@ function renderPanel(){
 }
 function renderCard(){
  const c=$("card");
+ if(COLONY_PICK){ const p=S.places.find(x=>x.id===COLONY_PICK);
+  if(!colonyReady(p)) COLONY_PICK=null;
+  else { const i = String(selected||"").startsWith("col:") ? +selected.slice(4) : -1;
+   let h = `<button class="x" aria-label="Cancel">×</button><h3>A Colony from ${p.name}</h3><div class="sub">${COLONY.ships} ships · ${COLONY.people} settlers · ${COLONY.gold} gold · ${COLONY.res} resources</div>`;
+   if(i<0) h += `<p class="note">Click an unclaimed stretch of coast, outlined in gold, where the settlers should land. Explore the fog to find more shores.</p>` + btn("Call off the voyage", "Nothing is spent", ()=>{ COLONY_PICK=null; render(); });
+   else { const sea=colonyVoyage(p,i), sug=cityName();
+    h += `<p class="note">Unclaimed ${isCoastal(i)?"coast":"land"}. The fleet makes landfall by ${when(turn()+sea)}; the settlers take this shore and the wild land around it, and the ships sail home.</p><label for="colname">Name the colony</label><input id="colname" value="${sug}" maxlength="22">`;
+    h += btn("Set sail", `1 deed · ${sea} season${sea>1?"s":""} at sea · 8% risk of loss`, ()=>actSendColony(i, ($("colname")?.value||"").trim()||sug), !canAct());
+    h += btn("Choose another shore", "", ()=>{ selected=null; render(); }); }
+   c.innerHTML=h; c.style.display="block"; return; } }
  if(selected && String(selected).startsWith("fog:")){ const i=+selected.slice(4), ap=canAct(), pl=planExplore(i);
   let h = `<button class="x" aria-label="Close">×</button><h3>Uncharted Lands</h3><div class="sub">Hidden in fog</div><p class="note">Nobody at court knows what lies here. Explorers will map about a fifth of this hidden region.</p>`;
   if(!pl.ok) h += `<p class="note"><b>${pl.why}</b></p>`;
-  else h += btn(pl.sea?`Send a fleet from ${pl.port.name}`:"Send scouts overland", pl.sea?`${pl.cost} gold · ${pl.seasons} seasons: sail out, map the coast, sail home · back by ${when(turn()+pl.seasons)}`:`${pl.cost} gold · reports by the end of this season`, ()=>actExplore(i), !ap||S.gold<pl.cost);
+  else h += btn(pl.sea?`Send a ship from ${pl.port.name}`:"Send scouts overland", pl.sea?`${pl.cost} gold · ${pl.seasons} seasons: sail out, map the coast, sail home · back by ${when(turn()+pl.seasons)}`:`${pl.cost} gold · reports by the end of this season`, ()=>actExplore(i), !ap||S.gold<pl.cost);
   c.innerHTML=h; c.style.display="block"; return; }
  if(selected && String(selected).startsWith("tile:")){ const i=+selected.slice(5), o=S.tiles[i], ap=S.marches>0&&!S.over, adj=tileAdj(S.player,i);
   const home = S.homes[i]>=0 ? S.places[S.homes[i]]?.name : null;
@@ -1460,13 +1554,13 @@ function renderCard(){
    for(const t of kinds){
     h += `<h4 style="margin:10px 0 2px;font:400 17px 'IM Fell English',serif;color:var(--accent)">${t==="village"?VILLAGE[here.village.lvl].name:DEV[t].name}</h4>`;
     if(t==="mine"){ const d=here.mine; h += `<div class="row"><span>Level ${MINE[d.lvl].lvl}</span><span>+${MINE[d.lvl].gold} gold a season</span></div>`;
-     if(d.lvl>1){ const nx=MINE[d.lvl-1]; h += btn(`Dig deeper to level ${nx.lvl}`, `${nx.g} gold, ${nx.r} resources · +${nx.gold} gold a season`, ()=>actUpgradeMine(i), S.over||!canPay(nx.g,nx.r)); }
+     if(d.lvl>1){ const nx=MINE[d.lvl-1]; h += btn(`Dig deeper to level ${nx.lvl}`, `${nx.g} gold, ${nx.r} resources · 1 deed · +${nx.gold} gold a season`, ()=>actUpgradeMine(i), !canAct()||!canPay(nx.g,nx.r)); }
      else h += `<p class="note">The richest vein: level I.</p>`; }
     else if(t==="village"){ const d=here.village, st=VILLAGE[d.lvl], g=Math.min(d.grow||0, st.grow), ready=g>=st.grow;
      h += `<div class="row"><span>${st.people} people</span><span>+${st.people/PEOPLE_PER_GOLD} gold a season</span></div>`;
      { const f=farmsNear(i,S.player), ok=f>=st.farms; h += `<div class="row"><span>Farms next to it</span><span style="color:${ok?'inherit':'#8a1f1f'}">${f} of ${st.farms} needed${ok?'':d.hungry?' · will be abandoned at season’s end':' · will go hungry'}</span></div>`; }
      h += `<div class="row"><span>Growth</span><span>${g} / ${st.grow} seasons</span></div><div style="height:6px;background:#0002;border-radius:3px;overflow:hidden;margin:4px 0"><i style="display:block;height:100%;width:${100*g/st.grow}%;background:${ready?"#4a6a2a":"#8a6a2a"}"></i></div>`;
-     h += btn(st.up.label, ready ? `${st.up.g} gold, ${st.up.r} resources${d.lvl===2?" · a new city with its own name on the map":` · +${VILLAGE[2].people-st.people} people`}` : `Ready in ${st.grow-g} more season${st.grow-g===1?"":"s"} (villages grow while nobody starves)`, ()=>actUpgradeVillage(i), S.over||!ready||!canPay(st.up.g,st.up.r)); }
+     h += btn(st.up.label, ready ? `${st.up.g} gold, ${st.up.r} resources · 1 deed${d.lvl===2?" · a new city with its own name on the map":` · +${VILLAGE[2].people-st.people} people`}` : `Ready in ${st.grow-g} more season${st.grow-g===1?"":"s"} (villages grow while nobody starves)`, ()=>actUpgradeVillage(i), !canAct()||!ready||!canPay(st.up.g,st.up.r)); }
     else h += `<div class="row"><span>Yield</span><span>${DEV[t].blurb.split(" · ")[0]}</span></div>`;
     h += btn(`Tear down the ${(t==="village"?VILLAGE[here.village.lvl].name:DEV[t].name).toLowerCase()}`, kinds.length===1?"The land goes back to yielding resources":"", ()=>actRaze(i,t), S.over);
    }
@@ -1474,7 +1568,7 @@ function renderCard(){
    if(options.length && !here.village){
     h += `<h4 style="margin:12px 0 2px;font:400 17px 'IM Fell English',serif;color:var(--accent)">${kinds.length?"Add to this land":"Develop this land"}</h4>${kinds.length?"":`<p class="note" style="margin:0 0 4px">Building here ends its resource yield.</p>`}`;
     for(const t of options){ const D=DEV[t], why=whyNot(i,t);
-     h += btn(`Build a ${D.name.toLowerCase()}`, why || `${D.g} gold, ${D.r} resources · ${D.blurb}`, ()=>actBuild(i,t), S.over||!!why||!canPay(D.g,D.r)); }
+     h += btn(`Build a ${D.name.toLowerCase()}`, why || `${D.g} gold, ${D.r} resources · 1 deed · ${D.blurb}`, ()=>actBuild(i,t), !canAct()||!!why||!canPay(D.g,D.r)); }
    }
   }
   else if(atWar(S.player,o)) h += btn("Occupy this land", adj?"1 march":"Must border lands we hold", ()=>actOccupy(i), !ap||!adj, true);
@@ -1486,10 +1580,7 @@ function renderCard(){
  let h = `<button class="x" aria-label="Close">×</button><h3>${p.name}</h3><div class="sub"><b style="color:${o.color}">●</b> ${o.name}${p.capital?" · capital":""}${p.port?" · port":""}</div>
   ${mine?"":`<p class="note">${rulerOf(p.owner)}</p>`}<div class="row"><span>Development</span><span>level ${p.dev}</span></div><div class="row"><span>People</span><span>${(p.pop??townPeople(p)).toLocaleString()} of ${townPeople(p).toLocaleString()}${(p.pop??0)<townPeople(p)?" · recovering":""}</span></div>${p.founded!=null?`<div class="row"><span>Chartered</span><span>${when(p.founded)}</span></div>`:""}<div class="row"><span>Fortification</span><span>${p.fort}</span></div>`;
  if(mine){
-  { const c=TOWNCOST.develop(p); h += btn("Develop the city", `${c.g} gold, ${c.r} resources · +${PEOPLE_PER_DEV} people (the cost doubles each time)`, ()=>actImprove(p), !ap||!canPay(c.g,c.r)); }
-  if(p.port){ h += `<div class="row"><span>Fleet</span><span>${p.ships==null?"none":!shipsReady(p)?"building, ready "+when(p.ships):portBusy(p)?"at sea":"in harbour"}</span></div>`;
-   if(p.ships==null) h += btn("Build ships", `${TOWNCOST.ships.g} gold, ${TOWNCOST.ships.r} resources · ready next season · needed to explore overseas`, ()=>actBuildShips(p), !ap||!canPay(TOWNCOST.ships.g,TOWNCOST.ships.r)); }
-  { const c=TOWNCOST.fortify(p); h += btn("Fortify walls", p.fort>=4?"Walls at their height":`${c.g} gold, ${c.r} resources · harder to take`, ()=>actFortify(p), !ap||p.fort>=4||!canPay(c.g,c.r)); }
+  h += btn("Walk the streets", "Build, develop and fortify in the city", ()=>{ selected=null; openCity(p.id); render(); });
  } else if(atWar(S.player,p.owner)){
   const rch=reachable(S.player,p);
   h += btn("Assault the town", rch?"1 deed":"Out of reach: too far from our lands or ports", ()=>actAttack(p), !ap||!rch, true);
@@ -1569,6 +1660,8 @@ function renderCells(){
   else { el.setAttribute("fill",S.realms[o].color); el.setAttribute("fill-opacity", TOWNAT.has(i) ? "0.92" : (0.36+CELLS[i][2]*0.026).toFixed(3)); }
   el.classList.toggle("sel", i===st || (si>=0 && S.places[si].tile===i));
   el.classList.toggle("tgt", !!o && war.includes(o) && !TOWNAT.has(i) && tileAdj(S.player,i));
+  el.classList.toggle("col", !!COLONY_PICK && colonyTarget(i));
+  if(COLONY_PICK && selected==="col:"+i) el.classList.add("sel");
  }
 }
 let anim=null;
@@ -1623,7 +1716,7 @@ function bindMap(){
  window.addEventListener("pointermove", e=>{ if(!drag) return; const s=Math.max(vb.w/svg.clientWidth, vb.h/svg.clientHeight);
   const dx=e.clientX-drag.x, dy=e.clientY-drag.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); if(moved>4){ svg.classList.add("drag"); vb.x=drag.vx-dx*s; vb.y=drag.vy-dy*s; clampVB(); setVBsoon(-1); } });
  window.addEventListener("pointerup", e=>{ if(drag && moved>4) setVB(); if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell"); const mineTown = id => { const q=S.places.find(x=>x.id===id); return q && q.owner===S.player; };
- if(g){ if(mineTown(g.dataset.id)){ selected=null; openCity(g.dataset.id); render(); } else { selected=g.dataset.id; render(); } } else if(cl){ const ci=+cl.dataset.i; if(fogged(ci)) selected="fog:"+ci; else if(TOWNAT.has(ci)){ const id=S.places[TOWNAT.get(ci)].id; if(mineTown(id)){ selected=null; openCity(id); } else selected=id; } else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
+ if(g){ if(mineTown(g.dataset.id)){ selected=null; openCity(g.dataset.id); render(); } else { selected=g.dataset.id; render(); } } else if(cl){ const ci=+cl.dataset.i; if(COLONY_PICK && colonyTarget(ci)) selected="col:"+ci; else if(fogged(ci)) selected="fog:"+ci; else if(TOWNAT.has(ci)){ const id=S.places[TOWNAT.get(ci)].id; if(mineTown(id)){ selected=null; openCity(id); } else selected=id; } else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
  $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>goHome(true);
  new ResizeObserver(()=>fitAspect()).observe($("map").parentElement); fitAspect();
 }
@@ -1654,7 +1747,7 @@ $("pagex").onclick = () => { page=null; render(); };
 document.addEventListener("keydown", e=>{ if(e.key!=="Escape" || $("modalbg").style.display==="flex") return; if(cityId){ closeCity(); return; } if(page){ page=null; render(); } });
 document.addEventListener("click", e=>{
  const b=e.target.closest("[data-b]"); if(b && BTN[b.dataset.b] && !b.disabled){ BTN[b.dataset.b](); return; }
- if(e.target.closest("#card .x")){ selected=null; render(); }
+ if(e.target.closest("#card .x")){ if(COLONY_PICK && !String(selected||"").startsWith("col:")) COLONY_PICK=null; selected=null; render(); }
 });
 $("endyear").onclick = endSeason;
 (function paperTexture(){
@@ -1675,7 +1768,7 @@ $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
 $("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
-$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have two <b>deeds</b> (developing or fortifying a town, building ships, exploring, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Click one of your cities to walk its streets: build houses (every 100 people need one), a castle, and blacksmiths, markets, mills and more. Fortifying a city raises walls around it. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Set taxes, feed the poor and trade with neighbours from the <b>Treasury</b>. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or build ships in a port town to send fleets over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
+$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have three <b>deeds</b> for work on the main map (building or upgrading a village, farm, fishery or mine, chartering a city, exploring, sending colonists, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Click one of your cities to walk its streets: build houses (every 100 people need one), a castle, blacksmiths, markets, mills and more, develop it and fortify its walls. Work inside a city needs no deeds. A port city builds ships at its quays; with a harbour it can keep a fleet, and a fleet of five with settlers, gold and resources stored in the city can sail off to found a colony on an unclaimed coast. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Set taxes, feed the poor and trade with neighbours from the <b>Treasury</b>. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or a ship from a port city over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
 }
 </script>
 </body>
