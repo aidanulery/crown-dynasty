@@ -61,6 +61,8 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .cell.sel{stroke:#fff;stroke-width:2}
 .cell.tgt{stroke:#8a1f1f;stroke-width:1.6}
 .cell.rt{stroke:#fff;stroke-width:2;stroke-dasharray:4 3}
+#map.clean #devs,#map.clean #routes,#map.clean .place circle,#map.clean .place path{display:none}
+#zclean .slash{display:none}#zclean[aria-pressed=true] .slash{display:inline}
 .cell.dsel{stroke:#f6e7b8;stroke-width:1.6}
 .cell.dadd{stroke:#f6e7b8;stroke-width:1.4;stroke-dasharray:3 3}
 .dlabel{font-family:'IM Fell English SC','IM Fell English',serif;letter-spacing:.12em;text-transform:uppercase;fill:#2a1808;paint-order:stroke;stroke:#f2e3bd;stroke-width:2.2px;stroke-opacity:.7;text-anchor:middle;pointer-events:none}
@@ -212,7 +214,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
  </header>
  <div class="mapwrap">
   <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet" aria-label="Map of western Europe"></svg>
-  <div class="mapctl"><button class="paper gilt" id="zin" aria-label="Zoom in">+</button><button class="paper gilt" id="zout" aria-label="Zoom out">−</button><button class="paper gilt" id="zreset" aria-label="Return to your realm" title="Return to your realm">⌂</button></div>
+  <div class="mapctl"><button class="paper gilt" id="zin" aria-label="Zoom in">+</button><button class="paper gilt" id="zout" aria-label="Zoom out">−</button><button class="paper gilt" id="zreset" aria-label="Return to your realm" title="Return to your realm">⌂</button><button class="paper gilt" id="zclean" aria-label="Hide map icons" title="Hide icons: show only city names and borders" aria-pressed="false"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M2 12 Q12 3 22 12 Q12 21 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/><path class="slash" d="M4 20 L20 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
   <section class="page paper gilt" id="page" aria-live="polite"><button class="x" id="pagex" aria-label="Close page">×</button><div class="panel" id="panel"></div></section>
   <div class="legend paper gilt" id="legend"></div>
   <div class="card paper gilt" id="card"></div>
@@ -261,7 +263,7 @@ const TERRAIN="ccmmscccccmmsscacmmmcccccmmccccccmmcmmffcccmmmmmmmccccmmmmmcccccm
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.2.4";
+const VERSION = "pre-alpha v0.2.5";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -2124,6 +2126,9 @@ function bindMap(){
  if(DEDIT && rtile!=null && S.tiles[rtile]===S.player){ actDistrictTile(rtile); }
  else if(ROUTE && rtile!=null && S.tiles[rtile]===S.player){ actLayRoute(rtile); }
  else if(g){ if(mineTown(g.dataset.id)){ selected=null; openCity(g.dataset.id); render(); } else { selected=g.dataset.id; render(); } } else if(cl){ const ci=+cl.dataset.i; if(COLONY_PICK && colonyTarget(ci)) selected="col:"+ci; else if(fogged(ci)) selected="fog:"+ci; else if(TOWNAT.has(ci)){ const id=S.places[TOWNAT.get(ci)].id; if(mineTown(id)){ selected=null; openCity(id); } else selected=id; } else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
+ { const setClean=on=>{ $("map").classList.toggle("clean",on); $("zclean").setAttribute("aria-pressed",on); $("zclean").title=on?"Show icons again":"Hide icons: show only city names and borders"; try{ localStorage.setItem("crown-dynasty-clean", on?"1":""); }catch(e){} };
+  let on=false; try{ on=localStorage.getItem("crown-dynasty-clean")==="1"; }catch(e){} setClean(on);
+  $("zclean").onclick=()=>setClean(!$("map").classList.contains("clean")); }
  $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>goHome(true);
  new ResizeObserver(()=>fitAspect()).observe($("map").parentElement); fitAspect();
 }

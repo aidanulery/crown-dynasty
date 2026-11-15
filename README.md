@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.2.4**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.2.5**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -45,3 +45,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.2.2 — the Family Tree page fills the whole screen below the notches (tree drawn 20% larger on wide screens).
 - v0.2.3 — Districts notch (7th): lands are grouped into districts (one per city at the start, outlined in dark ink; tile borders are now lighter). Redraw districts on the map, found new ones, rename them, and appoint a duke or duchess from the royal family or a newly raised noble lord (60 gold) for +1 gold a season per land. Conquered land is hatched with diagonal lines and pays half taxes, yields no resources and cannot be built on until integrated into a district (20 gold a land). Family tree: every card is the same size, cleaner connectors, and a crown marks the sovereign and everyone in the line of succession (numbered); the line is listed under the tree.
 - v0.2.4 — every tile is assigned a terrain trait (plains, forest, mountain, coastal, marsh or swamp) from real geographic data: ETOPO1 elevation and relief, NASA Blue Marble satellite colour for forest cover, Natural Earth shaded relief for ruggedness, and the historically documented wetlands of the region. Data only (`TERRAIN` in `src/mapdata.js`, `terrainOf(i)` in the game); nothing uses it yet.
+- v0.2.5 — a toggle under the map buttons (eye) hides the map icons (town markers, development icons and trade-route lines), leaving only city names and borders; the choice is remembered.
