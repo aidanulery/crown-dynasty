@@ -84,7 +84,20 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .page.full{left:12px;right:12px;top:14px;bottom:14px;width:auto;max-height:none;z-index:7}
 .page.full .panel{flex:1}
 .page.full .tree{padding:14px 0 24px}
-@media (min-width:900px){.page.full .tree{zoom:1.2}}
+.treebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 8px}
+.treebar .zb{width:34px;height:34px;padding:0;border:1px solid #6b4a1e;border-radius:6px;background:rgba(255,240,205,.5);font:400 20px/1 serif;color:#3a240e;cursor:pointer}
+.treebar .zb:hover{background:rgba(255,240,205,.85)}
+.treebar .btn{width:auto;flex:none;margin:0;padding:6px 14px}
+.treebar .lin{flex:1;min-width:200px;font-size:13px;color:#3a240e}
+.page.full .tree{height:max(320px,calc(100vh - 330px));border:1px solid #6b4a1e55;border-radius:6px;background:rgba(255,245,220,.18);cursor:grab}
+.page.full .tree.drag{cursor:grabbing;user-select:none}
+.tree>ul{padding:26px 30px 30px !important}
+.pc[data-pid]{cursor:pointer}
+.pc[data-pid]:hover{box-shadow:0 0 0 2px #b8892d,0 2px 4px #0003}
+.tree.lineage .pc{opacity:.32;filter:grayscale(.8)}
+.tree.lineage .pc.blood{opacity:1;filter:none}
+.tree.lineage .pc.blood.dead{opacity:.72;filter:grayscale(.4)}
+.tree .pc.focus{box-shadow:0 0 0 3px #a3302a,0 3px 8px #0005}
 .kgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:10px 0}
 .kslot{border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center;background:rgba(255,235,190,.14)}
 .kslot svg.helm{width:64px;height:64px;filter:drop-shadow(0 2px 2px #0006)}
@@ -253,7 +266,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.2.5";
+const VERSION = "pre-alpha v0.2.6";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -1267,7 +1280,30 @@ function pcard(p){
  const origin = p.house!==S.dynasty ? `House ${p.house}${R2?`, ${R2.name}`:p.origin==="noble"?", nobility":""}` : p.left ? `left court ${p.left}` : `House ${p.house}`;
  const crown = isR ? `<span class="crown" title="The reigning sovereign">${CROWN_SVG}</span>` : li>=0 ? `<span class="crown" title="${ord(li+1)} in line to the throne">${CROWN_SVG}${li+1}</span>` : "";
  const title = [p.name, yrs, origin, ...tags.map(t=>t.replace(/<[^>]+>/g,""))].join(" · ");
- return `<span class="pc${p.ruled?" ruler":""}${p.died!=null||p.left?" dead":""}" title="${title}">${crown}<b>${p.name}</b><div class="pcl">${yrs}</div><div class="pcl">${origin}</div>${tags.length?`<div class="tags">${tags.join(" ")}</div>`:""}</span>`;
+ return `<span class="pc${p.ruled?" ruler":""}${p.died!=null||p.left?" dead":""}${BLOOD.has(p.id)?" blood":""}${FTFOCUS_ID===p.id?" focus":""}" data-pid="${p.id}" title="${title} · click to show their bloodline">${crown}<b>${p.name}</b><div class="pcl">${yrs}</div><div class="pcl">${origin}</div>${tags.length?`<div class="tags">${tags.join(" ")}</div>`:""}</span>`;
+}
+/* Bloodline: everyone who shares blood with a person — their ancestors, and every descendant of those ancestors
+   (so parents, children, brothers and sisters, cousins, nephews and nieces). Spouses who married in are not of the blood. */
+let FTKEEP = false, FTFOCUS = null, FTZ = 1, FTDRAG = false, BLOOD = new Set(), FTFOCUS_ID = null;
+function bloodOf(p){
+ const anc=new Set([p.id]), q=[p];
+ while(q.length){ const x=q.shift(); for(const k of [x.father,x.mother]){ const a=person(k); if(a && !anc.has(a.id)){ anc.add(a.id); q.push(a); } } }
+ const out=new Set(anc), q2=[...anc].map(person);
+ while(q2.length){ const x=q2.shift(); for(const k of x.children||[]){ const c=person(k); if(c && !out.has(c.id)){ out.add(c.id); q2.push(c); } } }
+ return out;
+}
+function ftZoom(f){ const t=$("ftree"); if(!t) return; const ul=t.firstElementChild, old=FTZ;
+ FTZ = f===0 ? 1 : clamp(+(FTZ*f).toFixed(3), 0.35, 2.5); if(FTZ===old) return;
+ const cx=(t.scrollLeft+t.clientWidth/2)/old, cy=(t.scrollTop+t.clientHeight/2)/old;
+ ul.style.zoom=FTZ; t.scrollLeft=cx*FTZ-t.clientWidth/2; t.scrollTop=cy*FTZ-t.clientHeight/2; $("ftzl").textContent=Math.round(FTZ*100)+"%"; }
+function bindTree(prev){
+ const t=$("ftree"); if(!t) return;
+ if(prev){ t.scrollLeft=prev[0]; t.scrollTop=prev[1]; }
+ else { const f=t.querySelector(".pc.focus"); if(f){ const a=f.getBoundingClientRect(), b=t.getBoundingClientRect(); t.scrollLeft+=a.left+a.width/2-(b.left+b.width/2); } }
+ t.onwheel=e=>{ if(!(e.ctrlKey||e.metaKey)) return; e.preventDefault(); ftZoom(e.deltaY>0?0.9:1.1); };
+ let d=null; t.onpointerdown=e=>{ if(e.button!==0) return; d={x:e.clientX,y:e.clientY,l:t.scrollLeft,tp:t.scrollTop,m:0}; FTDRAG=false; };
+ t.onpointermove=e=>{ if(!d) return; const dx=e.clientX-d.x, dy=e.clientY-d.y; d.m=Math.max(d.m,Math.abs(dx)+Math.abs(dy)); if(d.m>4){ FTDRAG=true; t.classList.add("drag"); t.scrollLeft=d.l-dx; t.scrollTop=d.tp-dy; } };
+ t.onpointerup=t.onpointerleave=()=>{ d=null; t.classList.remove("drag"); };
 }
 function treeNode(p){
  const sps=p.spouses.map(person).filter(Boolean), kids=p.children.map(person).filter(Boolean).sort((a,b)=>a.born-b.born);
@@ -1275,8 +1311,13 @@ function treeNode(p){
 }
 function renderFamily(){
  SLINE = successionLine();
+ const focus = person(FTFOCUS) || ruler(); FTFOCUS_ID = focus?.id; BLOOD = focus ? bloodOf(focus) : new Set();
  const r=ruler(); let h=`<h2>House ${S.dynasty}</h2><p class="note">Every sovereign, consort and child of the bloodline. Children of a foreign consort carry a claim to that kingdom: when its ruler dies they may inherit it, uniting both crowns.</p>`;
- h += `<div class="tree"><ul>${treeNode(person(S.elderId) || person(S.founderId))}</ul></div>`;
+ const nb=BLOOD.size-1, isR=focus.id===S.rulerId;
+ h += `<div class="treebar">${btn("−","",()=>ftZoom(1/1.2)).replace('class="btn"','class="zb" title="Zoom out"')}<span id="ftzl" style="min-width:42px;text-align:center">${Math.round(FTZ*100)}%</span>${btn("+","",()=>ftZoom(1.2)).replace('class="btn"','class="zb" title="Zoom in"')}${btn("⤢","",()=>ftZoom(0)).replace('class="btn"','class="zb" title="Reset zoom"')}
+  <span class="lin">Showing the bloodline of <b>${focus.name}</b>${isR?", the reigning monarch":""}: ${nb} blood relative${nb===1?"":"s"} in the tree, lit up. Click anyone to see their bloodline. Drag to move around; Ctrl + scroll to zoom.</span>
+  ${isR?"":btn("Back to the monarch","",()=>{ FTFOCUS=null; render(); })}</div>`;
+ h += `<div class="tree lineage" id="ftree"><ul style="zoom:${FTZ}">${treeNode(person(S.elderId) || person(S.founderId))}</ul></div>`;
  h += `<div class="row"><span>${CROWN_SVG.replace('<svg','<svg style="width:18px;height:12px;vertical-align:-1px"')} Line of succession</span><span>${SLINE.length ? SLINE.slice(0,6).map((p,k)=>`${k+1}. ${p.name}`).join(" · ") + (SLINE.length>6?" …":"") : "none: the dynasty ends with this reign"}</span></div>`;
  const kids=r.children.map(person).filter(living), hh=heir();
  if(kids.length){ h += `<h4>The royal children</h4>`;
@@ -1897,7 +1938,9 @@ function renderPanel(){
   h += `<h2>Chronicle</h2><div class="log">` + S.log.map(e=>`<p>${e.big?"<b>":""}${SEASONS[e.s]} ${e.y}: ${e.t}${e.big?"</b>":""}</p>`).join("") + `</div>`;
   h += `<h4>Game</h4>` + btn("Abandon this reign and start anew", "Your current game will be lost", ()=>modal({title:"Start anew?", body:"<p>The current reign will be lost.</p>", choices:[{label:"Yes, start a new game", red:true, fn:startScreen},{label:"Cancel"}]}), false, true);
  }
+ const ft=$("ftree"), keep = ft && page==="family" ? [ft.scrollLeft, ft.scrollTop] : null;
  $("panel").innerHTML = h;
+ if(page==="family") bindTree(keep);
 }
 function renderCard(){
  const c=$("card");
@@ -2149,6 +2192,7 @@ $("pagex").onclick = () => { page=null; render(); };
 document.addEventListener("keydown", e=>{ if(e.key!=="Escape" || $("modalbg").style.display==="flex") return; if(cityId){ closeCity(); return; } if(page){ page=null; render(); } });
 document.addEventListener("click", e=>{
  const b=e.target.closest("[data-b]"); if(b && BTN[b.dataset.b] && !b.disabled){ BTN[b.dataset.b](); return; }
+ const pc=e.target.closest("#ftree .pc[data-pid]"); if(pc){ if(FTDRAG){ FTDRAG=false; return; } FTFOCUS=pc.dataset.pid; FTKEEP=true; render(); return; }
  if(e.target.closest("#card .x")){ ROUTE=null; if(COLONY_PICK && !String(selected||"").startsWith("col:")) COLONY_PICK=null; selected=null; render(); }
 });
 $("endyear").onclick = endSeason;
