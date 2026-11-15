@@ -98,11 +98,14 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .page.full .tree.drag{cursor:grabbing;user-select:none}
 .tree>ul{padding:26px 30px 30px !important}
 .pc[data-pid]{cursor:pointer}
-.page.full .panel:has(.web){display:flex;flex-direction:column}
-.page.full .panel:has(.web)>*{flex:none}
-.page.full .panel:has(.web)>.web{flex:1 1 auto}
-.web{min-height:340px;border:1px solid #6b4a1e55;border-radius:6px;background:rgba(255,245,220,.18)}
-.web svg{width:100%;height:100%;display:block}
+.panel.webpanel{display:flex;flex-direction:column}
+.panel.webpanel>*{flex:none}
+.panel.webpanel>.web{flex:1 1 auto;height:auto}
+.web{position:relative;user-select:none;-webkit-user-select:none;min-height:300px;height:max(340px,calc(100vh - 330px));cursor:grab;touch-action:none;overflow:hidden;border:1px solid #6b4a1e55;border-radius:6px;background:rgba(255,245,220,.18)}
+.web svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.web.drag{cursor:grabbing}
+.webctl{position:absolute;right:8px;top:8px;display:flex;gap:4px;z-index:2}
+.webctl button{width:32px;height:32px;border:1px solid #6b4a1e;border-radius:6px;background:rgba(255,240,205,.85);font:400 18px/1 serif;color:#3a240e;cursor:pointer}
 .web .wn{cursor:pointer}.web .wn:hover circle{stroke:#a3302a;stroke-width:2.5}
 .web text{font:16px 'IM Fell English',serif;fill:#2a1808;text-anchor:middle;paint-order:stroke;stroke:#f2e3bd;stroke-width:3px;pointer-events:none}
 .web .ini{font:700 15px serif;fill:#fff;stroke:none}
@@ -281,7 +284,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.3.0";
+const VERSION = "pre-alpha v0.3.1";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -1361,7 +1364,7 @@ function webGraph(){
  const fam=[...bloodOf(r)].map(person).filter(p=>living(p) && p.id!==r.id);
  const sps=[r,...fam].flatMap(p=>p.spouses.map(person)).filter(p=>living(p) && p.id!==r.id && !p.left);
  for(const p of [...fam,...sps]) add(p.id,{name:p.name, kind:"family", ring:1, sub:`${relTo(p,r)}, aged ${age(p)}`, person:p});
- for(const n of N.values()) if(n.person){ const p=n.person; const link=[p.father,p.mother].find(x=>N.has(x)); if(link) E.push([link,p.id,"family"]); }
+ for(const n of N.values()){ const p=n.person||(n.kind==="you"?r:null); if(!p) continue; for(const x of [p.father,p.mother]) if(N.has(x)) E.push([x,p.id,"family"]); }
  for(const n of N.values()) if(n.person||n.kind==="you"){ const p=n.person||r; for(const x of p.spouses) if(N.has(x) && p.id<x) E.push([p.id,x,"spouse"]); }
  for(const n of [...N.values()]) if(n.kind==="family" && !E.some(e=>e[1]===n.id||e[0]===n.id)) E.push([r.id,n.id,"family"]);
  // the court: knights and the dukes and duchesses of our districts
@@ -1379,30 +1382,49 @@ function webGraph(){
  return {N:[...N.values()], E};
 }
 function renderSocialWeb(){
- const {N,E}=webGraph(), RAD=[0,150,265,390], rings=[[],[],[],[]];
+ const {N,E}=webGraph(), rings=[[],[],[],[]];
  for(const n of N) rings[n.ring].push(n);
  rings[3].sort((a,b)=>(S.realms[b.rid].rel||0)-(S.realms[a.rid].rel||0));
- for(let k=0;k<4;k++){ const L=rings[k], off=k*0.37; L.forEach((n,i)=>{ const a=off+i/Math.max(1,L.length)*Math.PI*2 - Math.PI/2, rad=RAD[k]+(k===3&&L.length>24?(i%2)*38:0); n.x=Math.cos(a)*rad; n.y=Math.sin(a)*rad; }); }
+ // each ring is just wide enough for its people (about 70 units of arc each), and always outside the one before
+ const RAD=[0]; for(let k=1;k<4;k++) RAD[k]=Math.max(RAD[k-1]+(k===1?120:110), rings[k].length*72/(2*Math.PI));
+ for(let k=0;k<4;k++){ const L=rings[k], off=k*0.37; L.forEach((n,i)=>{ const a=off+i/Math.max(1,L.length)*Math.PI*2 - Math.PI/2, rad=RAD[k]; n.x=Math.cos(a)*rad; n.y=Math.sin(a)*rad; }); }
  const P=new Map(N.map(n=>[n.id,n])), F=WEBFOCUS && P.get(WEBFOCUS);
  const EC={family:"#6b4a1e",spouse:"#a3302a",court:"#6a6a6a",suitor:"#c9416a",kin:"#7a5ab0",war:"#b01818",ally:"#2f7a2a",warm:"#5a9a4a",cold:"#b0603a",monarch:"#8a7a60"};
  const NC={you:"#d9a83a",family:"#8a5a2a",court:"#5a6a7a",suitor:"#c9416a"};
  const near = F ? new Set([F.id, ...E.filter(e=>e[0]===F.id||e[1]===F.id).flatMap(e=>[e[0],e[1]])]) : null;
- let g=`<svg viewBox="-500 -450 1000 910" role="img" aria-label="Social web">`;
- for(const k of [1,2,3]) g+=`<circle r="${RAD[k]}" fill="none" stroke="#6b4a1e" stroke-opacity=".18" stroke-dasharray="3 5"/>`;
+ const used=RAD.filter((r,k)=>k===0||rings[k].length), ext=Math.max(...used)+70;
+ if(!WEBVB || WEBVB.ext!==ext) WEBVB={x:-ext, y:-ext, w:2*ext, h:2*ext, ext};
+ let g=`<svg id="websvg" viewBox="${WEBVB.x} ${WEBVB.y} ${WEBVB.w} ${WEBVB.h}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Social web">`;
+ for(const k of [1,2,3]) if(rings[k].length) g+=`<circle r="${RAD[k]}" fill="none" stroke="#6b4a1e" stroke-opacity=".18" stroke-dasharray="3 5"/>`;
  for(const [a,b,t] of E){ const A=P.get(a), B=P.get(b); if(!A||!B) continue; const dim = near && !(near.has(a)&&near.has(b));
-  g+=`<line x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}" stroke="${EC[t]}" stroke-width="${t==="war"||t==="ally"?2.4:1.5}" ${t==="suitor"||t==="kin"?'stroke-dasharray="5 4"':""} opacity="${dim?.12:.75}"/>`; }
+  g+=`<line x1="${A.x.toFixed(1)}" y1="${A.y.toFixed(1)}" x2="${B.x.toFixed(1)}" y2="${B.y.toFixed(1)}" stroke="${EC[t]}" stroke-width="${t==="war"||t==="ally"?2.4:1.5}" ${t==="suitor"||t==="kin"?'stroke-dasharray="5 4"':""} opacity="${dim?.18:.8}"/>`; }
  for(const n of N){ const r0=n.kind==="you"?34:n.kind==="monarch"?21:22, dim = near && !near.has(n.id), ini=n.name.replace(/^(Sir|Dame) /,"").split(" ").map(w=>w[0]).slice(0,2).join("");
-  g+=`<g class="wn" data-id="${n.id}" transform="translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})" opacity="${dim?.25:1}"><title>${n.name} — ${n.sub}</title><circle r="${r0}" fill="${n.color||NC[n.kind]}" stroke="${F&&F.id===n.id?"#a3302a":"#2a1808"}" stroke-width="${F&&F.id===n.id?3:1.2}"/>${n.kind==="monarch"?`<path transform="translate(0 -8) scale(1.3)" d="M-7 -3 L-8 -10 -3.5 -6.5 0 -12 3.5 -6.5 8 -10 7 -3Z" fill="#f2d98d" stroke="#2a1808" stroke-width=".8"/>`:""}<text class="ini" y="${n.kind==="monarch"?9:5}">${ini}</text><text y="${r0+17}">${n.name}</text></g>`; }
+  g+=`<g class="wn" data-id="${n.id}" transform="translate(${n.x.toFixed(1)} ${n.y.toFixed(1)})" opacity="${dim?.4:1}"><title>${n.name} — ${n.sub}</title><circle r="${r0}" fill="${n.color||NC[n.kind]}" stroke="${F&&F.id===n.id?"#a3302a":"#2a1808"}" stroke-width="${F&&F.id===n.id?3:1.2}"/>${n.kind==="monarch"?`<path transform="translate(0 -8) scale(1.3)" d="M-7 -3 L-8 -10 -3.5 -6.5 0 -12 3.5 -6.5 8 -10 7 -3Z" fill="#f2d98d" stroke="#2a1808" stroke-width=".8"/>`:""}<text class="ini" y="${n.kind==="monarch"?9:5}">${ini}</text><text y="${r0+17}">${n.name}</text></g>`; }
  g+=`</svg>`;
  const cnt=k=>N.filter(n=>n.kind===k).length;
- let h=`<h2>Social Web</h2><p class="note">Everyone connected to ${rulerTitle()} ${ruler().name}: family in the inner ring, the court and suitors in the middle, and the monarchs of every kingdom we have discovered on the outside. Discovering a kingdom adds its monarch; courting or inviting a suitor adds them. Click anyone to see their ties.</p>`;
+ let h=`<h2>Social Web</h2><p class="note">Everyone connected to ${rulerTitle()} ${ruler().name}: family in the inner ring, the court and suitors in the middle, and the monarchs of every kingdom we have discovered on the outside. Discovering a kingdom adds its monarch; courting or inviting a suitor adds them. Click anyone to see their ties; drag to move around and scroll to zoom.</p>`;
  h+=`<div class="weblegend"><span><i style="background:${NC.family}"></i>Family (${cnt("family")})</span><span><i style="background:${NC.court}"></i>Court (${cnt("court")})</span><span><i style="background:${NC.suitor}"></i>Suitors (${cnt("suitor")})</span><span><i style="background:#888"></i>Monarchs (${cnt("monarch")}), in their kingdom's colour</span><span style="color:${EC.ally}">━ ally</span><span style="color:${EC.warm}">━ warm</span><span style="color:${EC.cold}">━ cool</span><span style="color:${EC.war}">━ at war</span><span style="color:${EC.kin}">┅ kin by marriage</span></div>`;
  if(F){ h+=`<div class="person" style="border:1px solid #b8892d"><b>${F.name}</b> <span class="meta">· ${F.sub}</span><div class="btnrow" style="margin-top:4px">`;
   if(F.kind==="monarch"){ const away=(S.diplomats||[]).some(d=>d.rid===F.rid); h+=btn(`Send a diplomat to ${S.realms[F.rid].name}`, away?"A diplomat is on the way":`${DIPLOMAT_COST} gold · 1 deed · reveals the kingdom, improves relations`, ()=>actDiplomat(F.rid), !canAct()||away||S.gold<DIPLOMAT_COST); }
   if(F.kind==="suitor") h+=btn("Go to the Romance page", "", ()=>{ page="romance"; render(); });
   if(F.kind==="family") h+=btn("Show in the family tree", "", ()=>{ FTFOCUS=F.id; page="family"; render(); });
   h+=btn("Clear", "", ()=>{ WEBFOCUS=null; render(); }) + `</div></div>`; }
- return h + `<div class="web">${g}</div>`;
+ return h + `<div class="web" id="web"><div class="webctl"><button type="button" data-wz="0.8" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-wz="1.25" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-wz="0" title="Fit everyone" aria-label="Fit everyone">⤢</button></div>${g}</div>`;
+}
+let WEBVB = null, WEBDRAG = false;
+function webZoom(f, cx, cy){ if(!WEBVB) return; const v=WEBVB;
+ if(f===0){ Object.assign(v,{x:-v.ext,y:-v.ext,w:2*v.ext,h:2*v.ext}); }
+ else { const nw=clamp(v.w*f, 160, 4*v.ext); cx ??= v.x+v.w/2; cy ??= v.y+v.h/2; v.x=cx-(cx-v.x)*nw/v.w; v.y=cy-(cy-v.y)*nw/v.w; v.w=nw; v.h=nw; }
+ $("websvg")?.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`); }
+function bindWeb(){
+ const w=$("web"), svg=$("websvg"); if(!w || !svg) return;
+ const pt=e=>{ const m=svg.getScreenCTM(); if(!m) return [0,0]; const p=svg.createSVGPoint(); p.x=e.clientX; p.y=e.clientY; const q=p.matrixTransform(m.inverse()); return [q.x,q.y]; };
+ w.onwheel=e=>{ e.preventDefault(); const [x,y]=pt(e); webZoom(e.deltaY>0?1.12:0.89, x, y); };
+ for(const b of w.querySelectorAll("[data-wz]")) b.onclick=e=>{ e.stopPropagation(); webZoom(+b.dataset.wz); };
+ let d=null; w.onpointerdown=e=>{ if(e.button!==0 || e.target.closest(".webctl")) return; d={x:e.clientX,y:e.clientY,vx:WEBVB.x,vy:WEBVB.y,m:0}; WEBDRAG=false; };
+ w.onpointermove=e=>{ if(!d) return; const dx=e.clientX-d.x, dy=e.clientY-d.y; d.m=Math.max(d.m,Math.abs(dx)+Math.abs(dy)); if(d.m<5) return;
+  WEBDRAG=true; w.classList.add("drag"); const r=svg.getBoundingClientRect(), k=WEBVB.w/Math.min(r.width,r.height); WEBVB.x=d.vx-dx*k; WEBVB.y=d.vy-dy*k; svg.setAttribute("viewBox", `${WEBVB.x} ${WEBVB.y} ${WEBVB.w} ${WEBVB.h}`); };
+ w.onpointerup=w.onpointerleave=()=>{ d=null; w.classList.remove("drag"); };
 }
 /* =====================================================================
    International relations: every kingdom's opinion of us, and everything we can do with its court —
@@ -2233,8 +2255,9 @@ function renderPanel(){
   h += `<h4>Game</h4>` + btn("Abandon this reign and start anew", "Your current game will be lost", ()=>modal({title:"Start anew?", body:"<p>The current reign will be lost.</p>", choices:[{label:"Yes, start a new game", red:true, fn:startScreen},{label:"Cancel"}]}), false, true);
  }
  const ft=$("ftree"), keep = ft && page==="family" ? [ft.scrollLeft, ft.scrollTop] : null;
- $("panel").innerHTML = h;
+ $("panel").innerHTML = h; $("panel").classList.toggle("webpanel", page==="social");
  if(page==="family") bindTree(keep);
+ if(page==="social") bindWeb();
  if(page==="cities"){ const q=$("csearch"); if(q){ q.oninput=()=>{ CSEARCH=q.value; filterCities(); }; filterCities(); } }
 }
 function renderCard(){
@@ -2488,7 +2511,7 @@ $("pagex").onclick = () => { page=null; render(); };
 document.addEventListener("keydown", e=>{ if(e.key!=="Escape" || $("modalbg").style.display==="flex") return; if(cityId){ closeCity(); return; } if(page){ page=null; render(); } });
 document.addEventListener("click", e=>{
  const b=e.target.closest("[data-b]"); if(b && BTN[b.dataset.b] && !b.disabled){ BTN[b.dataset.b](); return; }
- const wn=e.target.closest(".web .wn"); if(wn){ WEBFOCUS = WEBFOCUS===wn.dataset.id ? null : wn.dataset.id; render(); return; }
+ const wn=e.target.closest(".web .wn"); if(wn){ if(WEBDRAG){ WEBDRAG=false; return; } WEBFOCUS = WEBFOCUS===wn.dataset.id ? null : wn.dataset.id; render(); return; }
  const pc=e.target.closest("#ftree .pc[data-pid]"); if(pc){ if(FTDRAG){ FTDRAG=false; return; } FTFOCUS=pc.dataset.pid; FTKEEP=true; render(); return; }
  if(e.target.closest("#card .x")){ ROUTE=null; if(COLONY_PICK && !String(selected||"").startsWith("col:")) COLONY_PICK=null; selected=null; render(); }
 });
