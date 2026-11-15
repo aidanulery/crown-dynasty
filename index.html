@@ -57,10 +57,13 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .place text{font:600 10px Spectral,serif;fill:#2a1d12;paint-order:stroke;stroke:#efe2c4;stroke-width:3px;pointer-events:none}
 .place:hover circle.seal{stroke:#fff;stroke-width:2.5}
 .sealabel{font:italic 22px "IM Fell English",serif;fill:#b9cdc6;opacity:.45;pointer-events:none}
-.cell{stroke:rgba(60,40,20,.35);stroke-width:.8;cursor:pointer;vector-effect:non-scaling-stroke}
+.cell{stroke:rgba(255,244,218,.2);stroke-width:.6;cursor:pointer;vector-effect:non-scaling-stroke}
 .cell.sel{stroke:#fff;stroke-width:2}
 .cell.tgt{stroke:#8a1f1f;stroke-width:1.6}
 .cell.rt{stroke:#fff;stroke-width:2;stroke-dasharray:4 3}
+.cell.dsel{stroke:#f6e7b8;stroke-width:1.6}
+.cell.dadd{stroke:#f6e7b8;stroke-width:1.4;stroke-dasharray:3 3}
+.dlabel{font-family:'IM Fell English SC','IM Fell English',serif;letter-spacing:.12em;text-transform:uppercase;fill:#2a1808;paint-order:stroke;stroke:#f2e3bd;stroke-width:2.2px;stroke-opacity:.7;text-anchor:middle;pointer-events:none}
 .cell.col{stroke:#f0c850;stroke-width:2.6;fill:#e8c25a;fill-opacity:.28}
 .toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(36,21,8,.92);color:#f0dcae;padding:8px 16px;border-radius:6px;font-size:15px;pointer-events:none;opacity:0;transition:opacity .25s;max-width:60%;text-align:center;z-index:4}
 .toast.on{opacity:1}
@@ -104,8 +107,15 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .tree>ul>li{padding-top:0}.tree>ul>li::before,.tree>ul>li::after{display:none}
 .couple{display:inline-flex;align-items:center;gap:4px}
 .couple .hrt{color:#a3302a;font-size:16px}
-.pc{display:inline-block;min-width:112px;max-width:150px;padding:6px 8px;border:1px solid #6b4a1e;border-radius:6px;background:rgba(255,240,205,.35);font-size:12.5px;line-height:1.25;box-shadow:0 2px 4px #0003;vertical-align:top}
-.pc b{display:block;font:400 15px/1.1 "IM Fell English",serif}
+.pc{position:relative;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;width:152px;height:84px;box-sizing:border-box;padding:6px 8px;border:1px solid #6b4a1e;border-radius:6px;background:rgba(255,240,205,.35);font-size:12px;line-height:1.25;box-shadow:0 2px 4px #0003;vertical-align:top}
+.pc b{display:block;font:400 15px/1.15 "IM Fell English",serif}
+.pc>b,.pc>.pcl,.pc>.tags{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc>.pcl{color:#4a3418}
+.pc .crown{position:absolute;top:-11px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:1px;padding:0 3px;border-radius:6px;background:#f2e3bd;font:700 9.5px/1 serif;color:#6b4a1e;box-shadow:0 1px 2px #0004}
+.pc .crown svg{width:18px;height:12px}
+.tree li{padding-top:22px}
+.tree li::before,.tree li::after{height:22px}
+.couple{gap:6px}
 .pc.ruler{border:2px solid #b8892d;background:rgba(250,225,150,.45)}
 .pc.dead{opacity:.6;filter:grayscale(.5)}
 .pc .tag{display:inline-block;margin-top:2px;padding:0 5px;border-radius:8px;background:#8a1f1f;color:#f6e7b8;font-size:11px}
@@ -250,7 +260,7 @@ const MAPMETA={"SP":12,"NOM":144,"REG":[20,14,980,786],"LAND_TOTAL":304744.7};
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.2.2";
+const VERSION = "pre-alpha v0.2.3";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -302,7 +312,8 @@ const HOUSES = ["Varne","Mortaigne","Halloway","Corbeau","Ostrand","Dauvergne","
 const SEA_RANGE = 430;
 const DEEDS_PER_SEASON = 3;
 let COLONY_PICK = null;
-let ROUTE = null;         // {from: tile} while a road crew is laying trade routes   // id of the harbour city whose colonists are choosing a shore
+let ROUTE = null;
+let DEDIT = null, DUKEPICK = null;   // district being edited on the map ("new" while founding one); district choosing a duke         // {from: tile} while a road crew is laying trade routes   // id of the harbour city whose colonists are choosing a shore
 
 let S = null;            // game state
 let page = null;   // which notch page is open
@@ -343,7 +354,7 @@ const placeIdx = p => S.places.indexOf(p);
 const tileOfTown = p => p.tile;
 let TOWNAT = new Map();   // tile index -> town index; rebuilt when towns are founded
 function syncTowns(){ if(!S) return; if(S.people && S.founderId && !S.eldersDone && person(S.founderId) && person(S.founderId).father==null) createElders(person(S.founderId), S.player); S.eldersDone=true; if(!S.homes) S.homes = CELLS.map(c=>c[1]); S.trade ||= {}; S.tax ||= "fair"; if(S.tiles && S.realms && Object.values(S.realms).some(r=>r.id!==S.player && r.might==null)) assignPowers(false);
- if(S.tiles && (S.routes==null || Object.values(S.realms||{}).some(r=>r.alive && r.id!==S.player && r.routes==null))){ TOWNAT = new Map(S.places.map((p,k)=>[p.tile ?? TOWNCELL[k],k])); if(S.routes==null){ S.routes=[]; autoRoutes(); } for(const r of Object.values(S.realms)) if(r.id!==S.player && r.routes==null){ r.routes=[]; r.food??=80; r.res??=60; autoRoutes(r.id); } } S.relief ??= 0; S.places.forEach((p,k)=>{ if(p.tile==null) p.tile = TOWNCELL[k]; if(p.pop==null) p.pop = townPeople(p); cityInit(p); fleetInit(p); }); TOWNAT = new Map(S.places.map((p,k)=>[p.tile,k])); }
+ if(S.tiles && (S.routes==null || Object.values(S.realms||{}).some(r=>r.alive && r.id!==S.player && r.routes==null))){ TOWNAT = new Map(S.places.map((p,k)=>[p.tile ?? TOWNCELL[k],k])); if(S.routes==null){ S.routes=[]; autoRoutes(); } for(const r of Object.values(S.realms)) if(r.id!==S.player && r.routes==null){ r.routes=[]; r.food??=80; r.res??=60; autoRoutes(r.id); } } S.relief ??= 0; S.places.forEach((p,k)=>{ if(p.tile==null) p.tile = TOWNCELL[k]; if(p.pop==null) p.pop = townPeople(p); cityInit(p); fleetInit(p); }); TOWNAT = new Map(S.places.map((p,k)=>[p.tile,k])); if(S.tiles && S.homes) autoDistricts(); }
 const tileCount = rid => S.tiles.reduce((n,t)=>n+(t===rid),0);
 const tileAdj = (rid,i) => NEI[i].some(j=>S.tiles[j]===rid);
 function reachable(rid, place){
@@ -447,6 +458,7 @@ const farmsNear = (i, owner) => NEI[i].filter(j=>S.tiles[j]===owner && devsAt(j)
 const inSupport = i => supportSet().has(i);
 function whyNot(i,t,rid=S.player){   // reason a development can't be added here, or "" if it can (cost aside)
  const here=devsAt(i), D=DEV[t];
+ if(rid===S.player && S.unint?.[i]) return "Conquered land: integrate it into a district first (Districts page)";
  if(here[t]) return "Already built here";
  if(t==="village") return hasDevs(i) ? "A village needs a tile to itself" : "";
  if(here.village) return "This tile holds a village";
@@ -466,7 +478,9 @@ function economy(rid, withNets=true){
   if(d.village){ E.villagePeople += VILLAGE[d.village.lvl].people; E.villages++; } }
  E.people = E.townPeople + E.villagePeople;
  const TM = rid===S.player ? taxOf().mult : 1;
- E.goldTiles = Math.round(GOLD_PER_TILE*E.tiles*TM); E.goldPeople = Math.floor(E.people/PEOPLE_PER_GOLD*TM);
+ if(rid===S.player){ E.unint=0; E.dukeTiles=0; const U=S.unint||{}; for(let i=0;i<S.tiles.length;i++) if(S.tiles[i]===rid && U[i]){ E.unint++; if(!TOWNAT.has(i) && !hasDevs(i)) E.wild--; }
+  for(const d of S.districts||[]) if(living(person(d.duke))) E.dukeTiles += d.tiles.filter(t=>S.tiles[t]===rid && !U[t]).length; }
+ E.goldTiles = Math.round((GOLD_PER_TILE*(E.tiles-(E.unint||0)/2) + (E.dukeTiles||0)*DUKE_GOLD)*TM); E.goldPeople = Math.floor(E.people/PEOPLE_PER_GOLD*TM);
  E.goldTrade = 0; if(rid===S.player) for(const t in (S.trade||{})) if(S.realms[t]?.alive) E.goldTrade += tradeValue(t);
  E.reliefFood = rid===S.player ? Math.floor(relief()/GOLD_PER_RELIEF_FOOD) : 0; E.food += E.reliefFood;
  const CB = cityBonus(rid); E.goldBld = CB.gold; E.food += CB.food; E.foodBld = CB.food;
@@ -520,7 +534,7 @@ function tradeNets(rid=S.player){
   if(n==null){ const h=S.places[S.homes?.[i]]; n = h && h.owner===rid && comp.has(h.tile) ? remap(comp.get(h.tile)) : royal.id; }
   const N = nets.get(n) || royal; tileNet.set(i, N.id); const d=S.devs[i];
   if(d?.farm) N.food+=DEV.farm.food; if(d?.fish) N.food+=DEV.fish.food;
-  if(!TOWNAT.has(i) && !hasDevs(i)) N.res+=RES_PER_WILD_TILE; }
+  if(!TOWNAT.has(i) && !hasDevs(i) && !(rid===S.player && S.unint?.[i])) N.res+=RES_PER_WILD_TILE; }
  for(const N of nets.values()) N.eat = Math.ceil(N.people/PEOPLE_PER_FOOD);
  return {nets:[...nets.values()], royal, tileNet};
 }
@@ -598,7 +612,7 @@ function battle(att, place){
  const dDead = killPeople(def, D.troops*(win?R(0.08,0.15):R(0.03,0.07)) + (win ? place.pop*R(0.03,0.07) : 0), place);
  if(win){
   place.owner = att; place.fort = Math.max(1, place.fort-1); const wasCap = place.capital; place.capital = false;
-  const k = placeIdx(place); S.tiles[place.tile] = att; delDev(place.tile); S.homes.forEach((h,i)=>{ if(h===k && S.tiles[i]===def) S.tiles[i]=att; });
+  const k = placeIdx(place), taken=[place.tile]; S.homes.forEach((h,i)=>{ if(h===k && S.tiles[i]===def) taken.push(i); }); S.tiles[place.tile] = att; delDev(place.tile); for(const i of taken) S.tiles[i]=att; if(att===S.player) markConquered(taken);
   S.realms[def].lost[att] = (S.realms[def].lost[att]||0) + 1;
   if(wasCap){ const rest = owned(def); if(rest.length) rest.sort((a,b)=>b.dev-a.dev)[0].capital = true; }
   if(!owned(def).length) destroyRealm(def, att);
@@ -615,7 +629,7 @@ function tileSkirmish(att, def){
 }
 function destroyRealm(rid, by){
  const r = S.realms[rid]; r.alive = false;
- for(let i=0;i<S.tiles.length;i++) if(S.tiles[i]===rid) S.tiles[i]=by;
+ const taken=[]; for(let i=0;i<S.tiles.length;i++) if(S.tiles[i]===rid){ S.tiles[i]=by; taken.push(i); } if(by===S.player) markConquered(taken);
  for(const o of r.atWar) S.realms[o].atWar = S.realms[o].atWar.filter(x=>x!==rid);
  r.atWar=[];
  log(`The realm of ${r.name} has fallen to ${S.realms[by].name}.`, true);
@@ -802,11 +816,13 @@ const person = id => id==null ? null : S.people[id];
 const living = p => !!p && p.died==null;
 const spouse = () => living(person(S.spouseId)) ? person(S.spouseId) : null;
 function newPerson(o){ const id="p"+(S.nextId++); S.people[id] = {id, died:null, father:null, mother:null, spouses:[], children:[], claims:[], ...o}; return S.people[id]; }
-function heir(){ const r=ruler(); const h=person(S.heirId); if(living(h) && r.children.includes(h.id)) return h;
- const kid = r.children.map(person).filter(living).sort((a,b)=>a.born-b.born)[0]; if(kid) return kid;
- // no living child: the eldest line's eldest living grandchild inherits
- for(const c of r.children.map(person).filter(Boolean).sort((a,b)=>a.born-b.born)){ const g=c.children.map(person).filter(living).sort((a,b)=>a.born-b.born)[0]; if(g) return g; }
- return null; }
+/* Line of succession: the proclaimed heir, then the sovereign's other children eldest first, then their children by the eldest line. */
+function successionLine(){ const r=ruler(); if(!r) return []; const L=[], by=(a,b)=>a.born-b.born, kids=r.children.map(person).filter(Boolean).sort(by);
+ const h=person(S.heirId); if(living(h) && r.children.includes(h.id)) L.push(h);
+ for(const c of kids) if(living(c) && !L.includes(c)) L.push(c);
+ for(const c of kids) for(const g of c.children.map(person).filter(living).sort(by)) L.push(g);
+ return L; }
+function heir(){ return successionLine()[0] || null; }
 const deathChance = a => a<40 ? 0.002 : (a-38)*0.0025;   // per season
 
 /* ---------- knights ---------- */
@@ -1068,6 +1084,7 @@ function courtSeason(summary){
   else if(Math.random()<deathChance(age(sp))){ sp.died=S.year; S.spouseId=null; summary.push(`<b>${sp.name} has died.</b> The court is draped in black.`); log(`${sp.name}, royal consort, has died.`, true); }
  }
  for(const p of Object.values(S.people)) if(p.elder && living(p) && Math.random()<deathChance(age(p))){ p.died=S.year; summary.push(`${p.name}, ${p.gender==="f"?(p.spouses.length&&person(p.spouses[0])?.ruled?"the queen mother":"sister of the sovereign"):"brother of the sovereign"}, has died, aged ${age(p)}.`); log(`${p.name} has died, aged ${age(p)}.`); }
+ for(const d of S.districts||[]){ const p=person(d.duke); if(p && p.noble && living(p) && Math.random()<deathChance(age(p))) p.died=S.year; if(p && d.duke && !living(p)){ summary.push(`${p.name}, ${dukeTitle(p)} of ${d.name}, has died. The district has no ${p.gender==="f"?"duchess":"duke"}.`); log(`${p.name}, ${dukeTitle(p)} of ${d.name}, dies.`); d.duke=null; } }
  for(const c of r.children.map(person)){ if(!living(c) || !childWed(c)) continue; const sp=c.spouses.map(person).find(living), mo=c.gender==="f"?c:sp;
   if(age(mo)>=16 && age(mo)<=42 && turn()-(c.lastBirthT??-99)>=4 && Math.random()<0.06) bearGrandchild(c, summary); }
  for(const c of r.children.map(person)) if(living(c) && c.suitors?.length && !childWed(c) && turn()-(c.suitorsT??0)>=8) childSuitors(c, c.suitors.filter(x=>x.aff>=30 && (!x.realm || S.realms[x.realm]?.alive && !atWar(S.player,x.realm))));
@@ -1108,6 +1125,90 @@ function unite(rid, claimant, dead, summary){
  log(`${r.name} passes to House ${S.dynasty} through ${claimant.name}'s claim. The two kingdoms are one.`, true);
 }
 
+/* =====================================================================
+   Districts. Our lands are grouped into districts, each of several tiles, and each may be given a duke or
+   duchess (+1 gold a season for every tile of the district). Land taken by conquest stays foreign — hatched
+   on the map, half taxes, no resources, no building — until it is integrated into a district.
+   ===================================================================== */
+const DUKE_GOLD = 1, DISTRICT_MAX = 24, INTEGRATE_COST = 20, NOBLE_COST = 60;
+let DMAP = new Map(), DKEY = "";
+const districtOf = i => DMAP.get(i) || null;
+const dukeTitle = p => p?.gender==="f" ? "Duchess" : "Duke";
+function markConquered(tiles){ S.unint ||= {}; for(const i of tiles) S.unint[i]=1; }
+function districtName(i){
+ const used=new Set((S.districts||[]).map(d=>d.name)); cellInit();
+ if(i!=null){ const t=owned(S.player).filter(p=>!used.has(p.name)).sort((a,b)=>Math.hypot(a.x-CELLC[i][0],a.y-CELLC[i][1])-Math.hypot(b.x-CELLC[i][0],b.y-CELLC[i][1]))[0]; if(t && Math.hypot(t.x-CELLC[i][0],t.y-CELLC[i][1])<60) return t.name; }
+ for(let k=0;k<40;k++){ const n=pick(CITY_A)+pick(["shire","march","dale","wold","fen","mere","moor"]); if(!used.has(n)) return n; } return "New District";
+}
+function autoDistricts(){
+ S.districts ||= []; S.unint ||= {};
+ for(const k in S.unint) if(S.tiles[+k]!==S.player) delete S.unint[k];
+ const has=new Set();
+ for(const d of S.districts){ d.tiles=d.tiles.filter(t=>S.tiles[t]===S.player && !S.unint[t] && !has.has(t)); d.tiles.forEach(t=>has.add(t)); }
+ S.districts=S.districts.filter(d=>d.tiles.length || d.id===DEDIT);
+ const mine=owned(S.player);
+ for(let i=0;i<S.tiles.length;i++){ if(S.tiles[i]!==S.player || has.has(i) || S.unint[i]) continue;
+  let town = TOWNAT.has(i) ? S.places[TOWNAT.get(i)] : S.places[S.homes[i]];
+  if(!town || town.owner!==S.player){ cellInit(); let bd=1e9; town=null; for(const p of mine){ const d=Math.hypot(p.x-CELLC[i][0],p.y-CELLC[i][1]); if(d<bd){ bd=d; town=p; } } }
+  let D = town ? S.districts.find(d=>d.seat===town.id) : S.districts.find(d=>NEI[i].some(j=>d.tiles.includes(j)));
+  if(!D){ D={id:"d"+(S.nextId++), name: town && !S.districts.some(d=>d.name===town.name) ? town.name : districtName(i), seat: town?.id, tiles:[], duke:null}; S.districts.push(D); }
+  D.tiles.push(i); has.add(i); }
+ DMAP=new Map(); for(const d of S.districts) for(const t of d.tiles) DMAP.set(t,d);
+}
+function actDistrictTile(i){
+ if(S.over || S.tiles[i]!==S.player) return;
+ let D = DEDIT==="new" ? null : S.districts.find(x=>x.id===DEDIT); if(DEDIT!=="new" && !D){ DEDIT=null; render(); return; }
+ if(D && D.tiles.includes(i)) return toast(`This land already belongs to ${D.name}.`);
+ if(D && D.tiles.length && !NEI[i].some(j=>D.tiles.includes(j))) return toast(`Only land bordering ${D.name} can join it.`);
+ if(D && D.tiles.length>=DISTRICT_MAX) return toast(`${D.name} is as large as a district may be (${DISTRICT_MAX} lands).`);
+ const conq=!!S.unint?.[i]; if(conq && S.gold<INTEGRATE_COST) return toast(`Integrating conquered land costs ${INTEGRATE_COST} gold.`);
+ const from=districtOf(i); if(from && from.tiles.length===1 && !conq && DEDIT!=="new") { /* moving a district's last land dissolves it */ }
+ if(!D){ D={id:"d"+(S.nextId++), name:districtName(i), seat:TOWNAT.has(i)?S.places[TOWNAT.get(i)].id:null, tiles:[], duke:null}; S.districts.push(D); DEDIT=D.id; log(`The district of ${D.name} is founded.`); }
+ if(conq){ S.gold-=INTEGRATE_COST; delete S.unint[i]; toast(`The conquered land is integrated into ${D.name}.`); }
+ for(const o of S.districts) o.tiles=o.tiles.filter(t=>t!==i); D.tiles.push(i);
+ if(TOWNAT.has(i) && !D.seat) D.seat=S.places[TOWNAT.get(i)].id;
+ after();
+}
+function actRenameDistrict(id){ const D=S.districts.find(x=>x.id===id), v=($("dn_"+id)?.value||"").trim(); if(!D || !v) return; D.name=v.slice(0,24); after(); }
+const dukeCandidates = () => Object.values(S.people).filter(p=>living(p) && age(p)>=16 && p.id!==S.rulerId && !S.districts.some(d=>d.duke===p.id) && (p.house===S.dynasty || p.noble || p.spouses.some(x=>person(x)?.house===S.dynasty)));
+function actAppoint(did, pid){ const D=S.districts.find(x=>x.id===did), p=person(pid); if(!D || !living(p) || S.over) return; for(const o of S.districts) if(o.duke===pid) o.duke=null;
+ D.duke=pid; DUKEPICK=null; log(`${p.name} is made ${dukeTitle(p)} of ${D.name}.`, true); after(); }
+function actRaiseNoble(did){ const D=S.districts.find(x=>x.id===did); if(!D || S.over || S.gold<NOBLE_COST) return; S.gold-=NOBLE_COST;
+ const g=Math.random()<0.7?"m":"f", p=newPerson({name:pick(g==="m"?MALE:FEMALE), gender:g, born:S.year-RI(24,48), house:pick(NOBLE_HOUSES), origin:"noble", noble:true});
+ actAppoint(did, p.id); }
+function actDismissDuke(did){ const D=S.districts.find(x=>x.id===did), p=person(D?.duke); if(!D) return; D.duke=null; if(p) log(`${p.name} is stripped of the ${dukeTitle(p).toLowerCase()}dom of ${D.name}.`); after(); }
+function renderDistricts(){
+ const el=$("dists"), hg=$("hatchg"), lg=$("dlabels"); if(!el || !S.districts) return;
+ const U=S.unint||{}, key=JSON.stringify([S.districts.map(d=>[d.name,d.tiles]), Object.keys(U).filter(k=>S.tiles[+k]===S.player), page==="districts"]);
+ if(key===DKEY) return; DKEY=key; cellInit();
+ let d=""; for(const D of S.districts){ const cnt=new Map(); for(const t of D.tiles) for(const sg of tileSegs(t)) cnt.set(sg,(cnt.get(sg)||0)+1);
+  for(const [sg,n] of cnt) if(n===1){ const [a,b]=sg.split("|"); d+=`M${a.replace(","," ")}L${b.replace(","," ")}`; } }
+ el.setAttribute("d",d);
+ hg.innerHTML = Object.keys(U).filter(k=>S.tiles[+k]===S.player).map(k=>`<path d="${CELLS[+k][0]}"/>`).join("");
+ lg.innerHTML = page==="districts" ? S.districts.filter(D=>D.tiles.length).map(D=>{ const x=D.tiles.reduce((a,t)=>a+CELLC[t][0],0)/D.tiles.length, y=D.tiles.reduce((a,t)=>a+CELLC[t][1],0)/D.tiles.length; return `<text class="dlabel" x="${x.toFixed(1)}" y="${y.toFixed(1)}" dy="2.4em">${D.name}</text>`; }).join("") : "";
+ $("dlabels").setAttribute("font-size", (8*PS()).toFixed(2));
+}
+function renderDistrictPage(){
+ const U=Object.keys(S.unint||{}).filter(k=>S.tiles[+k]===S.player).length, ED=DEDIT && DEDIT!=="new" ? S.districts.find(x=>x.id===DEDIT) : null;
+ let h=`<h2>Districts</h2><p class="note">Our lands are divided into districts, outlined in dark ink on the map. A duke or duchess over a district raises +${DUKE_GOLD} gold a season from each of its lands. Land taken in war is hatched until it is integrated into a district (${INTEGRATE_COST} gold a land): until then it pays half taxes, yields no resources and cannot be built on.</p>`;
+ if(DEDIT) h += `<div class="person" style="border:1px solid #b8892d"><b>${DEDIT==="new"?"Founding a new district":`Redrawing ${ED?.name||""}`}</b><div class="meta">${DEDIT==="new"?"Click any land of ours to be the first land of the new district.":`Click a land of ours bordering it (dashed) to bring it into the district, from another district or from conquered land. Up to ${DISTRICT_MAX} lands.`}</div></div>` + btn("Done", "", ()=>{ DEDIT=null; render(); });
+ h += `<div class="row"><span>Districts</span><span>${S.districts.length}</span></div><div class="row"><span>Conquered land not yet integrated</span><span style="color:${U?"#8a1f1f":"inherit"}">${U} land${U===1?"":"s"}</span></div>`;
+ if(!DEDIT) h += btn("Found a new district", "Pick its first land on the map", ()=>{ DEDIT="new"; render(); });
+ for(const D of S.districts){ const du=person(D.duke), towns=D.tiles.filter(t=>TOWNAT.has(t)).map(t=>S.places[TOWNAT.get(t)].name), vil=D.tiles.filter(t=>devsAt(t).village).length;
+  h += `<div class="person"><b>${D.name}</b> <span class="meta">· ${D.tiles.length} land${D.tiles.length===1?"":"s"}${towns.length?` · ${towns.join(", ")}`:""}${vil?` · ${vil} village${vil>1?"s":""}`:""}</span>
+   <div class="meta">${living(du)?`${dukeTitle(du)} ${du.name}, aged ${age(du)}${du.noble?` · House ${du.house}`:du.house===S.dynasty?" · of the royal house":""} · +${D.tiles.length*DUKE_GOLD} gold a season`:"No duke or duchess"}</div><div class="btnrow">`;
+  h += btn(DEDIT===D.id?"Editing on the map":"Redraw on the map", "", ()=>{ DEDIT=D.id; render(); }, S.over||DEDIT===D.id);
+  h += btn(living(du)?"Change the duke or duchess":"Appoint a duke or duchess", "", ()=>{ DUKEPICK = DUKEPICK===D.id ? null : D.id; render(); }, S.over);
+  if(living(du)) h += btn("Dismiss", "", ()=>actDismissDuke(D.id), S.over, true);
+  h += `</div>`;
+  if(DUKEPICK===D.id){ const C=dukeCandidates();
+   h += `<div class="meta" style="margin:4px 0">${C.length?"Choose from the royal family and the lords already raised:":"No one of the royal family is free and of age."}</div><div class="btnrow">`;
+   for(const p of C) h += btn(`${p.name}`, `${dukeTitle(p)} · aged ${age(p)}${p.noble?` · House ${p.house}`:""}`, ()=>actAppoint(D.id,p.id), S.over);
+   h += btn("Raise a lord of the nobility", `${NOBLE_COST} gold`, ()=>actRaiseNoble(D.id), S.over||S.gold<NOBLE_COST) + `</div>`;
+   h += `<div class="btnrow" style="margin-top:4px"><input id="dn_${D.id}" value="${D.name}" maxlength="24" style="flex:1">` + btn("Rename", "", ()=>actRenameDistrict(D.id), S.over) + `</div>`; }
+  h += `</div>`; }
+ return h;
+}
 /* ---------- pages ---------- */
 const HELM = ICON_HELM();
 function ICON_HELM(){ return `<svg class="helm" viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.5 Q27 -1 34 3 Q28 3.5 25 8" fill="#a3302a" stroke="#4a0f0f" stroke-width=".8"/><path d="M20 5 C11.5 5 8.5 11.5 8.5 19 L8.5 31 Q8.5 35 12.5 35 L27.5 35 Q31.5 35 31.5 31 L31.5 19 C31.5 11.5 28.5 5 20 5Z" fill="#c3c9ce" stroke="#2a1808" stroke-width="1.3"/><path d="M12 9.5 Q20 6 28 9.5" stroke="#eef1f3" stroke-width="1.2" fill="none" opacity=".8"/><rect x="10.5" y="17" width="19" height="3" rx="1.2" fill="#1a1208"/><path d="M20 20.5 V34" stroke="#2a1808" stroke-width="1.1"/><g fill="#1a1208"><circle cx="15" cy="25" r=".9"/><circle cx="15" cy="28.4" r=".9"/><circle cx="15" cy="31.6" r=".9"/><circle cx="25" cy="25" r=".9"/><circle cx="25" cy="28.4" r=".9"/><circle cx="25" cy="31.6" r=".9"/></g><path d="M8.5 22 H31.5" stroke="#9aa3aa" stroke-width=".8"/></svg>`; }
@@ -1156,24 +1257,31 @@ function renderRomance(){
    if(open) h += `<div style="margin:0 0 10px 14px;padding-left:10px;border-left:2px solid #6b4a1e55">${renderChildCourt(c)}</div>`; } }
  return h;
 }
+let SLINE = [];
+const CROWN_SVG = `<svg viewBox="0 0 18 12" aria-hidden="true"><path d="M1.5 10.5 L1 3 L5 6.5 L9 1 L13 6.5 L17 3 L16.5 10.5Z" fill="#d9a83a" stroke="#5a3a0e" stroke-width=".9" stroke-linejoin="round"/><circle cx="9" cy="1.6" r="1.1" fill="#a3302a"/></svg>`;
+const ord = n => n + (n%100>=11&&n%100<=13 ? "th" : ["th","st","nd","rd"][n%10] || "th");
 function pcard(p){
- const R2=p.realm&&S.realms[p.realm], isR=p.id===S.rulerId, hh=heir();
+ const R2=p.realm&&S.realms[p.realm], isR=p.id===S.rulerId, li=SLINE.indexOf(p);
  const yrs = p.died!=null ? `${p.born}–${p.died}` : `b. ${p.born} · aged ${age(p)}`;
  const tags = [];
  if(p.ruled) tags.push(`<span class="tag">${isR?"Reigning":"Reigned"} ${p.ruled[0]}–${p.ruled[1]??""}</span>`);
- if(hh && hh.id===p.id) tags.push(`<span class="tag heir">Heir</span>`);
+ for(const d of S.districts||[]) if(d.duke===p.id && living(p)) tags.push(`<span class="tag heir">${dukeTitle(p)} of ${d.name}</span>`);
  for(const c of (p.claims||[])) if(S.realms[c]?.alive) tags.push(`<span class="tag claim">Claim: ${S.realms[c].name}</span>`);
  for(const c of (p.inherited||[])) tags.push(`<span class="tag claim">Inherited ${S.realms[c].name}</span>`);
- const origin = p.house!==S.dynasty ? `<div>House ${p.house}${R2?`, ${R2.name}`:p.origin==="noble"?", nobility":""}</div>` : "";
- return `<span class="pc${p.ruled?" ruler":""}${p.died!=null||p.left?" dead":""}"><b>${p.name}</b><div>${yrs}${p.left?` · left court ${p.left}`:""}</div>${origin}${tags.length?`<div>${tags.join(" ")}</div>`:""}</span>`;
+ const origin = p.house!==S.dynasty ? `House ${p.house}${R2?`, ${R2.name}`:p.origin==="noble"?", nobility":""}` : p.left ? `left court ${p.left}` : `House ${p.house}`;
+ const crown = isR ? `<span class="crown" title="The reigning sovereign">${CROWN_SVG}</span>` : li>=0 ? `<span class="crown" title="${ord(li+1)} in line to the throne">${CROWN_SVG}${li+1}</span>` : "";
+ const title = [p.name, yrs, origin, ...tags.map(t=>t.replace(/<[^>]+>/g,""))].join(" · ");
+ return `<span class="pc${p.ruled?" ruler":""}${p.died!=null||p.left?" dead":""}" title="${title}">${crown}<b>${p.name}</b><div class="pcl">${yrs}</div><div class="pcl">${origin}</div>${tags.length?`<div class="tags">${tags.join(" ")}</div>`:""}</span>`;
 }
 function treeNode(p){
  const sps=p.spouses.map(person).filter(Boolean), kids=p.children.map(person).filter(Boolean).sort((a,b)=>a.born-b.born);
  return `<li><div class="couple">${pcard(p)}${sps.map(x=>`<span class="hrt">♥</span>${pcard(x)}`).join("")}</div>${kids.length?`<ul>${kids.map(treeNode).join("")}</ul>`:""}</li>`;
 }
 function renderFamily(){
+ SLINE = successionLine();
  const r=ruler(); let h=`<h2>House ${S.dynasty}</h2><p class="note">Every sovereign, consort and child of the bloodline. Children of a foreign consort carry a claim to that kingdom: when its ruler dies they may inherit it, uniting both crowns.</p>`;
  h += `<div class="tree"><ul>${treeNode(person(S.elderId) || person(S.founderId))}</ul></div>`;
+ h += `<div class="row"><span>${CROWN_SVG.replace('<svg','<svg style="width:18px;height:12px;vertical-align:-1px"')} Line of succession</span><span>${SLINE.length ? SLINE.slice(0,6).map((p,k)=>`${k+1}. ${p.name}`).join(" · ") + (SLINE.length>6?" …":"") : "none: the dynasty ends with this reign"}</span></div>`;
  const kids=r.children.map(person).filter(living), hh=heir();
  if(kids.length){ h += `<h4>The royal children</h4>`;
   for(const c of kids){ const wed=c.spouses.some(x=>living(person(x)));
@@ -1549,7 +1657,7 @@ function actOccupy(i){
  const o=S.tiles[i];
  if(!o || !atWar(S.player,o) || TOWNAT.has(i) || !tileAdj(S.player,i) || S.marches<1) return;
  S.marches--;
- if(tileSkirmish(S.player,o)){ S.tiles[i]=S.player; toast(`Our soldiers take the land from ${S.realms[o].name}. ${LASTFIGHT.a} of ours fell, ${LASTFIGHT.d} of theirs.`); }
+ if(tileSkirmish(S.player,o)){ S.tiles[i]=S.player; markConquered([i]); toast(`Our soldiers take the land from ${S.realms[o].name}. ${LASTFIGHT.a} of ours fell, ${LASTFIGHT.d} of theirs.`); }
  else toast(`Our march was driven back by ${S.realms[o].name}. ${LASTFIGHT.a} of ours fell.`);
  after();
 }
@@ -1683,7 +1791,7 @@ function render(){
  $("ap").innerHTML = Array.from({length:apMax()},(_,i)=>`<i class="${i<S.ap?"":"used"}"></i>`).join("");
  $("mar").innerHTML = Array.from({length:maxMarches()},(_,i)=>`<i class="${i<S.marches?"":"used"}"></i>`).join("");
  $("endyear").disabled = S.over;
- renderCells(); renderAllyBorders(); renderRoutes(); renderDevs(); renderPlaces(); renderLegend(); renderNotches(); renderPanel(); renderCard(); renderCity();
+ renderCells(); renderAllyBorders(); renderDistricts(); renderRoutes(); renderDevs(); renderPlaces(); renderLegend(); renderNotches(); renderPanel(); renderCard(); renderCity();
 }
 const DEVICON = {
  farm:`<circle r="5" fill="#3a2a10" stroke="#e2c46a" stroke-width=".8"/><path d="M-2.6 2.6V-1.2M0 2.6V-2.4M2.6 2.6V-1.2" stroke="#f1d27a" stroke-width=".9"/><ellipse cx="-2.6" cy="-1.8" rx=".8" ry="1.3" fill="#f1d27a"/><ellipse cx="0" cy="-3" rx=".8" ry="1.3" fill="#f1d27a"/><ellipse cx="2.6" cy="-1.8" rx=".8" ry="1.3" fill="#f1d27a"/>`,
@@ -1732,12 +1840,13 @@ const ICON = {
  knights:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 3.5 Q27 -1 34 3 Q28 3.5 25 8" fill="#a3302a" stroke="#4a0f0f" stroke-width=".8"/><path d="M20 5 C11.5 5 8.5 11.5 8.5 19 L8.5 31 Q8.5 35 12.5 35 L27.5 35 Q31.5 35 31.5 31 L31.5 19 C31.5 11.5 28.5 5 20 5Z" fill="#c3c9ce" stroke="#2a1808" stroke-width="1.3"/><path d="M12 9.5 Q20 6 28 9.5" stroke="#eef1f3" stroke-width="1.2" fill="none" opacity=".8"/><rect x="10.5" y="17" width="19" height="3" rx="1.2" fill="#1a1208"/><path d="M20 20.5 V34" stroke="#2a1808" stroke-width="1.1"/><g fill="#1a1208"><circle cx="15" cy="25" r=".9"/><circle cx="15" cy="28.4" r=".9"/><circle cx="15" cy="31.6" r=".9"/><circle cx="25" cy="25" r=".9"/><circle cx="25" cy="28.4" r=".9"/><circle cx="25" cy="31.6" r=".9"/></g><path d="M8.5 22 H31.5" stroke="#9aa3aa" stroke-width=".8"/></svg>`,
  family:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 36 V21 M20 25 L11.5 17.5 M20 25 L28.5 17.5 M20 21 V12" stroke="#5a3412" stroke-width="2.6" stroke-linecap="round" fill="none"/><path d="M13 36.5 H27" stroke="#5a3412" stroke-width="2.2" stroke-linecap="round"/><circle cx="11" cy="15" r="4.4" fill="#e8c66a" stroke="#2a1808" stroke-width="1.1"/><circle cx="29" cy="15" r="4.4" fill="#e8c66a" stroke="#2a1808" stroke-width="1.1"/><circle cx="20" cy="8" r="5" fill="#c9414a" stroke="#3a0c0c" stroke-width="1.1"/><path d="M17.6 7.4 l1.2 1.4 1.2-2.4 1.2 2.4 1.2-1.4 -.5 2.6 h-3.8Z" fill="#f6d86b"/><circle cx="11" cy="15" r="1.6" fill="#7a4f14"/><circle cx="29" cy="15" r="1.6" fill="#7a4f14"/></svg>`,
  treasury:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M9 33 C5 25 9 17 15 14 L13 9 Q20 6 27 9 L25 14 C31 17 35 25 31 33 Q20 37 9 33Z" fill="#8a5a2a" stroke="#2a1808" stroke-width="1.3"/><path d="M14 14 Q20 16.5 26 14" stroke="#e8c66a" stroke-width="1.6" fill="none"/><text x="20" y="29" text-anchor="middle" font-family="IM Fell English SC,serif" font-size="11" fill="#f2d98d">G</text><g stroke="#5a3a10" stroke-width=".9"><ellipse cx="30" cy="31" rx="7" ry="2.6" fill="#e8c66a"/><ellipse cx="30" cy="28.6" rx="7" ry="2.6" fill="#f0d27a"/><ellipse cx="30" cy="26.2" rx="7" ry="2.6" fill="#f6e3a0"/></g></svg>`,
+ districts:`<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M5 9 L17 5 L33 8 L35 22 L30 34 L15 35 L6 27Z" fill="#ead6a6" stroke="#3a240e" stroke-width="1.4" stroke-linejoin="round"/><path d="M17 5 L19 18 L6 21 M19 18 L33 20 M19 18 L22 34.5" fill="none" stroke="#3a240e" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 25 l3 3 M10 23 l3 3 M12 21.5 l3 3" stroke="#3a240e" stroke-width=".8" opacity=".6"/><path d="M24 11 l1.6 3.2 3.5.5-2.5 2.5.6 3.5-3.2-1.7-3.2 1.7.6-3.5-2.5-2.5 3.5-.5Z" fill="#c99a3f" stroke="#2a1808" stroke-width=".8"/></svg>`,
  empty:`<svg viewBox="0 0 40 40" aria-hidden="true"><circle class="rivet" cx="20" cy="20" r="3.2" fill="#7a5c34"/><path d="M20 12v3M20 25v3M12 20h3M25 20h3" stroke="#7a5c34" stroke-width="1" opacity=".45"/></svg>`
 };
 // HOOK: notches 7–11 are reserved for future pages.
 const NOTCHES = [
  {k:"explore", label:"Explore"}, {k:"war", label:"War"}, {k:"romance", label:"Romance"}, {k:"knights", label:"Knights"}, {k:"family", label:"Family tree"}, {k:"treasury", label:"Treasury"},
- null, null, null, null, null,
+ {k:"districts", label:"Districts"}, null, null, null, null,
  {k:"chronicle", label:"Chronicle"}
 ];
 function renderNotches(){
@@ -1786,6 +1895,7 @@ function renderPanel(){
  }
  if(page==="knights") h += renderKnights();
  if(page==="treasury") h += renderTreasury();
+ if(page==="districts") h += renderDistrictPage();
  if(page==="family") h += renderFamily();
  if(page==="chronicle"){
   h += `<h2>Chronicle</h2><div class="log">` + S.log.map(e=>`<p>${e.big?"<b>":""}${SEASONS[e.s]} ${e.y}: ${e.t}${e.big?"</b>":""}</p>`).join("") + `</div>`;
@@ -1825,9 +1935,10 @@ function renderCard(){
   if(!o) h += btn("Claim this land", adj?"1 march · 10 gold":"Must border our lands", ()=>actClaim(i), !ap||!adj||S.gold<10);
   else if(o===S.player){
    const here=devsAt(i), kinds=DEV_ORDER.filter(t=>here[t]);
-   h += `<div class="row"><span>Taxes</span><span>+${GOLD_PER_TILE} gold a season</span></div><div class="row"><span>Coast</span><span>${isCoastal(i)?"yes":"inland"}</span></div>`;
+   { const D0=districtOf(i); h += `<div class="row"><span>Taxes</span><span>+${S.unint?.[i]?GOLD_PER_TILE/2:GOLD_PER_TILE+(D0&&living(person(D0.duke))?DUKE_GOLD:0)} gold a season</span></div>`; } h += `<div class="row"><span>Coast</span><span>${isCoastal(i)?"yes":"inland"}</span></div>`;
    h += `<div class="row"><span>Near a village or city</span><span>${inSupport(i)?"yes":"no"}</span></div>`;
-   if(!kinds.length) h += `<div class="row"><span>Left wild</span><span>+${RES_PER_WILD_TILE} resource a season</span></div>`;
+   { const D=districtOf(i), du=D&&person(D.duke); h += S.unint?.[i] ? `<div class="row"><span>District</span><span style="color:#8a1f1f">conquered, not yet integrated</span></div><p class="note">Half taxes, no resources and no building until it is added to a district on the Districts page.</p>` : D ? `<div class="row"><span>District</span><span>${D.name}${living(du)?` · ${dukeTitle(du)} ${du.name}`:""}</span></div>` : ""; }
+   if(!kinds.length) h += `<div class="row"><span>Left wild</span><span>${S.unint?.[i]?"no resources until integrated":`+${RES_PER_WILD_TILE} resource a season`}</span></div>`;
    for(const t of kinds){
     h += `<h4 style="margin:10px 0 2px;font:400 17px 'IM Fell English',serif;color:var(--accent)">${t==="village"?VILLAGE[here.village.lvl].name:DEV[t].name}</h4>`;
     if(t==="mine"){ const d=here.mine; h += `<div class="row"><span>Level ${MINE[d.lvl].lvl}</span><span>+${MINE[d.lvl].gold} gold a season</span></div>`;
@@ -1894,6 +2005,7 @@ function buildMap(){
  svg.innerHTML = `<defs>
   <pattern id="seapat" patternUnits="userSpaceOnUse" width="520" height="520"><image href="${seaN}" width="520" height="520" preserveAspectRatio="none"/></pattern>
   <pattern id="paperpat" patternUnits="userSpaceOnUse" width="300" height="300"><image href="${paperN}" width="300" height="300" preserveAspectRatio="none"/></pattern>
+  <pattern id="hatch" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)"><rect width="5" height="5" fill="#000" fill-opacity=".08"/><path d="M0 0 V5" stroke="#1e0f05" stroke-opacity=".6" stroke-width="1.3"/></pattern>
   <pattern id="fogpat" patternUnits="userSpaceOnUse" width="260" height="260"><rect width="260" height="260" fill="#6f6b5d"/><image href="${fogN}" width="260" height="260" preserveAspectRatio="none"/></pattern>
   <linearGradient id="fl" x1="0" x2="1"><stop offset="0" style="stop-color:var(--sea)"/><stop offset="1" style="stop-color:var(--sea)" stop-opacity="0"/></linearGradient>
   <linearGradient id="ft" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:var(--sea)"/><stop offset="1" style="stop-color:var(--sea)" stop-opacity="0"/></linearGradient>
@@ -1908,6 +2020,9 @@ function buildMap(){
   </g>
   <path id="lfill" d="${LAND_LO}" style="fill:var(--land)"/><path id="lpaper" d="${LAND_LO}" fill="url(#paperpat)"/>
   <g id="tiles">${cells}</g>
+  <g id="hatchg" fill="url(#hatch)" pointer-events="none"></g>
+  <path id="dists" fill="none" stroke="#24140a" stroke-opacity=".7" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" pointer-events="none"/>
+  <g id="dlabels" font-size="11"></g>
   <path id="lcoast" d="${LAND_LO}" fill="none" style="stroke:var(--coast)" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
  </g>
  <g pointer-events="none">
@@ -1945,6 +2060,7 @@ function renderCells(){
   el.classList.toggle("tgt", !!o && war.includes(o) && !TOWNAT.has(i) && tileAdj(S.player,i));
   el.classList.toggle("col", !!COLONY_PICK && colonyTarget(i));
   el.classList.toggle("rt", !!ROUTE && o===S.player && NEI[ROUTE.from].includes(i));
+  { const D=DEDIT && DEDIT!=="new" ? S.districts.find(x=>x.id===DEDIT) : null; el.classList.toggle("dsel", !!D && D.tiles.includes(i)); el.classList.toggle("dadd", !!DEDIT && o===S.player && (DEDIT==="new" || (!!D && !D.tiles.includes(i) && NEI[i].some(j=>D.tiles.includes(j))))); }
   if(COLONY_PICK && selected==="col:"+i) el.classList.add("sel");
  }
 }
@@ -1962,7 +2078,7 @@ function applyLive(){
  svg.style.transform=`translate(${tx}px,${ty}px) scale(${k})`;
 }
 function setVBsoon(delay=170){ applyLive(); clearTimeout(commitT); if(delay>=0) commitT=setTimeout(setVB, delay); }
-function setVB(){ clearTimeout(commitT); setLOD(); vbC={...vb}; $("map").style.transform=""; $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const k=PS(); for(const g of document.querySelectorAll("#places .place, #devs .dv")) g.setAttribute("transform",`translate(${g.dataset.x},${g.dataset.y}) scale(${k})`); }
+function setVB(){ clearTimeout(commitT); setLOD(); vbC={...vb}; $("map").style.transform=""; $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const k=PS(); for(const g of document.querySelectorAll("#places .place, #devs .dv")) g.setAttribute("transform",`translate(${g.dataset.x},${g.dataset.y}) scale(${k})`); $("dlabels")?.setAttribute("font-size", (8*k).toFixed(2)); }
 function aspect(){ const r=$("map").getBoundingClientRect(); return (r.width>10&&r.height>10)? r.width/r.height : 1.25; }
 const maxW = () => Math.max(1000, 800*aspect());
 function clampBox(b){ if(b.w>=1300) b.x=(1000-b.w)/2; else b.x=clamp(b.x,-150,1150-b.w); if(b.h>=1000) b.y=(800-b.h)/2; else b.y=clamp(b.y,-100,900-b.h); return b; }
@@ -2001,7 +2117,8 @@ function bindMap(){
   const dx=e.clientX-drag.x, dy=e.clientY-drag.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); if(moved>4){ svg.classList.add("drag"); vb.x=drag.vx-dx*s; vb.y=drag.vy-dy*s; clampVB(); setVBsoon(-1); } });
  window.addEventListener("pointerup", e=>{ if(drag && moved>4) setVB(); if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell"); const mineTown = id => { const q=S.places.find(x=>x.id===id); return q && q.owner===S.player; };
  const rtile = g ? S.places.find(x=>x.id===g.dataset.id)?.tile : cl ? +cl.dataset.i : null;
- if(ROUTE && rtile!=null && S.tiles[rtile]===S.player){ actLayRoute(rtile); }
+ if(DEDIT && rtile!=null && S.tiles[rtile]===S.player){ actDistrictTile(rtile); }
+ else if(ROUTE && rtile!=null && S.tiles[rtile]===S.player){ actLayRoute(rtile); }
  else if(g){ if(mineTown(g.dataset.id)){ selected=null; openCity(g.dataset.id); render(); } else { selected=g.dataset.id; render(); } } else if(cl){ const ci=+cl.dataset.i; if(COLONY_PICK && colonyTarget(ci)) selected="col:"+ci; else if(fogged(ci)) selected="fog:"+ci; else if(TOWNAT.has(ci)){ const id=S.places[TOWNAT.get(ci)].id; if(mineTown(id)){ selected=null; openCity(id); } else selected=id; } else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
  $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>goHome(true);
  new ResizeObserver(()=>fitAspect()).observe($("map").parentElement); fitAspect();
