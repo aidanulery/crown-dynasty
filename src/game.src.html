@@ -28,11 +28,13 @@ button{font:inherit;cursor:pointer}
 .gilt::before{content:"";position:absolute;inset:-3px;padding:3px;background:var(--gilt);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;border-radius:inherit}
 .gilt::after{content:"";position:absolute;inset:3px;border:1px solid rgba(250,225,160,.35);pointer-events:none;border-radius:inherit}
 .app{display:flex;flex-direction:column;height:100vh}
-header{position:relative;z-index:6;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:16px;padding:0 16px;height:72px;color:var(--ink);border-bottom:3px solid transparent;border-image:var(--gilt) 1;box-shadow:0 4px 14px #000a}
+header{position:relative;z-index:6;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:16px;padding:0 16px;height:72px;color:var(--ink);border-bottom:3px solid transparent;border-image:var(--gilt) 1;box-shadow:0 4px 14px #000a}
 header .brand{display:flex;flex-direction:column;justify-content:center;height:68px}
 header h1{font:400 25px/1 "IM Fell English SC",serif;margin:0;letter-spacing:.02em;color:#1a0e04;text-shadow:0 1px 0 rgba(255,235,180,.35)}
 header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
-.notches{display:flex;gap:6px;justify-content:safe center;height:84px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 4px}
+.notches{position:absolute;left:0;right:0;top:0;z-index:5;display:flex;gap:6px;justify-content:safe center;height:84px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding:0 70px 0 12px;pointer-events:none}
+.notches>*{pointer-events:auto}
+.notches .natflag{padding:6px 8px 4px;border-radius:0 0 10px 10px;background:var(--paperimg),linear-gradient(#b89a68,#a2834f);background-size:512px 512px,auto;box-shadow:0 4px 10px #0007;align-self:flex-start;margin-top:-3px}
 .natflag{flex:none;align-self:center;display:flex;flex-direction:column;align-items:center;gap:2px;margin-right:8px;font:400 12px 'IM Fell English',serif;color:var(--ink,#2a1808)}
 .natflag svg{box-shadow:0 2px 5px #0006;border-radius:2px}
 .flag{vertical-align:middle}
@@ -46,7 +48,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .notch:disabled{cursor:default}
 .notch:disabled .rivet{fill:#7a5c34;opacity:.5}
 .notch:focus-visible{outline:2px solid #f2d98d;outline-offset:2px}
-.stats{display:flex;gap:20px;align-items:center;height:68px}
+.stats{display:flex;gap:20px;align-items:center;height:68px;justify-self:end}
 .stat{display:flex;flex-direction:column;align-items:center;line-height:1.1}
 .stat b{font-weight:600;font-size:20px;color:#1a0e04;font-variant-numeric:tabular-nums;white-space:nowrap}
 .stat span{color:var(--muted);font:400 14px "IM Fell English",serif}
@@ -72,19 +74,19 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .cell.col{stroke:#f0c850;stroke-width:2.6;fill:#e8c25a;fill-opacity:.28}
 .toast{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);background:rgba(36,21,8,.92);color:#f0dcae;padding:8px 16px;border-radius:6px;font-size:15px;pointer-events:none;opacity:0;transition:opacity .25s;max-width:60%;text-align:center;z-index:4}
 .toast.on{opacity:1}
-.mapctl{position:absolute;right:12px;top:22px;display:flex;flex-direction:column;gap:8px;z-index:3}
+.mapctl{position:absolute;right:12px;top:96px;display:flex;flex-direction:column;gap:8px;z-index:3}
 .mapctl button{width:44px;height:44px;border-radius:6px;font-size:20px;color:var(--ink)}
 .legend{position:absolute;left:12px;bottom:12px;border-radius:6px;padding:8px 10px;font-size:13px;max-width:220px;max-height:40%;overflow:auto;z-index:2}
 .legend div{display:flex;align-items:center;gap:6px;line-height:1.35}
 .legend i{width:11px;height:11px;border-radius:50%;display:inline-block;border:1px solid #0006;flex:none}
-.card{position:absolute;right:68px;top:22px;width:290px;border-radius:8px;padding:12px 14px;display:none;z-index:3}
+.card{position:absolute;right:68px;top:96px;width:290px;border-radius:8px;padding:12px 14px;display:none;z-index:3}
 .card h3{margin:0 0 2px;font:400 22px "IM Fell English",serif}
 .card .sub{color:var(--muted);font-size:14px;margin-bottom:8px}
 .card .x,.page .x{position:absolute;right:6px;top:4px;border:0;background:none;font-size:24px;width:40px;height:40px;color:var(--muted);z-index:2}
-.page{position:absolute;left:12px;top:22px;width:410px;max-height:calc(100% - 40px);border-radius:8px;display:none;flex-direction:column;z-index:4}
+.page{position:absolute;left:12px;top:96px;width:410px;max-height:calc(100% - 112px);border-radius:8px;display:none;flex-direction:column;z-index:4}
 .page.open{display:flex;animation:drop .22s ease-out}
 .page.wide{width:min(900px,calc(100% - 90px))}
-.page.full{left:12px;right:12px;top:14px;bottom:14px;width:auto;max-height:none;z-index:7}
+.page.full{left:12px;right:12px;top:96px;bottom:14px;width:auto;max-height:none;z-index:7}
 .page.full .panel{flex:1}
 .page.full .tree{padding:14px 0 24px}
 .treebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 8px}
@@ -223,11 +225,8 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 #title .menu button:disabled{opacity:.4;cursor:not-allowed}
 #title .ver2{position:absolute;top:14px;left:18px;font:italic 14px "IM Fell English",serif;color:#a88f61}
 #title .rule{width:min(360px,70vw);height:2px;background:linear-gradient(90deg,transparent,#b8892d,transparent);margin:6px 0 10px}
-@media(max-width:1540px){
- header{grid-template-columns:auto auto;height:auto;row-gap:0}
- header .brand{height:52px}.stats{height:52px;justify-self:end}
- .notches{grid-column:1/-1;grid-row:2;justify-content:flex-start;height:72px}
-}
+@media(max-width:1180px){ .notches{justify-content:flex-start;pointer-events:auto} }
+@media(max-width:900px){ header{height:auto} .stats{gap:12px;flex-wrap:wrap;height:auto;padding:6px 0} }
 @media(max-width:640px){
  .stats{gap:10px}.stat b{font-size:16px}.stat span{font-size:12px}
  header h1{font-size:20px}
@@ -243,10 +242,10 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 <div class="app" id="app">
  <header class="paper">
   <div class="brand"><h1>Crown &amp; Dynasty</h1><span class="ver" id="ver"></span></div>
-  <nav class="notches" id="notches" aria-label="Pages"></nav>
   <div class="stats" id="stats"></div>
  </header>
  <div class="mapwrap">
+  <nav class="notches" id="notches" aria-label="Pages"></nav>
   <svg id="map" viewBox="0 0 1000 800" preserveAspectRatio="xMidYMid meet" aria-label="Map of western Europe"></svg>
   <div class="mapctl"><button class="paper gilt" id="zin" aria-label="Zoom in">+</button><button class="paper gilt" id="zout" aria-label="Zoom out">−</button><button class="paper gilt" id="zreset" aria-label="Return to your realm" title="Return to your realm">⌂</button><button class="paper gilt" id="zclean" aria-label="Hide map icons" title="Hide icons: show only city names and borders" aria-pressed="false"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M2 12 Q12 3 22 12 Q12 21 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3.4" fill="currentColor"/><path class="slash" d="M4 20 L20 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button></div>
   <section class="page paper gilt" id="page" aria-live="polite"><button class="x" id="pagex" aria-label="Close page">×</button><div class="panel" id="panel"></div></section>
@@ -287,7 +286,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.3.5";
+const VERSION = "pre-alpha v0.3.6";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
