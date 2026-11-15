@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.3.4**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.3.5**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -55,3 +55,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.3.2 — fix: the Social Web crashed (blank page) once a diplomat had returned from any court, because the diplomat's contact was stored among the suitors met. Contacts now live in their own record and older saves with the bad entry load fine.
 - v0.3.3 — building in cities now costs a deed: houses (one or five at a time), city buildings, the castle, developing, fortifying and laying down ships, in the city view and on the Cities page. Other kingdoms follow the same rule.
 - v0.3.4 — four more blank notches: 16 in all (10 pages, 5 blank, Chronicle last).
+- v0.3.5 — Royal Court notch (11th): the sovereign and consort, the heir, three officers of state (appointed from noble candidates or the royal family, 50 gold, each with a skill): a spymaster who sends agents into any kingdom (40 gold, 1 deed) to map it and bring back secrets usable as leverage on the International Relations page (+35% for treaties and marriages, certain for trade, at a cost in goodwill), a chancellor who leads diplomacy (+2% per skill point to treaties and matches, more goodwill from diplomats), and a jester who keeps the consort and knights content; plus every duke and duchess. Trade by sea now has to sail from a harbour city of development 2+; overland trade needs a shared border or an alliance. City houses now hold 25 people each (8 gold; build 1, 5 or 20 for a deed), drawn as denser rows of smaller houses; older saves have their houses multiplied by four. Districts must be developed and supplied: neglect, heavy taxes and famine raise unrest, at 4 a district riots, and after more than two riots it may revolt and break away as a new kingdom at war with you (or fall to lawlessness if it has no city). The kingdom flag moved to the left of the notches.
