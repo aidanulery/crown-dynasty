@@ -126,6 +126,15 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .ap.mar i{border-radius:2px;width:12px;height:12px;background:#4a5a2a}.ap i{width:16px;height:16px;border-radius:50%;background:var(--accent);border:1px solid #0006}.ap i.used{background:transparent!important}
 .endyear{padding:10px 18px;min-height:44px;border-radius:6px;border:1px solid #3a0c0c;background:linear-gradient(#a3302a,#741818);color:#f6e7b8;font:400 18px "IM Fell English",serif;box-shadow:inset 0 1px 0 rgba(255,200,160,.35)}
 .endyear:disabled{opacity:.5}
+.cityview{position:fixed;inset:0;z-index:12;display:none;grid-template-columns:minmax(0,1fr) 400px;gap:14px;padding:16px;background:radial-gradient(ellipse at center,rgba(20,12,4,.82),rgba(8,5,2,.94))}
+.cityview.open{display:grid}
+.cmap{border-radius:8px;overflow:hidden;min-height:0;background:#7f8f58}
+.cmap svg{width:100%;height:100%;display:block}
+.cside{border-radius:8px;min-height:0;display:flex;flex-direction:column}
+.cside .panel{position:relative}
+.clab{font:600 12px Spectral,serif;fill:#2a1d12;paint-order:stroke;stroke:#efe2c4;stroke-width:3px}
+.ctitle{font:400 34px "IM Fell English SC",serif;fill:#2a1d12;paint-order:stroke;stroke:#efe2c4;stroke-width:4px}
+@media(max-width:900px){.cityview{grid-template-columns:1fr;grid-template-rows:45vh minmax(0,1fr);padding:8px;gap:8px}}
 .modalbg{position:fixed;inset:0;background:radial-gradient(ellipse at center,#0007,#000e);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
 #frame{position:relative;width:min(560px,100%);max-height:92vh;display:flex;flex-direction:column;animation:unroll .35s ease-out;transform-origin:50% 0}
 @keyframes unroll{from{transform:scaleY(.15);opacity:0}to{transform:none;opacity:1}}
@@ -213,6 +222,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
  </div>
  <div class="ver2" id="tver"></div>
 </div>
+<div class="cityview" id="city" role="dialog" aria-label="City view"><div class="cmap paper gilt"><svg id="citymap" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice" aria-label="Map of the city"></svg></div><aside class="cside paper gilt"><div class="panel" id="cityside"></div></aside></div>
 <div class="modalbg" id="modalbg"><div id="frame"><i class="rod"></i><div class="modal" id="modal"></div><i class="rod"></i><i class="seal">C</i></div></div>
 <script>
 /*MAPDATA*/
@@ -225,7 +235,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.1.4";
+const VERSION = "pre-alpha v0.1.5";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -314,7 +324,7 @@ const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
 const placeIdx = p => S.places.indexOf(p);
 const tileOfTown = p => p.tile;
 let TOWNAT = new Map();   // tile index -> town index; rebuilt when towns are founded
-function syncTowns(){ if(!S) return; S.places.forEach((p,k)=>{ if(p.tile==null) p.tile = TOWNCELL[k]; if(p.pop==null) p.pop = townPeople(p); }); TOWNAT = new Map(S.places.map((p,k)=>[p.tile,k])); }
+function syncTowns(){ if(!S) return; S.places.forEach((p,k)=>{ if(p.tile==null) p.tile = TOWNCELL[k]; if(p.pop==null) p.pop = townPeople(p); cityInit(p); }); TOWNAT = new Map(S.places.map((p,k)=>[p.tile,k])); }
 const tileCount = rid => S.tiles.reduce((n,t)=>n+(t===rid),0);
 const tileAdj = (rid,i) => NEI[i].some(j=>S.tiles[j]===rid);
 function reachable(rid, place){
@@ -336,8 +346,9 @@ const KNIGHT_SLOTS = 3, LEVY_SHARE = 1/3;
 const knightsOf = rid => (rid===S.player ? S.knights : S.realms[rid].knights) || [];
 function armyOf(rid){
  const people = economy(rid).people, max = Math.floor(people*LEVY_SHARE), ks = knightsOf(rid).filter(Boolean);
- const rally = clamp(ks.reduce((s,k)=>s + k.pop*(k.loy<4?0.5:1), 0)/(10*KNIGHT_SLOTS), 0, 1);
- const quality = 1 + ks.reduce((s,k)=>s + k.int + 0.6*k.str, 0)/(16*KNIGHT_SLOTS);
+ const CB = cityBonus(rid);
+ const rally = clamp(ks.reduce((s,k)=>s + k.pop*(k.loy<4?0.5:1), 0)/(10*KNIGHT_SLOTS) + CB.rally, 0, 1);
+ const quality = 1 + ks.reduce((s,k)=>s + k.int + 0.6*k.str, 0)/(16*KNIGHT_SLOTS) + CB.quality;
  const troops = Math.round(max*rally);
  return {people, max, troops, rally, quality, strength: Math.round(troops*quality)};
 }
@@ -367,7 +378,7 @@ function killPeople(rid, n, place){
   for(const t of towns){ const take = Math.min(Math.max(0,t.pop-MIN_TOWN_PEOPLE), Math.ceil(left*Math.max(0,t.pop-MIN_TOWN_PEOPLE)/room)); t.pop -= take; left -= take; if(left<=0) break; } }
  const dead = n - Math.max(0,left); if(rid===S.player) S.dead = (S.dead||0) + dead; return dead;
 }
-function regrow(rid){ for(const t of owned(rid)){ const cap=townPeople(t); if(t.pop<cap) t.pop = Math.min(cap, t.pop + Math.ceil(cap*REGROW)); } }
+function regrow(rid){ for(const t of owned(rid)){ const cap=Math.min(townPeople(t), t.houses!=null ? t.houses*100 : Infinity); if(t.pop<cap) t.pop = Math.min(cap, t.pop + Math.ceil(townPeople(t)*(typeof regrowRate==='function'?regrowRate(t):REGROW))); } }
 const VILLAGE = [null, {name:"Village", people:150, grow:6, farms:1, up:{g:80,r:60,label:"Raise to a market village"}}, {name:"Market village", people:400, grow:8, farms:2, up:{g:150,r:100,label:"Found a new city"}}];
 const DEV = {
  farm:   {name:"Farm",      food:6, g:40, r:15, blurb:"+6 food a season · near a village or city"},
@@ -418,7 +429,8 @@ function economy(rid){
   if(d.village){ E.villagePeople += VILLAGE[d.village.lvl].people; E.villages++; } }
  E.people = E.townPeople + E.villagePeople;
  E.goldTiles = GOLD_PER_TILE*E.tiles; E.goldPeople = Math.floor(E.people/PEOPLE_PER_GOLD);
- E.gold = E.goldTiles + E.goldPeople + E.goldMines;
+ const CB = cityBonus(rid); E.goldBld = CB.gold; E.food += CB.food; E.foodBld = CB.food;
+ E.gold = E.goldTiles + E.goldPeople + E.goldMines + E.goldBld;
  E.eat = Math.ceil(E.people/PEOPLE_PER_FOOD); E.netFood = E.food - E.eat;
  E.res = RES_PER_WILD_TILE*E.wild;
  return E;
@@ -439,7 +451,7 @@ function setPeace(a,b){
 }
 const truce = (a,b) => (S.realms[a].truce[b]||0) > S.year;
 // a town defends with its walls, its size and a share of its realm's militants; an attacker needs a clear edge to take it
-const defenseOf = place => place.fort*250 + place.dev*60 + strength(place.owner)*0.75 + (place.capital?300:0);
+const defenseOf = place => place.fort*250 + place.dev*60 + strength(place.owner)*0.75 + (place.capital?300:0) + (place.bld?.castle ? CASTLE[place.bld.castle].def : 0);
 function battle(att, place){
  const def = place.owner, A=armyOf(att), D=armyOf(def);
  const win = A.strength*R(0.75,1.25) > defenseOf(place)*R(0.8,1.2);
@@ -720,7 +732,7 @@ function bear(summary){
 function courtSeason(summary){
  const r=ruler(), sp=spouse();
  if(sp){
-  S.spouseAff=clamp(S.spouseAff-2,0,100);
+  { const cap=S.places.find(x=>x.owner===S.player && x.capital), lv=cap?.bld?.castle||0; S.spouseAff=clamp(S.spouseAff-Math.max(0,2-0.5*lv),0,100); }
   const mother = r.gender==="f" ? r : sp, ma=age(mother);
   // roughly one child every two to three years for a loving couple, never two within a year
   if(ma>=16 && ma<=42 && S.spouseAff>=20 && turn()-(S.lastBirthT??-99)>=4 && Math.random() < 0.025 + S.spouseAff/1600 + (S.togetherT===turn()?0.045:0)){ bear(summary); S.lastBirthT=turn(); }
@@ -839,6 +851,201 @@ function renderFamily(){
  return h;
 }
 
+/* =====================================================================
+   City view: a drawn map of each of our cities, with buildings.
+   Layout (roads, house plots, building sites, coast) is generated from the
+   city's own seed, so every city looks different but stays the same.
+   ===================================================================== */
+const PEOPLE_PER_HOUSE = 100, HOUSE_COST = 25;
+const CASTLE = [null,
+ {name:"Motte and bailey", g:200, def:150},
+ {name:"Stone keep",       g:400, def:300},
+ {name:"Curtain-walled castle", g:800, def:500},
+ {name:"Royal palace",     g:1500, def:750}];
+const BLD = {
+ blacksmith:{name:"Blacksmith", g:120, blurb:"Arms the militants: fighting quality +0.08 (up to three smithies count)"},
+ barracks:  {name:"Barracks",   g:160, blurb:"Drills the levy: knights rally 6% more militants (up to three count)"},
+ market:    {name:"Market",     g:150, blurb:"+12 gold a season"},
+ tavern:    {name:"Tavern",     g:80,  blurb:"+6 gold a season, and the town regrows a little faster"},
+ mill:      {name:"Mill",       g:90,  blurb:"+4 food a season"},
+ chapel:    {name:"Chapel",     g:140, blurb:"Plague kills half as many here, and the town regrows faster"},
+ harbour:   {name:"Harbour",    g:180, blurb:"+6 gold and +3 food a season", port:true}
+};
+const FORT_NAME = ["", "No walls", "Wooden palisade", "Stone walls and towers", "Great walls and a moat"];
+const housing = p => (p.houses||0)*PEOPLE_PER_HOUSE;
+const housesNeeded = p => Math.ceil((p.pop ?? townPeople(p))/PEOPLE_PER_HOUSE);
+function cityInit(p){ if(p.seed==null) p.seed = Math.floor(Math.random()*2**31); if(p.houses==null) p.houses = Math.ceil((p.pop ?? townPeople(p))/PEOPLE_PER_HOUSE); if(!p.bld) p.bld = {}; }
+function cityBonus(rid){   // realm-wide effects of city buildings
+ const B = {gold:0, food:0, quality:0, rally:0}; let smiths=0, barracks=0;
+ for(const p of owned(rid)){ const b=p.bld||{};
+  if(b.market) B.gold+=12; if(b.tavern) B.gold+=6; if(b.harbour){ B.gold+=6; B.food+=3; } if(b.mill) B.food+=4;
+  if(b.blacksmith) smiths++; if(b.barracks) barracks++; }
+ B.quality = 0.08*Math.min(3,smiths); B.rally = 0.06*Math.min(3,barracks); return B;
+}
+const regrowRate = p => REGROW + (p.bld?.tavern?0.01:0) + (p.bld?.chapel?0.01:0);
+function housingSeason(summary){
+ for(const p of S.places){ if(!S.realms[p.owner]?.alive) continue; cityInit(p);
+  if(p.owner!==S.player){ p.houses = Math.max(p.houses, Math.ceil(townPeople(p)/PEOPLE_PER_HOUSE)); continue; }   // other realms keep their people housed
+  const room = housing(p);
+  if(p.pop > room){ const leave = Math.ceil((p.pop-room)*0.25); p.pop -= leave; S.left=(S.left||0)+leave;
+   summary.push(`<b>${leave.toLocaleString()} people left ${p.name}</b> with no roof over their heads. Build more houses there.`); }
+ }
+}
+/* ---------- actions ---------- */
+function actHouses(p, n){ cityInit(p); const free = cityLayout(p).houseSlots - p.houses; n = Math.min(n, free); if(n<=0 || S.over || S.gold < n*HOUSE_COST) return; S.gold -= n*HOUSE_COST; p.houses += n; toast(`${n} new house${n>1?"s":""} raised in ${p.name}.`); after(); }
+function actCastle(p){ cityInit(p); const nx=(p.bld.castle||0)+1, c=CASTLE[nx]; if(!c || S.over || S.gold<c.g) return; S.gold-=c.g; p.bld.castle=nx; log(`${nx===1?"A":"The"} ${c.name.toLowerCase()} ${nx===1?"is raised":"now crowns"} ${p.name}.`, true); after(); }
+function actBuilding(p, k){ cityInit(p); const b=BLD[k]; if(!b || p.bld[k] || (b.port && !p.port) || S.over || S.gold<b.g) return; S.gold-=b.g; p.bld[k]=1; toast(`A ${b.name.toLowerCase()} opens in ${p.name}.`); after(); }
+
+/* ---------- layout ---------- */
+function rngFrom(seed){ let a=seed>>>0; return ()=>{ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const CW=1000, CH=700, CX=500, CY=350;
+function segDist(px,py,ax,ay,bx,by){ const dx=bx-ax, dy=by-ay, L=dx*dx+dy*dy||1; let t=((px-ax)*dx+(py-ay)*dy)/L; t=Math.max(0,Math.min(1,t)); return Math.hypot(px-ax-t*dx, py-ay-t*dy); }
+const LAYOUT = new Map();
+function seaAngle(p){ cellInit(); const [x,y]=CELLC[p.tile], ns=NEI[p.tile]; if(!ns.length) return Math.atan2(y-400,x-500);
+ let ax=0, ay=0; for(const j of ns){ ax+=CELLC[j][0]; ay+=CELLC[j][1]; } ax/=ns.length; ay/=ns.length; return Math.atan2(y-ay, x-ax); }
+function cityLayout(p){
+ cityInit(p); const key=p.id+":"+p.seed+":"+p.dev; if(LAYOUT.has(key)) return LAYOUT.get(key);
+ const r=rngFrom(p.seed), R = Math.min(300, 135 + 18*p.dev), pattern = ["radial","grid","winding"][Math.floor(r()*3)];
+ // coast for ports: the sea lies beyond a wavy line on the seaward side
+ let sea=null;
+ if(p.port){ const a=seaAngle(p), d=R*0.92+r()*30, nx=Math.cos(a), ny=Math.sin(a), tx=-ny, ty=nx, pts=[];
+  for(let s=-900; s<=900; s+=60){ const w=Math.sin(s/90+r()*2)*14 + (r()-.5)*10; pts.push([CX+nx*(d+w)+tx*s, CY+ny*(d+w)+ty*s]); }
+  sea={a, d, nx, ny, pts}; }
+ const inSea = (x,y) => sea && ((x-CX)*sea.nx + (y-CY)*sea.ny) > sea.d - 6;
+ // roads
+ const roads=[]; const add=(pts,w)=>{ const keep=[]; for(const q of pts){ if(inSea(q[0],q[1])) break; keep.push(q); } if(keep.length>1) roads.push({pts:keep,w}); };
+ const gates = 3 + Math.floor(r()*3), rot = r()*Math.PI*2, mains=[];
+ for(let g=0; g<gates; g++){ let a = rot + g*2*Math.PI/gates + (r()-.5)*0.6; if(sea && Math.cos(a-sea.a)>0.55) a += Math.PI*0.5;
+  const pts=[[CX+Math.cos(a)*24, CY+Math.sin(a)*24]]; let ang=a;
+  for(let d=60; d<=R+260; d+=55){ ang += (r()-.5)*(pattern==="winding"?0.5:0.18); const last=pts[pts.length-1]; pts.push([last[0]+Math.cos(ang)*55, last[1]+Math.sin(ang)*55]); }
+  add(pts,15); mains.push(a); }
+ if(pattern==="grid"){ const sp=52+r()*18, rr=r()*Math.PI, cs=Math.cos(rr), sn=Math.sin(rr);
+  for(let k=-6;k<=6;k++){ for(const dir of [0,1]){ const pts=[]; for(let t=-R;t<=R;t+=18){ const u=k*sp+(r()-.5)*6, v=t; const x=dir?u:v, y=dir?v:u; const X=CX+x*cs-y*sn, Y=CY+x*sn+y*cs; if(Math.hypot(X-CX,Y-CY)<R*0.98) pts.push([X,Y]); else if(pts.length) break; } if(pts.length>3) add(pts,9); } } }
+ else if(pattern==="radial"){ for(const f of [0.45,0.78]){ const rr=R*f, a0=r()*Math.PI*2, span=Math.PI*(1.2+r()*0.8), pts=[]; for(let t=0;t<=span;t+=0.12){ const a=a0+t; pts.push([CX+Math.cos(a)*rr*(1+(r()-.5)*0.06), CY+Math.sin(a)*rr*(1+(r()-.5)*0.06)]); } add(pts,10); }
+  for(const a of mains) for(let d=R*0.25; d<R*0.95; d+=36+r()*30){ const side=r()<.5?-1:1, b=a+side*(Math.PI/2+(r()-.5)*0.6), sx=CX+Math.cos(a)*d, sy=CY+Math.sin(a)*d, L=40+r()*70, pts=[[sx,sy]]; let ang=b; for(let s=22;s<=L;s+=22){ ang+=(r()-.5)*0.4; const q=pts[pts.length-1]; pts.push([q[0]+Math.cos(ang)*22, q[1]+Math.sin(ang)*22]); } add(pts,9); } }
+ else { const grow=(x,y,a,depth)=>{ const pts=[[x,y]]; let ang=a, L=50+r()*90; for(let s=18;s<=L;s+=18){ ang+=(r()-.5)*0.7; const q=pts[pts.length-1], nx2=q[0]+Math.cos(ang)*18, ny2=q[1]+Math.sin(ang)*18; if(Math.hypot(nx2-CX,ny2-CY)>R) break; pts.push([nx2,ny2]); } add(pts,9);
+   if(depth<2 && pts.length>3 && r()<0.6){ const q=pts[Math.floor(pts.length/2+r()*pts.length/2)]; grow(q[0],q[1],ang+(r()<.5?-1:1)*(1.0+r()*0.7),depth+1); } };
+  for(const a of mains) for(let d=R*0.38; d<R*0.92; d+=70+r()*50) grow(CX+Math.cos(a)*d, CY+Math.sin(a)*d, a+(r()<.5?-1:1)*(Math.PI/2+(r()-.5)*0.5), 1); }
+ const segs=[]; for(const rd of roads) for(let k=1;k<rd.pts.length;k++) segs.push([...rd.pts[k-1],...rd.pts[k],rd.w]);
+ const clearOfRoads=(x,y,pad)=>segs.every(s=>segDist(x,y,s[0],s[1],s[2],s[3]) > s[4]/2+pad);
+ const nearRoad=(x,y)=>segs.some(s=>segDist(x,y,s[0],s[1],s[2],s[3]) < s[4]/2+40);
+ const roadGap=(x,y)=>Math.min(...segs.map(s=>segDist(x,y,s[0],s[1],s[2],s[3])-s[4]/2));
+ // big sites for buildings near the square, then house plots along every road
+ const sites=[], plots=[];
+ // the castle takes the open ground furthest from any road, away from the sea and the square
+ let castle=[CX,CY-R*0.5], best=-1;
+ for(let k=0;k<160;k++){ const a=r()*Math.PI*2, d=R*(0.38+r()*0.3), x=CX+Math.cos(a)*d, y=CY+Math.sin(a)*d; if(inSea(x,y) || (sea && ((x-CX)*sea.nx+(y-CY)*sea.ny) > sea.d-90)) continue; const g=roadGap(x,y); if(g>best){ best=g; castle=[x,y]; } }
+ for(let tries=0; tries<900 && sites.length<8; tries++){ const a=r()*Math.PI*2, d=60+r()*R*0.6, x=CX+Math.cos(a)*d, y=CY+Math.sin(a)*d;
+  if(inSea(x,y) || !clearOfRoads(x,y,20) || !nearRoad(x,y) || Math.hypot(x-castle[0],y-castle[1])<80 || sites.some(s=>Math.hypot(s[0]-x,s[1]-y)<56)) continue; sites.push([x,y]); }
+ for(const rd of roads) for(let k=1;k<rd.pts.length;k++){ const [ax,ay]=rd.pts[k-1], [bx,by]=rd.pts[k], L=Math.hypot(bx-ax,by-ay), ang=Math.atan2(by-ay,bx-ax);
+  for(let t=8;t<L;t+=17) for(const side of [-1,1]){ const off=rd.w/2+9, x=ax+(bx-ax)*t/L - Math.sin(ang)*off*side, y=ay+(by-ay)*t/L + Math.cos(ang)*off*side;
+   const dc=Math.hypot(x-CX,y-CY); if(dc<34 || dc>R*1.02 || inSea(x,y) || Math.hypot(x-castle[0],y-castle[1])<70 || sites.some(s=>Math.hypot(s[0]-x,s[1]-y)<30) || !clearOfRoads(x,y,5) || plots.some(q=>Math.hypot(q[0]-x,q[1]-y)<15.5)) continue;
+   plots.push([x,y,ang*180/Math.PI,Math.floor(r()*3)]); } }
+ plots.sort((a,b)=>Math.hypot(a[0]-CX,a[1]-CY)-Math.hypot(b[0]-CX,b[1]-CY));
+ // farmland strips outside the town
+ const fields=[]; for(let k=0;k<26;k++){ const a=r()*Math.PI*2, d=R+60+r()*260, x=CX+Math.cos(a)*d, y=CY+Math.sin(a)*d; if(inSea(x,y)||!clearOfRoads(x,y,30)) continue; fields.push([x,y,a*180/Math.PI+90+(r()-.5)*40, 50+r()*60, 26+r()*30, Math.floor(r()*4)]); }
+ const wallPts=[]; const WN=16; for(let k=0;k<WN;k++){ const a=k/WN*Math.PI*2, rr=R+16+(r()-.5)*16; wallPts.push([CX+Math.cos(a)*rr, CY+Math.sin(a)*rr]); }
+ const L={R, pattern, sea, roads, sites, plots, fields, castle, wallPts, mains, houseSlots:plots.length};
+ LAYOUT.set(key,L); return L;
+}
+
+/* ---------- drawing ---------- */
+const ROOF=[["#b8955a","#8e6e3a"],["#a4553a","#7a3a26"],["#6b6f78","#4a4e56"]];
+function drawCastle(lvl){
+ const st="#a7a296", dk="#6f6a60", rf="#5a5f68";
+ if(lvl===1) return `<circle r="30" fill="#6a8a4a" stroke="#4a3418" stroke-width="3" stroke-dasharray="3 2"/><rect x="-11" y="-11" width="22" height="22" fill="#8a6a3a" stroke="#3a2410" stroke-width="1.5"/><path d="M-11 -11 L0 -18 L11 -11Z" fill="#6a4a24"/>`;
+ const tower=(x,y,r2)=>`<circle cx="${x}" cy="${y}" r="${r2}" fill="${st}" stroke="${dk}" stroke-width="1.5"/><circle cx="${x}" cy="${y}" r="${r2*0.55}" fill="${rf}"/>`;
+ const keep=s=>`<rect x="${-s}" y="${-s}" width="${2*s}" height="${2*s}" fill="${st}" stroke="${dk}" stroke-width="2"/><rect x="${-s*0.6}" y="${-s*0.6}" width="${1.2*s}" height="${1.2*s}" fill="${rf}"/><path d="M0 ${-s*0.6} V${-s-14}" stroke="#3a2410" stroke-width="1.2"/><path d="M0 ${-s-14} l10 3 -10 3Z" fill="#a3302a"/>`;
+ if(lvl===2) return keep(16)+tower(-16,-16,6)+tower(16,-16,6)+tower(-16,16,6)+tower(16,16,6);
+ const W = lvl===3?40:52;
+ return `<rect x="${-W}" y="${-W}" width="${2*W}" height="${2*W}" fill="#cfc8b4" stroke="${dk}" stroke-width="${lvl===4?6:4}"/>`+(lvl===4?`<rect x="${-W+12}" y="${-W+12}" width="${2*W-24}" height="${18}" fill="${rf}" stroke="${dk}"/><rect x="${-W+12}" y="${W-30}" width="${2*W-24}" height="18" fill="${rf}" stroke="${dk}"/>`:"")+keep(lvl===3?16:20)+tower(-W,-W,lvl===4?11:9)+tower(W,-W,lvl===4?11:9)+tower(-W,W,lvl===4?11:9)+tower(W,W,lvl===4?11:9)+(lvl===4?tower(0,-W,8)+tower(0,W,8)+tower(-W,0,8)+tower(W,0,8):"");
+}
+const BLDART = {
+ blacksmith:`<rect x="-15" y="-10" width="30" height="20" fill="#4a4e56" stroke="#2a2a2a" stroke-width="1.5"/><path d="M-15 0 H15" stroke="#33363c"/><rect x="8" y="-16" width="6" height="8" fill="#5a3a24"/><circle cx="11" cy="-21" r="3.5" fill="#bbb" opacity=".7"/><circle cx="14" cy="-27" r="4.5" fill="#ccc" opacity=".5"/><path d="M-9 13 h10 l-2 3 h-6Z" fill="#2a2a2a"/>`,
+ barracks:`<rect x="-24" y="-9" width="48" height="18" fill="#8a6a4a" stroke="#3a2410" stroke-width="1.5"/><path d="M-24 0 H24" stroke="#6a4a2a"/><path d="M20 -9 V-26" stroke="#3a2410" stroke-width="1.5"/><path d="M20 -26 l12 4 -12 4Z" fill="#a3302a"/>`,
+ market:`<g><rect x="-22" y="-8" width="13" height="16" fill="#e8d6b0"/><path d="M-23 -8 h15 v-5 h-15Z" fill="#b8322a"/><path d="M-19 -13 v5 M-15 -13 v5 M-11 -13 v5" stroke="#f3e7cf" stroke-width="1.6"/></g><g transform="translate(16 0)"><rect x="-7" y="-8" width="13" height="16" fill="#e8d6b0"/><path d="M-8 -8 h15 v-5 h-15Z" fill="#2f5a8a"/><path d="M-4 -13 v5 M0 -13 v5 M4 -13 v5" stroke="#f3e7cf" stroke-width="1.6"/></g><circle cx="0" cy="13" r="3" fill="#c9a24a"/>`,
+ tavern:`<rect x="-15" y="-11" width="30" height="22" fill="#a4553a" stroke="#5a2a1a" stroke-width="1.5"/><path d="M-15 0 H15" stroke="#7a3a26"/><path d="M15 -4 h7 v9" stroke="#3a2410" stroke-width="1.2" fill="none"/><circle cx="22" cy="8" r="3.6" fill="#e8c66a" stroke="#3a2410"/>`,
+ mill:`<circle r="9" fill="#d8cfb8" stroke="#6a5a3a" stroke-width="1.5"/><g stroke="#5a3a1a" stroke-width="2.4"><path d="M0 0 L16 -16"/><path d="M0 0 L-16 16"/><path d="M0 0 L16 16"/><path d="M0 0 L-16 -16"/></g><g fill="#efe4c8" stroke="#6a5a3a" stroke-width=".6"><path d="M4 -4 L16 -16 L19 -12 Z"/><path d="M-4 4 L-16 16 L-19 12 Z"/><path d="M4 4 L16 16 L12 19 Z"/><path d="M-4 -4 L-16 -16 L-12 -19 Z"/></g><circle r="2.5" fill="#3a2410"/>`,
+ chapel:`<rect x="-16" y="-8" width="32" height="16" fill="#c9c2b0" stroke="#6a6458" stroke-width="1.5"/><path d="M-16 0 H16" stroke="#9a9484"/><circle cx="-16" cy="0" r="8" fill="#c9c2b0" stroke="#6a6458" stroke-width="1.5"/><path d="M14 -8 V-26 M9 -21 H19" stroke="#e8c66a" stroke-width="2.2"/>`,
+ harbour:`<rect x="-4" y="-2" width="8" height="40" fill="#8a6a3a" stroke="#4a3418"/><path d="M8 26 q10 10 20 0 l-3 -3 h-14Z" fill="#6a4a24" stroke="#3a2410"/><path d="M18 23 V8 L28 20Z" fill="#efe4c8" stroke="#6a5a3a" stroke-width=".8"/>`
+};
+function drawWalls(L, fort){
+ if(fort<2) return "";
+ const d = "M"+L.wallPts.map(q=>q.map(v=>v.toFixed(1)).join(" ")).join("L")+"Z";
+ let s="";
+ if(fort===2) s += `<path d="${d}" fill="none" stroke="#5a3a1a" stroke-width="7" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#8a6438" stroke-width="4" stroke-dasharray="3 1.5"/>`;
+ else { if(fort===4) s += `<path d="${d}" fill="none" stroke="#3e6a78" stroke-width="30" stroke-linejoin="round" opacity=".55" transform="translate(${CX} ${CY}) scale(1.08) translate(${-CX} ${-CY})"/>`;
+  s += `<path d="${d}" fill="none" stroke="#5f5a50" stroke-width="${fort===4?14:10}" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="#a9a394" stroke-width="${fort===4?9:6}" stroke-linejoin="round"/>`;
+  for(const [x,y] of L.wallPts) s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${fort===4?11:8}" fill="#a9a394" stroke="#5f5a50" stroke-width="2"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${fort===4?5:4}" fill="#6a6f78"/>`; }
+ // a gatehouse wherever a main road actually crosses the wall ring
+ const ringR = q => { const a=Math.atan2(q[1]-CY,q[0]-CX), t=((a+2*Math.PI)%(2*Math.PI))/(2*Math.PI)*L.wallPts.length, i=Math.floor(t)%L.wallPts.length, j=(i+1)%L.wallPts.length, f=t-Math.floor(t);
+  const ri=Math.hypot(L.wallPts[i][0]-CX,L.wallPts[i][1]-CY), rj=Math.hypot(L.wallPts[j][0]-CX,L.wallPts[j][1]-CY); return ri+(rj-ri)*f; };
+ const gates=[]; for(const rd of L.roads){ if(rd.w<15) continue; for(let k=1;k<rd.pts.length;k++){ const A=rd.pts[k-1], B=rd.pts[k], da=Math.hypot(A[0]-CX,A[1]-CY)-ringR(A), db=Math.hypot(B[0]-CX,B[1]-CY)-ringR(B);
+  if(da<0 && db>=0){ const f=da/(da-db); gates.push([A[0]+(B[0]-A[0])*f, A[1]+(B[1]-A[1])*f, Math.atan2(B[1]-A[1],B[0]-A[0])]); break; } } }
+ for(const [x,y,a] of gates){ s += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${(a*180/Math.PI).toFixed(1)})"><rect x="-8" y="-13" width="16" height="26" fill="${fort===2?"#6a4a24":"#8f8a7e"}" stroke="#3a3428" stroke-width="1.5"/><rect x="-8" y="-5" width="16" height="10" fill="#c8b48a"/></g>`; }
+ return s;
+}
+function drawCity(p){
+ const L=cityLayout(p), b=p.bld||{};
+ const roadD = rd => "M"+rd.pts.map(q=>q[0].toFixed(1)+" "+q[1].toFixed(1)).join("L");
+ let s = `<defs><pattern id="cgrass" patternUnits="userSpaceOnUse" width="260" height="260"><rect width="260" height="260" fill="#7f8f58"/><image href="${GRASSN}" width="260" height="260"/></pattern></defs>`;
+ s += `<rect width="${CW}" height="${CH}" fill="url(#cgrass)"/>`;
+ const FC=["#a8a259","#8c9a4e","#c2a65c","#9aa368"];
+ for(const f of L.fields) s += `<g transform="translate(${f[0].toFixed(1)} ${f[1].toFixed(1)}) rotate(${f[2].toFixed(1)})"><rect x="${(-f[3]/2).toFixed(1)}" y="${(-f[4]/2).toFixed(1)}" width="${f[3].toFixed(1)}" height="${f[4].toFixed(1)}" fill="${FC[f[5]]}" stroke="#6a6a3a" stroke-width=".8" opacity=".85"/><path d="M${(-f[3]/2).toFixed(1)} 0 H${(f[3]/2).toFixed(1)} M${(-f[3]/2).toFixed(1)} ${(-f[4]/4).toFixed(1)} H${(f[3]/2).toFixed(1)} M${(-f[3]/2).toFixed(1)} ${(f[4]/4).toFixed(1)} H${(f[3]/2).toFixed(1)}" stroke="#6a6a3a" stroke-width=".6" opacity=".6"/></g>`;
+ s += `<circle cx="${CX}" cy="${CY}" r="${L.R+8}" fill="#9a9a6a" opacity=".35"/>`;
+ for(const rd of L.roads) s += `<path d="${roadD(rd)}" fill="none" stroke="#6e5434" stroke-width="${rd.w+4}" stroke-linecap="round" stroke-linejoin="round"/>`;
+ for(const rd of L.roads) s += `<path d="${roadD(rd)}" fill="none" stroke="#c9b083" stroke-width="${rd.w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+ s += `<circle cx="${CX}" cy="${CY}" r="34" fill="#c6b48c" stroke="#6e5434" stroke-width="3"/><circle cx="${CX}" cy="${CY}" r="34" fill="url(#cgrass)" opacity=".12"/><circle cx="${CX}" cy="${CY}" r="6" fill="#5a6a7a" stroke="#3a3428" stroke-width="2"/>`;
+ // houses actually built, nearest the square first
+ const n=Math.min(p.houses||0, L.plots.length);
+ for(let k=0;k<n;k++){ const [x,y,a,t]=L.plots[k], [c1,c2]=ROOF[t]; s += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${a.toFixed(1)})"><rect x="-7.5" y="-5.5" width="15" height="11" fill="${c1}" stroke="#3a2a18" stroke-width=".8"/><path d="M-7.5 0 H7.5" stroke="${c2}" stroke-width="1.2"/><rect x="-7.5" y="0" width="15" height="5.5" fill="${c2}" opacity=".35"/></g>`; }
+ // special buildings take the sites in a fixed order; the harbour goes to the shore
+ const order=["market","chapel","blacksmith","tavern","barracks","mill"]; let si=0; const labels=[];
+ for(const k of order){ const site=L.sites[si++]; if(!site || !b[k]) continue; s += `<g transform="translate(${site[0].toFixed(1)} ${site[1].toFixed(1)})"><title>${BLD[k].name}</title>${BLDART[k]}</g>`; labels.push([site[0],site[1]+28,BLD[k].name]); }
+ s += drawWalls(L, p.fort);
+ if(L.sea){ const sp=L.sea.pts.map(q=>q.map(v=>v.toFixed(1)).join(" ")); const far=[CX+L.sea.nx*1600, CY+L.sea.ny*1600];
+  s += `<path d="M${sp.join("L")} L${(far[0]+L.sea.ny*1600).toFixed(1)} ${(far[1]-L.sea.nx*1600).toFixed(1)} L${(far[0]-L.sea.ny*1600).toFixed(1)} ${(far[1]+L.sea.nx*1600).toFixed(1)}Z" fill="#2c4a52"/><path d="M${sp.join("L")}" fill="none" stroke="#c9b98c" stroke-width="7" stroke-linejoin="round"/><path d="M${sp.join("L")}" fill="none" stroke="#8fb2b0" stroke-width="2" stroke-dasharray="6 5" transform="translate(${(L.sea.nx*12).toFixed(1)} ${(L.sea.ny*12).toFixed(1)})" opacity=".6"/>`;
+  if(b.harbour){ const hx=CX+L.sea.nx*(L.sea.d-4), hy=CY+L.sea.ny*(L.sea.d-4), ang=Math.atan2(L.sea.ny,L.sea.nx)*180/Math.PI-90; s += `<g transform="translate(${hx.toFixed(1)} ${hy.toFixed(1)}) rotate(${ang.toFixed(1)})"><title>Harbour</title>${BLDART.harbour}</g>`; labels.push([hx,hy-16,"Harbour"]); } }
+ if(b.castle){ const [x,y]=L.castle; s += `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)})"><title>${CASTLE[b.castle].name}</title>${drawCastle(b.castle)}</g>`; labels.push([x, y+(b.castle>=3?(b.castle===4?72:58):44), CASTLE[b.castle].name]); }
+ for(const [x,y,t] of labels) s += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" class="clab">${t}</text>`;
+ s += `<g transform="translate(150 120)" opacity=".8"><circle r="26" fill="none" stroke="#2a1d12"/><path d="M0,-32 L5,0 0,32 -5,0Z" fill="#2a1d12"/><text y="-36" text-anchor="middle" font-family="IM Fell English" font-size="13" fill="#2a1d12">N</text></g>`;
+ s += `<text x="${CX}" y="${CH-86}" text-anchor="middle" class="ctitle">${p.name}</text><text x="${CX}" y="${CH-68}" text-anchor="middle" class="clab">${({radial:"streets radiating from the square",grid:"streets laid out on a grid",winding:"winding lanes"})[L.pattern]}</text>`;
+ return s;
+}
+let GRASSN = "";
+
+/* ---------- the city screen ---------- */
+let cityId = null;
+function openCity(id){ if(!S) return; cityId=id; const p=S.places.find(x=>x.id===id); if(p) cityInit(p); $("city").classList.add("open"); renderCity(); }
+function closeCity(){ cityId=null; $("city").classList.remove("open"); }
+function renderCity(){
+ if(!cityId || !S) return; const p=S.places.find(x=>x.id===cityId);
+ if(!p || p.owner!==S.player){ closeCity(); return; }
+ cityInit(p); const L=cityLayout(p), ap=canAct(), b=p.bld;
+ if(!GRASSN) GRASSN = noiseURL(256, 6, 4, [60,70,30], 0, .35, 31);
+ $("citymap").innerHTML = drawCity(p);
+ const need=housesNeeded(p), free=L.houseSlots-p.houses, short=need>p.houses;
+ let h = `<button class="x" id="cityx" aria-label="Close the city">×</button><h2>${p.name}</h2><p class="note">${pr().name}${p.capital?" · royal capital":""}${p.port?" · port":""}${p.founded!=null?` · chartered ${when(p.founded)}`:""}</p>`;
+ h += `<div class="row"><span>People</span><span>${(p.pop??townPeople(p)).toLocaleString()} of ${townPeople(p).toLocaleString()}</span></div>`;
+ h += `<div class="row"><span>Homes</span><span style="color:${short?"#8a1f1f":"inherit"}">${p.houses} houses for ${housing(p).toLocaleString()} people${short?` · ${need-p.houses} more needed`:""}</span></div>`;
+ h += `<div class="row"><span>Development</span><span>level ${p.dev}</span></div><div class="row"><span>Walls</span><span>${FORT_NAME[p.fort]}</span></div>`;
+ h += `<h4>Village houses</h4><p class="note">Each house shelters ${PEOPLE_PER_HOUSE} people. People without a roof leave the city, and a city cannot grow past its houses. ${free>0?`Room for ${free} more house${free>1?"s":""} along the streets; developing the city lays out more.`:"Every plot along the streets is built. Develop the city to lay out more."}</p><div class="btnrow">`;
+ h += btn("Build a house", `${HOUSE_COST} gold`, ()=>actHouses(p,1), S.over||free<1||S.gold<HOUSE_COST);
+ h += btn("Build 5 houses", `${5*HOUSE_COST} gold`, ()=>actHouses(p,5), S.over||free<5||S.gold<5*HOUSE_COST) + `</div>`;
+ const lv=b.castle||0, nx=CASTLE[lv+1];
+ h += `<h4>${p.capital?"The royal castle":"The castle"}</h4><div class="row"><span>${lv?CASTLE[lv].name:"None yet"}</span><span>${lv?`+${CASTLE[lv].def} defence`:""}</span></div>`;
+ h += nx ? btn(lv?`Upgrade to a ${nx.name.toLowerCase()}`:`Build a ${nx.name.toLowerCase()}`, `${nx.g} gold · +${nx.def} defence${p.capital?" · the royals live in comfort: the consort's affection fades more slowly":""}`, ()=>actCastle(p), S.over||S.gold<nx.g) : `<p class="note">The finest seat in the kingdom.</p>`;
+ h += `<h4>Buildings</h4>`;
+ for(const k in BLD){ const B=BLD[k]; if(B.port && !p.port) continue;
+  h += b[k] ? `<div class="row"><span>${B.name} ✓</span><span style="max-width:65%">${B.blurb}</span></div>` : btn(`Build a ${B.name.toLowerCase()}`, `${B.g} gold · ${B.blurb}`, ()=>actBuilding(p,k), S.over||S.gold<B.g); }
+ h += `<h4>The city</h4>`;
+ { const c=TOWNCOST.develop(p); h += btn("Develop the city", `${c.g} gold, ${c.r} resources · 1 deed · +${PEOPLE_PER_DEV} people, more streets (they need ${Math.ceil(PEOPLE_PER_DEV/PEOPLE_PER_HOUSE)} more houses)`, ()=>actImprove(p), !ap||!canPay(c.g,c.r)); }
+ { const c=TOWNCOST.fortify(p); h += btn("Fortify walls", p.fort>=4?"Walls at their height":`${c.g} gold, ${c.r} resources · 1 deed · ${FORT_NAME[p.fort+1].toLowerCase()}`, ()=>actFortify(p), !ap||p.fort>=4||!canPay(c.g,c.r)); }
+ if(p.port){ h += `<div class="row"><span>Fleet</span><span>${p.ships==null?"none":!shipsReady(p)?"building, ready "+when(p.ships):portBusy(p)?"at sea":"in harbour"}</span></div>`;
+  if(p.ships==null) h += btn("Build ships", `${TOWNCOST.ships.g} gold, ${TOWNCOST.ships.r} resources · 1 deed · needed to explore overseas`, ()=>actBuildShips(p), !ap||!canPay(TOWNCOST.ships.g,TOWNCOST.ships.r)); }
+ $("cityside").innerHTML = h;
+ $("cityx").onclick = closeCity;
+}
 /* ---------- player actions ---------- */
 const apMax = () => (S.rulerId && age(ruler())<16) ? 1 : DEEDS_PER_SEASON;   // a child sovereign rules through a regency
 function useAP(){ if(S.ap<1) return false; S.ap--; return true; }
@@ -893,7 +1100,7 @@ function foundCity(i, name){
  const d=devsAt(i).village, st=VILLAGE[2]; if(!d || d.lvl!==2 || S.tiles[i]!==S.player || !canPay(st.up.g, st.up.r)) return;
  S.gold-=st.up.g; S.res-=st.up.r; delDev(i); cellInit();
  const [x,y]=CELLC[i];
- S.places.push({id:"city"+(S.nextId++), name, x:+x.toFixed(1), y:+y.toFixed(1), owner:S.player, dev:1, base:CITY_PEOPLE, pop:CITY_PEOPLE, fort:1, port:isCoastal(i), capital:false, tile:i, founded:turn()});
+ S.places.push({id:"city"+(S.nextId++), name, x:+x.toFixed(1), y:+y.toFixed(1), owner:S.player, dev:1, base:CITY_PEOPLE, pop:CITY_PEOPLE, houses:Math.ceil(CITY_PEOPLE/PEOPLE_PER_HOUSE), bld:{}, fort:1, port:isCoastal(i), capital:false, tile:i, founded:turn()});
  log(`The city of ${name} is chartered by royal decree.`, true);
  selected = S.places[S.places.length-1].id; after();
 }
@@ -917,7 +1124,7 @@ function gameOver(text){
 
 /* ---------- end of season ---------- */
 function endSeason(){
- if(S.over) return;
+ if(!S || S.over) return;
  const summary = [], me = pr(), winter = S.season===3, popBefore = economy(S.player).people;
  const E = economy(S.player), starvedLast = S.starving>0;
  const inc = starvedLast ? Math.round(E.gold/2) : E.gold;
@@ -933,6 +1140,7 @@ function endSeason(){
   summary.push("Taxes will bring in only half while the people starve. Build farms or fisheries.");
  } else S.starving = 0;
  villagesSeason(summary);
+ housingSeason(summary);
  if(!S.starving) regrow(S.player);
  for(const r of Object.values(S.realms)) if(r.alive && r.id!==S.player) regrow(r.id);
  knightsSeason(summary);
@@ -989,7 +1197,7 @@ function endSeason(){
 }
 const EVENTS = {
  plague: () => { const p=pick(owned(S.player)); if(!p) return null; return {title:`Pestilence in ${p.name}`, body:`<p>Sickness spreads through the crowded streets of ${p.name}.</p>`,
-  choices:[{label:"Pay for quarantine and physicians", sub:"60 gold", disabled:S.gold<60, fn:()=>{S.gold-=60;}},{label:"Seal the gates and wait", sub:"Many in the town will die", fn:()=>{ const d=killPeople(S.player, p.pop*R(0.10,0.20), p); log(`Plague ravages ${p.name}: ${d.toLocaleString()} dead.`, true); }}]}; },
+  choices:[{label:"Pay for quarantine and physicians", sub:"60 gold", disabled:S.gold<60, fn:()=>{S.gold-=60;}},{label:"Seal the gates and wait", sub:"Many in the town will die", fn:()=>{ const d=killPeople(S.player, p.pop*R(0.10,0.20)*(p.bld?.chapel?0.5:1), p); log(`Plague ravages ${p.name}: ${d.toLocaleString()} dead.`, true); }}]}; },
  harvest: () => { const g=RI(30,70); S.gold+=g; return {title:"A Bountiful Harvest", body:`<p>Granaries overflow across ${pr().name}. The treasury gains ${g} gold.</p>`}; },
  envoy: () => { const ns=neighbours(S.player).filter(r=>!atWar(S.player,r)); if(!ns.length) return null; const r=pick(ns); reveal(r); const ask=RI(50,120);
   return {title:`An Envoy from ${S.realms[r].name}`, body:`<p>The envoy of ${S.realms[r].name} demands ${ask} gold as tribute, "for the sake of peace".</p>`,
@@ -1006,7 +1214,7 @@ function render(){
  const E=economy(S.player), sg=n=>(n>=0?"+":"")+n;
  const st = [
   {k:"Season", v:when()},
-  {k:"Gold", v:Math.round(S.gold), d:"+"+(S.starving?Math.round(E.gold/2):E.gold), t:`+${E.gold} a season: ${E.goldTiles} from ${E.tiles} lands (3 each), ${E.goldPeople} from ${E.people} people (1 per 50)${E.goldMines?`, ${E.goldMines} from ${E.mines} gold mine${E.mines>1?"s":""}`:""}${S.starving?" · halved while starving":""}`},
+  {k:"Gold", v:Math.round(S.gold), d:"+"+(S.starving?Math.round(E.gold/2):E.gold), t:`+${E.gold} a season: ${E.goldTiles} from ${E.tiles} lands (3 each), ${E.goldPeople} from ${E.people} people (1 per 50)${E.goldMines?`, ${E.goldMines} from ${E.mines} gold mine${E.mines>1?"s":""}`:""}${E.goldBld?`, ${E.goldBld} from city buildings`:""}${S.starving?" · halved while starving":""}`},
   {k:"Food", v:S.food, d:sg(E.netFood), bad:E.netFood<0||S.starving, t:`${sg(E.netFood)} a season: +${E.food} from ${E.farms} farm${E.farms===1?"":"s"} and ${E.fish} fisher${E.fish===1?"y":"ies"}, −${E.eat} eaten by ${E.people} people (1 per 100)`},
   {k:"People", v:E.people.toLocaleString(), d:S.popDelta?(S.popDelta>0?"+":"")+S.popDelta.toLocaleString():"", bad:(S.popDelta||0)<0, t:`${E.townPeople.toLocaleString()} in towns (room for ${E.capacity.toLocaleString()}; they regrow 3% a season while fed), ${E.villagePeople} in ${E.villages} village${E.villages===1?"":"s"}${S.dead?` · ${S.dead.toLocaleString()} lost to war, famine and plague this reign`:""}`},
   {k:"Towns", v:owned(S.player).length},
@@ -1017,7 +1225,7 @@ function render(){
  $("ap").innerHTML = Array.from({length:apMax()},(_,i)=>`<i class="${i<S.ap?"":"used"}"></i>`).join("");
  $("mar").innerHTML = Array.from({length:maxMarches()},(_,i)=>`<i class="${i<S.marches?"":"used"}"></i>`).join("");
  $("endyear").disabled = S.over;
- renderCells(); renderDevs(); renderPlaces(); renderLegend(); renderNotches(); renderPanel(); renderCard();
+ renderCells(); renderDevs(); renderPlaces(); renderLegend(); renderNotches(); renderPanel(); renderCard(); renderCity();
 }
 const DEVICON = {
  farm:`<circle r="5" fill="#3a2a10" stroke="#e2c46a" stroke-width=".8"/><path d="M-2.6 2.6V-1.2M0 2.6V-2.4M2.6 2.6V-1.2" stroke="#f1d27a" stroke-width=".9"/><ellipse cx="-2.6" cy="-1.8" rx=".8" ry="1.3" fill="#f1d27a"/><ellipse cx="0" cy="-3" rx=".8" ry="1.3" fill="#f1d27a"/><ellipse cx="2.6" cy="-1.8" rx=".8" ry="1.3" fill="#f1d27a"/>`,
@@ -1303,7 +1511,8 @@ function bindMap(){
  svg.addEventListener("pointerdown", e=>{ cancelAnimationFrame(anim); drag={x:e.clientX,y:e.clientY,vx:vb.x,vy:vb.y}; moved=0; });
  window.addEventListener("pointermove", e=>{ if(!drag) return; const s=Math.max(vb.w/svg.clientWidth, vb.h/svg.clientHeight);
   const dx=e.clientX-drag.x, dy=e.clientY-drag.y; moved=Math.max(moved,Math.abs(dx)+Math.abs(dy)); if(moved>4){ svg.classList.add("drag"); vb.x=drag.vx-dx*s; vb.y=drag.vy-dy*s; clampVB(); setVBsoon(-1); } });
- window.addEventListener("pointerup", e=>{ if(drag && moved>4) setVB(); if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell"); if(g){ selected=g.dataset.id; render(); } else if(cl){ const ci=+cl.dataset.i; if(fogged(ci)) selected="fog:"+ci; else if(TOWNAT.has(ci)) selected=S.places[TOWNAT.get(ci)].id; else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
+ window.addEventListener("pointerup", e=>{ if(drag && moved>4) setVB(); if(drag && moved<=4){ const g=e.target.closest&&e.target.closest(".place"); const cl=e.target.closest&&e.target.closest(".cell"); const mineTown = id => { const q=S.places.find(x=>x.id===id); return q && q.owner===S.player; };
+ if(g){ if(mineTown(g.dataset.id)){ selected=null; openCity(g.dataset.id); render(); } else { selected=g.dataset.id; render(); } } else if(cl){ const ci=+cl.dataset.i; if(fogged(ci)) selected="fog:"+ci; else if(TOWNAT.has(ci)){ const id=S.places[TOWNAT.get(ci)].id; if(mineTown(id)){ selected=null; openCity(id); } else selected=id; } else selected="tile:"+ci; render(); } } drag=null; svg.classList.remove("drag"); });
  $("zin").onclick=()=>zoom(0.75); $("zout").onclick=()=>zoom(1.33); $("zreset").onclick=()=>goHome(true);
  new ResizeObserver(()=>fitAspect()).observe($("map").parentElement); fitAspect();
 }
@@ -1331,7 +1540,7 @@ function startScreen(){
 /* ---------- wiring ---------- */
 $("notches").onclick = e=>{ const b=e.target.closest("button[data-p]"); if(!b || !S) return; page = page===b.dataset.p ? null : b.dataset.p; render(); };
 $("pagex").onclick = () => { page=null; render(); };
-document.addEventListener("keydown", e=>{ if(e.key==="Escape" && page && $("modalbg").style.display!=="flex"){ page=null; render(); } });
+document.addEventListener("keydown", e=>{ if(e.key!=="Escape" || $("modalbg").style.display==="flex") return; if(cityId){ closeCity(); return; } if(page){ page=null; render(); } });
 document.addEventListener("click", e=>{
  const b=e.target.closest("[data-b]"); if(b && BTN[b.dataset.b] && !b.disabled){ BTN[b.dataset.b](); return; }
  if(e.target.closest("#card .x")){ selected=null; render(); }
@@ -1355,7 +1564,7 @@ $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
 $("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
-$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have two <b>deeds</b> (developing or fortifying a town, building ships, exploring, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or build ships in a port town to send fleets over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
+$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have two <b>deeds</b> (developing or fortifying a town, building ships, exploring, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Click one of your cities to walk its streets: build houses (every 100 people need one), a castle, and blacksmiths, markets, mills and more. Fortifying a city raises walls around it. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or build ships in a port town to send fleets over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
 }
 </script>
 </body>
