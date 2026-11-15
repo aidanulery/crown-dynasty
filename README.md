@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.1.3**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.1.4**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -30,3 +30,4 @@ node tools/audit-coast.mjs src/mapdata.js
 - v0.1.1 — people: towns hold 100 per development level, villages add 150/300; taxes +1 gold per 50 people; every 100 people eat 1 food. Resources now come only from held land left undeveloped (+1 a tile). Every build (including town development, walls and ships) costs resources. Villages grow each season into market villages and then into new, player-named cities with their own marker on the map. v0.1.0 saves carry over.
 - v0.1.2 — farms, fisheries and gold mines must be within two tiles of an owned village or city; a tile can hold one of each of farm, fishery and gold mine, but a village needs a tile to itself; stacked map badges; header notch row no longer clips at mid widths. v0.1.1 saves carry over.
 - v0.1.3 — people: capitals 1,000, cities 700 (+150 per development, cost doubling each level), villages 150, market villages 400; villages need an adjacent farm (market villages two) or are abandoned after a season; AI kingdoms start with farms and build farms, villages and mines. Knights notch: three knights (strength, loyalty, intelligence, popularity) rally up to a third of the people as militants, which now decides wars. Romance: foreign suitors (alliance, dowry, claims for children) and noble suitors, courting actions, proposals, a consort with affection, children, succession and regency; foreign rulers age and die, and a claimant of your blood may inherit and unite their kingdom. Family tree notch. Saves from earlier versions do not carry over.
+- v0.1.4 — people die: towns keep a living head count under their capacity; assaults and border skirmishes kill militants and townsfolk on both sides (the loser and a sacked town lose most); famine kills 3–6% of the people each starving season, worsening as it drags on; plague can kill a town's people; fed towns regrow 3% of capacity a season. People counter shows the change per season. v0.1.3 saves carry over.

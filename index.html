@@ -234,7 +234,7 @@ const MAPMETA={"SP":12,"NOM":144,"REG":[20,14,980,786],"LAND_TOTAL":304744.7};
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.1.3";
+const VERSION = "pre-alpha v0.1.4";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -323,7 +323,7 @@ const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
 const placeIdx = p => S.places.indexOf(p);
 const tileOfTown = p => p.tile;
 let TOWNAT = new Map();   // tile index -> town index; rebuilt when towns are founded
-function syncTowns(){ if(!S) return; S.places.forEach((p,k)=>{ if(p.tile==null) p.tile = TOWNCELL[k]; }); TOWNAT = new Map(S.places.map((p,k)=>[p.tile,k])); }
+function syncTowns(){ if(!S) return; S.places.forEach((p,k)=>{ if(p.tile==null) p.tile = TOWNCELL[k]; if(p.pop==null) p.pop = townPeople(p); }); TOWNAT = new Map(S.places.map((p,k)=>[p.tile,k])); }
 const tileCount = rid => S.tiles.reduce((n,t)=>n+(t===rid),0);
 const tileAdj = (rid,i) => NEI[i].some(j=>S.tiles[j]===rid);
 function reachable(rid, place){
@@ -363,7 +363,20 @@ const GOLD_PER_TILE = 3, PEOPLE_PER_GOLD = 50, PEOPLE_PER_FOOD = 100, RES_PER_WI
 const MINE = [null, {lvl:"I",gold:25,g:180,r:85}, {lvl:"II",gold:15,g:120,r:60}, {lvl:"III",gold:10,g:80,r:40}, {lvl:"IV",gold:5,g:60,r:25}];   // index = mine level; IV is the first built, I the richest
 // Village stages: 1 = village, 2 = market village; a grown market village can be raised into a new city.
 const CAPITAL_PEOPLE = 1000, CITY_PEOPLE = 700, PEOPLE_PER_DEV = 150;
-const townPeople = p => (p.base || (p.capital?CAPITAL_PEOPLE:CITY_PEOPLE)) + PEOPLE_PER_DEV*(p.dev-1);
+const townPeople = p => (p.base || (p.capital?CAPITAL_PEOPLE:CITY_PEOPLE)) + PEOPLE_PER_DEV*(p.dev-1);   // a town's capacity
+/* Deaths: war and famine kill people in a realm's towns (the named town first). Every town keeps at least
+   MIN_TOWN_PEOPLE, and towns slowly refill towards their capacity while their people are fed. */
+const MIN_TOWN_PEOPLE = 100, REGROW = 0.03;
+function killPeople(rid, n, place){
+ n = Math.round(n); if(n<=0) return 0; const towns = owned(rid); if(!towns.length) return 0;
+ let left = n;
+ if(place && place.owner===rid){ const t = Math.min(left, Math.floor(place.pop*0.5), Math.max(0, place.pop-MIN_TOWN_PEOPLE)); place.pop -= t; left -= t; }
+ for(let pass=0; pass<3 && left>0; pass++){
+  const room = towns.reduce((s,t)=>s+Math.max(0,t.pop-MIN_TOWN_PEOPLE),0); if(room<=0) break;
+  for(const t of towns){ const take = Math.min(Math.max(0,t.pop-MIN_TOWN_PEOPLE), Math.ceil(left*Math.max(0,t.pop-MIN_TOWN_PEOPLE)/room)); t.pop -= take; left -= take; if(left<=0) break; } }
+ const dead = n - Math.max(0,left); if(rid===S.player) S.dead = (S.dead||0) + dead; return dead;
+}
+function regrow(rid){ for(const t of owned(rid)){ const cap=townPeople(t); if(t.pop<cap) t.pop = Math.min(cap, t.pop + Math.ceil(cap*REGROW)); } }
 const VILLAGE = [null, {name:"Village", people:150, grow:6, farms:1, up:{g:80,r:60,label:"Raise to a market village"}}, {name:"Market village", people:400, grow:8, farms:2, up:{g:150,r:100,label:"Found a new city"}}];
 const DEV = {
  farm:   {name:"Farm",      food:6, g:40, r:15, blurb:"+6 food a season · near a village or city"},
@@ -406,7 +419,7 @@ function economy(rid){
  const towns = owned(rid);
  const E = {tiles:0, wild:0, people:0, townPeople:0, villagePeople:0, goldMines:0, food:0, mines:0, farms:0, fish:0, villages:0};
  for(let i=0;i<S.tiles.length;i++){ if(S.tiles[i]!==rid) continue; E.tiles++; if(!TOWNAT.has(i) && !hasDevs(i)) E.wild++; }
- E.townPeople = towns.reduce((s,p)=>s+townPeople(p),0);
+ E.townPeople = towns.reduce((s,p)=>s+(p.pop ?? townPeople(p)),0); E.capacity = towns.reduce((s,p)=>s+townPeople(p),0);
  for(const k in S.devs){ const i=+k, d=S.devs[k]; if(S.tiles[i]!==rid) continue;
   if(d.mine){ E.goldMines += MINE[d.mine.lvl].gold; E.mines++; }
   if(d.farm){ E.food += DEV.farm.food; E.farms++; }
@@ -437,9 +450,12 @@ const truce = (a,b) => (S.realms[a].truce[b]||0) > S.year;
 // a town defends with its walls, its size and a share of its realm's militants; an attacker needs a clear edge to take it
 const defenseOf = place => place.fort*250 + place.dev*60 + strength(place.owner)*0.75 + (place.capital?300:0);
 function battle(att, place){
- const def = place.owner;
- const win = strength(att)*R(0.75,1.25) > defenseOf(place)*R(0.8,1.2);
+ const def = place.owner, A=armyOf(att), D=armyOf(def);
+ const win = A.strength*R(0.75,1.25) > defenseOf(place)*R(0.8,1.2);
  knightFortune(att, win); knightFortune(def, !win);
+ // the loser bleeds more; a sacked town also loses townsfolk
+ const aDead = killPeople(att, A.troops*(win?R(0.04,0.09):R(0.10,0.18)));
+ const dDead = killPeople(def, D.troops*(win?R(0.08,0.15):R(0.03,0.07)) + (win ? place.pop*R(0.03,0.07) : 0), place);
  if(win){
   place.owner = att; place.fort = Math.max(1, place.fort-1); const wasCap = place.capital; place.capital = false;
   const k = placeIdx(place); S.tiles[place.tile] = att; delDev(place.tile); CELLS.forEach((c,i)=>{ if(c[1]===k && S.tiles[i]===def) S.tiles[i]=att; });
@@ -447,12 +463,15 @@ function battle(att, place){
   if(wasCap){ const rest = owned(def); if(rest.length) rest.sort((a,b)=>b.dev-a.dev)[0].capital = true; }
   if(!owned(def).length) destroyRealm(def, att);
  }
- return {win, place:place.name};
+ return {win, place:place.name, aDead, dDead};
 }
+let LASTFIGHT = {a:0, d:0};
 function tileSkirmish(att, def){
- if(!def) return true;
- const a=strength(att)+1, d=strength(def)+1;
- return Math.random() < clamp(0.55 + (a - d*0.6)/(a+d)*0.8, 0.15, 0.92);
+ if(!def){ LASTFIGHT={a:0,d:0}; return true; }
+ const A=armyOf(att), D=armyOf(def), a=A.strength+1, d=D.strength+1;
+ const win = Math.random() < clamp(0.55 + (a - d*0.6)/(a+d)*0.8, 0.15, 0.92);
+ LASTFIGHT = { a: killPeople(att, A.troops*(win?R(0.005,0.015):R(0.015,0.035))), d: killPeople(def, D.troops*(win?R(0.015,0.035):R(0.005,0.015))) };
+ return win;
 }
 function destroyRealm(rid, by){
  const r = S.realms[rid]; r.alive = false;
@@ -834,13 +853,13 @@ const apMax = () => (S.rulerId && age(ruler())<16) ? 1 : DEEDS_PER_SEASON;   // 
 function useAP(){ if(S.ap<1) return false; S.ap--; return true; }
 function canAct(){ return S.ap>0 && !S.over; }
 function after(){ syncTowns(); save(); render(); }
-function actImprove(p){ const c=TOWNCOST.develop(p); if(!canPay(c.g,c.r)||!useAP()) return; S.gold-=c.g; S.res-=c.r; p.dev++; log(`${p.name} prospers: new markets and guildhalls (development ${p.dev}).`); after(); }
+function actImprove(p){ const c=TOWNCOST.develop(p); if(!canPay(c.g,c.r)||!useAP()) return; S.gold-=c.g; S.res-=c.r; p.dev++; p.pop=(p.pop??townPeople(p))+PEOPLE_PER_DEV; log(`${p.name} prospers: new markets and guildhalls (development ${p.dev}).`); after(); }
 function actFortify(p){ const c=TOWNCOST.fortify(p); if(p.fort>=4||!canPay(c.g,c.r)||!useAP()) return; S.gold-=c.g; S.res-=c.r; p.fort++; log(`The walls of ${p.name} are raised higher (fortification ${p.fort}).`); after(); }
 function actAttack(p){
  if(!atWar(S.player,p.owner)||!reachable(S.player,p)||!useAP()) return;
  const foe = S.realms[p.owner].name, res = battle(S.player,p);
- log(res.win?`Victory! ${p.name} taken from ${foe}.`:`Our assault on ${p.name} was repulsed.`, true);
- modal({title: res.win?`${p.name} is ours!`:`Repulsed at ${p.name}`, body:`<p>${res.win?"Our banners fly over the walls, and the countryside around it is ours.":"The defenders held the walls."}</p>`});
+ log(res.win?`Victory! ${p.name} taken from ${foe}. ${res.aDead} of ours fell.`:`Our assault on ${p.name} was repulsed. ${res.aDead} of ours fell.`, true);
+ modal({title: res.win?`${p.name} is ours!`:`Repulsed at ${p.name}`, body:`<p>${res.win?"Our banners fly over the walls, and the countryside around it is ours.":"The defenders held the walls."}</p><div class="row"><span>Our dead</span><span>${res.aDead.toLocaleString()}</span></div><div class="row"><span>${foe}'s dead, soldiers and townsfolk</span><span>${res.dDead.toLocaleString()}</span></div>`});
  if(res.win) selected = p.id; after();
 }
 function actDeclare(rid){
@@ -883,7 +902,7 @@ function foundCity(i, name){
  const d=devsAt(i).village, st=VILLAGE[2]; if(!d || d.lvl!==2 || S.tiles[i]!==S.player || !canPay(st.up.g, st.up.r)) return;
  S.gold-=st.up.g; S.res-=st.up.r; delDev(i); cellInit();
  const [x,y]=CELLC[i];
- S.places.push({id:"city"+(S.nextId++), name, x:+x.toFixed(1), y:+y.toFixed(1), owner:S.player, dev:1, base:CITY_PEOPLE, fort:1, port:isCoastal(i), capital:false, tile:i, founded:turn()});
+ S.places.push({id:"city"+(S.nextId++), name, x:+x.toFixed(1), y:+y.toFixed(1), owner:S.player, dev:1, base:CITY_PEOPLE, pop:CITY_PEOPLE, fort:1, port:isCoastal(i), capital:false, tile:i, founded:turn()});
  log(`The city of ${name} is chartered by royal decree.`, true);
  selected = S.places[S.places.length-1].id; after();
 }
@@ -892,8 +911,8 @@ function actOccupy(i){
  const o=S.tiles[i];
  if(!o || !atWar(S.player,o) || TOWNAT.has(i) || !tileAdj(S.player,i) || S.marches<1) return;
  S.marches--;
- if(tileSkirmish(S.player,o)){ S.tiles[i]=S.player; toast(`Our soldiers take the land from ${S.realms[o].name}.`); }
- else toast(`Our march was driven back by ${S.realms[o].name}.`);
+ if(tileSkirmish(S.player,o)){ S.tiles[i]=S.player; toast(`Our soldiers take the land from ${S.realms[o].name}. ${LASTFIGHT.a} of ours fell, ${LASTFIGHT.d} of theirs.`); }
+ else toast(`Our march was driven back by ${S.realms[o].name}. ${LASTFIGHT.a} of ours fell.`);
  after();
 }
 function actClaim(i){
@@ -908,12 +927,13 @@ function gameOver(text){
 /* ---------- end of season ---------- */
 function endSeason(){
  if(S.over) return;
- const summary = [], me = pr(), winter = S.season===3;
+ const summary = [], me = pr(), winter = S.season===3, popBefore = economy(S.player).people;
  const E = economy(S.player), starvedLast = S.starving>0;
  const inc = starvedLast ? Math.round(E.gold/2) : E.gold;
  S.gold += inc; S.res += E.res; S.food += E.netFood;
  if(S.food < 0){
   S.food = 0; S.starving++;
+  { const died = killPeople(S.player, E.people*R(0.03,0.06)*Math.min(3,S.starving)); if(died){ summary.push(`<b>${died.toLocaleString()} people starved to death</b> this season.`); log(`Famine: ${died.toLocaleString()} die of hunger.`, true); } }
   const vil = Object.keys(S.devs).filter(k=>S.devs[k].village && S.tiles[+k]===S.player);
   if(vil.length){ const k=pick(vil); delDev(+k,'village'); summary.push(`<b>Famine!</b> The granaries are empty. Starving families abandon a village and its people scatter.`); log("Famine: a village is abandoned.", true); }
   else { const edge=S.tiles.map((o,i)=>i).filter(i=>S.tiles[i]===S.player && !TOWNAT.has(i) && NEI[i].some(j=>S.tiles[j]!==S.player));
@@ -922,6 +942,8 @@ function endSeason(){
   summary.push("Taxes will bring in only half while the people starve. Build farms or fisheries.");
  } else S.starving = 0;
  villagesSeason(summary);
+ if(!S.starving) regrow(S.player);
+ for(const r of Object.values(S.realms)) if(r.alive && r.id!==S.player) regrow(r.id);
  knightsSeason(summary);
  // AI realms
  for(const r of Object.values(S.realms)){
@@ -933,7 +955,7 @@ function endSeason(){
    if(Math.random()<(winter?0.05:0.15)){
     const targets = owned(e).filter(p=>reachable(r.id,p)).sort((a,b)=>defenseOf(a)-defenseOf(b));
     if(targets.length){ const t=targets[0], res=battle(r.id,t);
-     if(e===S.player){ summary.push(res.win?`<b>${r.name} captured ${t.name}!</b>`:`${r.name} assaulted ${t.name}, but our walls held.`); if(res.win) log(`${r.name} captured ${t.name}!`, true); }
+     if(e===S.player){ summary.push(res.win?`<b>${r.name} captured ${t.name}!</b> ${res.dDead.toLocaleString()} of our people died.`:`${r.name} assaulted ${t.name}, but our walls held. ${res.dDead.toLocaleString()} of ours fell, and ${res.aDead.toLocaleString()} of theirs.`); if(res.win) log(`${r.name} captured ${t.name}!`, true); }
      else if(res.win) log(`${r.name} seized ${t.name} from ${S.realms[e].name}.`); }
    }
    const yrs = S.year - (r.warStart[e]||S.year);
@@ -946,8 +968,8 @@ function endSeason(){
   { const front=[], wild=[];
     for(let i=0;i<S.tiles.length;i++){ const t=S.tiles[i]; if(t===r.id || TOWNAT.has(i) || !tileAdj(r.id,i)) continue; if(t===null) wild.push(i); else if(atWar(r.id,t)) front.push(i); }
     let lostHere=0; const tries = winter ? 0 : 1 + (Math.random()<0.5?1:0);
-    for(let n=0;n<tries && front.length;n++){ const i=front.splice(Math.floor(Math.random()*front.length),1)[0], d=S.tiles[i]; if(tileSkirmish(r.id,d)){ S.tiles[i]=r.id; if(d===S.player) lostHere++; } }
-    if(lostHere) summary.push(`${r.name} occupied ${lostHere} of our lands.`);
+    let fellHere=0; for(let n=0;n<tries && front.length;n++){ const i=front.splice(Math.floor(Math.random()*front.length),1)[0], d=S.tiles[i]; const w=tileSkirmish(r.id,d); if(d===S.player) fellHere+=LASTFIGHT.d; if(w){ S.tiles[i]=r.id; if(d===S.player) lostHere++; } }
+    if(lostHere || fellHere) summary.push(`${lostHere?`${r.name} occupied ${lostHere} of our lands. `:`We held our borders against ${r.name}. `}${fellHere} of our people died in the fighting.`);
     if(wild.length && Math.random()<0.15) S.tiles[pick(wild)]=r.id; }
   if(r.atWar.length===0 && !winter && Math.random()<0.024){
    const opts = neighbours(r.id).filter(o=>!truce(r.id,o) && !(o===S.player && S.allies[r.id]) && strength(o) < strength(r.id)*(o===S.player?0.85:0.95));
@@ -966,8 +988,9 @@ function endSeason(){
  if(!winter && Math.random()<0.3) S.events.push({kind:pick(["plague","harvest","envoy"])});
  S.ap = apMax(); S.marches = maxMarches();
  if(S.year>=1650 && !S.over) gameOver(`The year 1650 dawns, and the chroniclers close their book on House ${S.dynasty}.`);
+ S.popDelta = economy(S.player).people - popBefore;
  const notable = summary.length>0;
- summary.push(`Treasury +${inc} gold · food ${E.netFood>=0?"+":""}${E.netFood} · resources +${E.res}.`);
+ summary.push(`Treasury +${inc} gold · food ${E.netFood>=0?"+":""}${E.netFood} · resources +${E.res} · people ${S.popDelta>=0?"+":""}${S.popDelta.toLocaleString()}.`);
  if(notable) modal({title:`${endedLabel} Ends`, body: summary.map(x=>`<p>${x}</p>`).join("")});
  else toast(`${endedLabel} passes quietly. +${inc} gold, ${E.netFood>=0?"+":""}${E.netFood} food, +${E.res} resources.`);
  const evs=S.events; S.events=[]; for(const e of evs){ const f=EVENTS[e.kind]; if(f) modal(()=>f(e)); }
@@ -975,7 +998,7 @@ function endSeason(){
 }
 const EVENTS = {
  plague: () => { const p=pick(owned(S.player)); if(!p) return null; return {title:`Pestilence in ${p.name}`, body:`<p>Sickness spreads through the crowded streets of ${p.name}.</p>`,
-  choices:[{label:"Pay for quarantine and physicians", sub:"60 gold", disabled:S.gold<60, fn:()=>{S.gold-=60;}},{label:"Seal the gates and wait", sub:"The town loses development", fn:()=>{p.dev=Math.max(1,p.dev-1); log(`Plague ravages ${p.name}.`);}}]}; },
+  choices:[{label:"Pay for quarantine and physicians", sub:"60 gold", disabled:S.gold<60, fn:()=>{S.gold-=60;}},{label:"Seal the gates and wait", sub:"Many in the town will die", fn:()=>{ const d=killPeople(S.player, p.pop*R(0.10,0.20), p); log(`Plague ravages ${p.name}: ${d.toLocaleString()} dead.`, true); }}]}; },
  harvest: () => { const g=RI(30,70); S.gold+=g; return {title:"A Bountiful Harvest", body:`<p>Granaries overflow across ${pr().name}. The treasury gains ${g} gold.</p>`}; },
  envoy: () => { const ns=neighbours(S.player).filter(r=>!atWar(S.player,r)); if(!ns.length) return null; const r=pick(ns); reveal(r); const ask=RI(50,120);
   return {title:`An Envoy from ${S.realms[r].name}`, body:`<p>The envoy of ${S.realms[r].name} demands ${ask} gold as tribute, "for the sake of peace".</p>`,
@@ -994,7 +1017,7 @@ function render(){
   {k:"Season", v:when()},
   {k:"Gold", v:Math.round(S.gold), d:"+"+(S.starving?Math.round(E.gold/2):E.gold), t:`+${E.gold} a season: ${E.goldTiles} from ${E.tiles} lands (3 each), ${E.goldPeople} from ${E.people} people (1 per 50)${E.goldMines?`, ${E.goldMines} from ${E.mines} gold mine${E.mines>1?"s":""}`:""}${S.starving?" · halved while starving":""}`},
   {k:"Food", v:S.food, d:sg(E.netFood), bad:E.netFood<0||S.starving, t:`${sg(E.netFood)} a season: +${E.food} from ${E.farms} farm${E.farms===1?"":"s"} and ${E.fish} fisher${E.fish===1?"y":"ies"}, −${E.eat} eaten by ${E.people} people (1 per 100)`},
-  {k:"People", v:E.people.toLocaleString(), t:`${E.townPeople} in towns, ${E.villagePeople} in ${E.villages} village${E.villages===1?"":"s"}`},
+  {k:"People", v:E.people.toLocaleString(), d:S.popDelta?(S.popDelta>0?"+":"")+S.popDelta.toLocaleString():"", bad:(S.popDelta||0)<0, t:`${E.townPeople.toLocaleString()} in towns (room for ${E.capacity.toLocaleString()}; they regrow 3% a season while fed), ${E.villagePeople} in ${E.villages} village${E.villages===1?"":"s"}${S.dead?` · ${S.dead.toLocaleString()} lost to war, famine and plague this reign`:""}`},
   {k:"Towns", v:owned(S.player).length},
   {k:"Lands", v:E.tiles, t:`${E.wild} left wild (they yield resources)`},
   {k:"Resources", v:Math.round(S.res), d:"+"+E.res, t:`+${E.res} a season: 1 from each of ${E.wild} held tiles with nothing built on them`}];
@@ -1153,7 +1176,7 @@ function renderCard(){
  if(!p){ c.style.display="none"; return; }
  const o=S.realms[p.owner], mine=p.owner===S.player, ap=canAct();
  let h = `<button class="x" aria-label="Close">×</button><h3>${p.name}</h3><div class="sub"><b style="color:${o.color}">●</b> ${o.name}${p.capital?" · capital":""}${p.port?" · port":""}</div>
-  ${mine?"":`<p class="note">${rulerOf(p.owner)}</p>`}<div class="row"><span>Development</span><span>level ${p.dev} · ${townPeople(p).toLocaleString()} people</span></div>${p.founded!=null?`<div class="row"><span>Chartered</span><span>${when(p.founded)}</span></div>`:""}<div class="row"><span>Fortification</span><span>${p.fort}</span></div>`;
+  ${mine?"":`<p class="note">${rulerOf(p.owner)}</p>`}<div class="row"><span>Development</span><span>level ${p.dev}</span></div><div class="row"><span>People</span><span>${(p.pop??townPeople(p)).toLocaleString()} of ${townPeople(p).toLocaleString()}${(p.pop??0)<townPeople(p)?" · recovering":""}</span></div>${p.founded!=null?`<div class="row"><span>Chartered</span><span>${when(p.founded)}</span></div>`:""}<div class="row"><span>Fortification</span><span>${p.fort}</span></div>`;
  if(mine){
   { const c=TOWNCOST.develop(p); h += btn("Develop the city", `${c.g} gold, ${c.r} resources · +${PEOPLE_PER_DEV} people (the cost doubles each time)`, ()=>actImprove(p), !ap||!canPay(c.g,c.r)); }
   if(p.port){ h += `<div class="row"><span>Fleet</span><span>${p.ships==null?"none":!shipsReady(p)?"building, ready "+when(p.ships):portBusy(p)?"at sea":"in harbour"}</span></div>`;
@@ -1341,7 +1364,7 @@ $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
 $("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
-$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have two <b>deeds</b> (developing or fortifying a town, building ships, exploring, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or build ships in a port town to send fleets over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
+$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have two <b>deeds</b> (developing or fortifying a town, building ships, exploring, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields <b>resources</b>, which every building needs, so keep some land undeveloped. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The world beyond your borders is hidden in fog. Send scouts overland, or build ships in a port town to send fleets over the sea; voyages take several seasons. Press <b>End Season</b> to let time pass.</p>`});
 }
 </script>
 </body>
