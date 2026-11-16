@@ -101,6 +101,25 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 #map #rlabels text.me{fill:#5a0e0e}
 #map.far #places, #map.far #devs, #map.far #dlabels{display:none}
 #map:not(.far) #rlabels{display:none}
+.ped{display:flex;flex-direction:column;align-items:center;width:max-content;min-width:100%;padding:10px 20px 20px}
+.pnode{display:flex;flex-direction:column;align-items:center}
+.pcouple{display:flex;align-items:flex-end;position:relative}
+.pside{display:flex;justify-content:center;align-items:flex-end}
+.phrt{position:absolute;left:50%;bottom:33px;transform:translateX(-50%);color:#a3302a;font-size:15px}
+.pcouple::after{content:"";position:absolute;bottom:42px;left:calc(25% + 76px);right:calc(25% + 76px);border-top:2px solid #6b4a1e88}
+.pvl{width:0;height:16px;border-left:2px solid #6b4a1e88}
+.pcw{display:flex;justify-content:center;padding:0 6px}
+.psibs{display:flex;justify-content:center;align-items:flex-start;gap:12px;position:relative}
+.psib{position:relative;padding-top:14px;display:flex;flex-direction:column;align-items:center}
+.psibs.top > .psib{padding-top:0}.psibs.top > .psib::before{display:none}
+.psib.wed > .pself{align-self:flex-start}.psib.wed::before{left:76px}.psibs.many > .psib.wed:first-child::after{left:76px}
+.psib.wed > .pvl{align-self:center}
+.pself .hrt{color:#a3302a;font-size:16px;margin:0 4px}
+.psib::before{content:"";position:absolute;top:0;left:50%;height:14px;border-left:2px solid #6b4a1e88}
+.psibs.many .psib::after{content:"";position:absolute;top:0;left:-6px;right:-6px;border-top:2px solid #6b4a1e88}
+.psibs.many .psib:first-child::after{left:50%}.psibs.many .psib:last-child::after{right:50%}
+.pself{display:flex;align-items:center}.pself > .pc:first-child::before{content:"";}
+.pc.unk{opacity:.45;border-style:dashed;cursor:default}
 .pedi{display:flex;gap:10px;margin:0 0 8px;padding:8px;max-height:230px;overflow-y:auto;border:1px solid #6b4a1e55;border-radius:6px;background:rgba(255,240,205,.25);overflow-x:auto}
 .pedi .pcol{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:150px}.pedi .pcol.self{min-width:170px}
 .pedi .ph{font:400 14px 'IM Fell English',serif;color:var(--accent)}
@@ -317,7 +336,7 @@ const TERRAIN="ccmmscccccmmsscacmmmcccccmmccccccmmcmmffcccmmmmmmmccccmmmmmcccccm
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.4.10";
+const VERSION = "pre-alpha v0.4.11";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -1995,7 +2014,35 @@ function ensureInLaws(sp){
  for(const x of made) if(!(x.ruled && x.ruled[1]==null)){ if(x.died!=null && x.died-x.born>80) x.died=null; oldAge(x); }
 }
 const topAncestor = p => { let x=p, n=0; while(n++<6){ const up=person(x.father)||person(x.mother); if(!up) break; x=up; } return x; };
-let FTVIEW = null, FTLINEALL = false, FTROOT = null, FTRESET = false;   // null: our own house; otherwise the id of a spouse whose family is shown
+let FTVIEW = null, FTLINEALL = false, FTROOT = null, FTRESET = false, FTMODE = "person";   // null: our own house; otherwise the id of a spouse whose family is shown
+/* One person's family drawn as a tree: their ancestors branching upwards (father's line on the left, mother's on the right),
+   their brothers and sisters beside them, and their spouses and children below. */
+function ensureParents(p){
+ if(!p || p.father || p.mother || p.pgen) return; p.pgen=true; if(p.born < S.year-170) return;
+ const ours = p.house===S.dynasty;
+ if(!ours){ ensureInLaws(p); if(p.father || p.mother) return; }
+ const fb=p.born-RI(22,34), f=newPerson({name:pick(MALE), gender:"m", born:fb, house:p.house, origin:p.origin, realm:p.realm, inlaw:!ours, filled:true});
+ const m=newPerson({name:pick(FEMALE), gender:"f", born:fb+RI(-3,6), house:pick(NOBLE_HOUSES), origin:"noble", inlaw:!ours, filled:true});
+ if(ours && p.ruled && !p.ruledRealm){ f.ruled=[p.ruled[0]-RI(12,30), p.ruled[0]]; f.died=p.ruled[0]; }
+ f.spouses.push(m.id); m.spouses.push(f.id); f.children.push(p.id); m.children.push(p.id); p.father=f.id; p.mother=m.id; oldAge(f); oldAge(m); }
+const PEDW = 172, PEDUP = 4;
+function pedSlots(p,d){ if(!p || d>=PEDUP) return 1; const f=person(p.father), m=person(p.mother); if(!f && !m) return 1; return 2*Math.max(pedSlots(f,d+1), pedSlots(m,d+1)); }
+const unknownCard = lbl => `<span class="pc unk"><b>Unknown</b><div class="pcl">${lbl}</div></span>`;
+const GEN_NAMES = ["", ["father","mother"], ["grandfather","grandmother"], ["great-grandfather","great-grandmother"], ["great-great-grandfather","great-great-grandmother"]];
+function pedParents(p, d){   // the couple above p, each with their own ancestors, side by side
+ const f=person(p.father), m=person(p.mother); if(!f && !m) return "";
+ const half=Math.max(pedSlots(f,d), pedSlots(m,d));
+ const side=(x,k)=>`<div class="pside" style="width:${half*PEDW}px">${x ? pedNode(x,d) : `<div class="pcw">${unknownCard(GEN_NAMES[d]?.[k]||"")}</div>`}</div>`;
+ return `<div class="pcouple">${side(f,0)}${side(m,1)}<span class="phrt">♥</span></div><div class="pvl"></div>`; }
+function pedNode(p, d){ return `<div class="pnode">${d<PEDUP ? pedParents(p, d+1) : ""}<div class="pcw">${pcard(p)}</div></div>`; }
+function familyOf(p){
+ const f=person(p.father), m=person(p.mother);
+ let sibs=[...new Set([...(f?.children||[]), ...(m?.children||[])])].map(person).filter(Boolean).sort((a,b)=>a.born-b.born); if(!sibs.includes(p)) sibs=[p];
+ let h = pedParents(p, 1);
+ const kids=p.children.map(person).filter(Boolean).sort((a,b)=>a.born-b.born), sps=p.spouses.map(person).filter(Boolean);
+ const self = `<div class="pself">${pcard(p)}${sps.map(sp=>`<span class="hrt">♥</span>${pcard(sp)}`).join("")}</div>` + (kids.length ? `<div class="pvl"></div><div class="psibs${kids.length>1?" many":""}">${kids.map(k=>`<div class="psib">${pcard(k)}</div>`).join("")}</div>` : "");
+ h += `<div class="psibs${sibs.length>1?" many":""}${f||m?"":" top"}">${sibs.map(x=>`<div class="psib${x===p?" me":""}${x===p&&sps.length?" wed":""}">${x===p ? self : pcard(x)}</div>`).join("")}</div>`;
+ return h; }
 /* Ancestry of whoever is selected: parents, grandparents and great-grandparents. */
 function pedigree(p){ if(!p) return "";
  const cell=(x,lbl)=>x ? `<span class="pd${x.died!=null?" dead":""}${x.ruled?" ruled":""}" data-pid="${x.id}" title="${lbl}: ${x.name}, House ${x.house}"><b>${x.name}</b><i>${lbl} · ${x.died!=null?`${x.born}–${x.died}`:`b. ${x.born}`} · House ${x.house}${x.ruled?" · ♛":""}</i></span>` : `<span class="pd none"><i>${lbl} · unknown</i></span>`;
@@ -2007,25 +2054,16 @@ function pedigree(p){ if(!p) return "";
 function renderFamily(){
  SLINE = successionLine();
  const focus = person(FTFOCUS) || ruler(); FTFOCUS_ID = focus?.id;
- /* whoever is clicked, the tree shows their ancestry: our own house for those of our blood, otherwise their own family */
- { const ours=bloodOf(ruler()); if(focus && focus.house!==S.dynasty && !(ours.has(focus.father)||ours.has(focus.mother)) && !(ours.has(focus.id) && !focus.spouses.length)){ ensureInLaws(focus); FTVIEW=focus.id; } else FTVIEW=null; }
  BLOOD = focus ? bloodOf(focus) : new Set();
- const r=ruler(); let h=`<h2>${FTVIEW&&person(FTVIEW)?`House ${person(FTVIEW).house} · the family of ${person(FTVIEW).name}`:`House ${S.dynasty}`}</h2><p class="note">Every sovereign, consort and child of the bloodline. Children of a foreign consort carry a claim to that kingdom: when its ruler dies they may inherit it, uniting both crowns.</p>`;
- const nb=BLOOD.size-1, isR=focus.id===S.rulerId;
+ const r=ruler(), isR=focus.id===S.rulerId, house=FTMODE==="house";
+ if(!house){ const up=(p,d)=>{ if(!p || d>=3) return; ensureParents(p); up(person(p.father),d+1); up(person(p.mother),d+1); }; up(focus,0); }
+ let h=`<h2>${house?`House ${S.dynasty}`:`The family of ${focus.name}`}</h2><p class="note">${house?"Every sovereign, consort and child of the bloodline. Children of a foreign consort carry a claim to that kingdom: when its ruler dies they may inherit it, uniting both crowns.":`${focus.name}${isR?", the reigning monarch":relLabel(focus)&&relLabel(focus)!=="kin"?`, the sovereign's ${relLabel(focus)}`:""}, of House ${focus.house}: parents, grandparents and great-grandparents above, brothers and sisters alongside, and their own family below. Click anyone to see their family.`}</p>`;
  h += `<div class="treebar">${btn("−","",()=>ftZoom(1/1.2)).replace('class="btn"','class="zb" title="Zoom out"')}<span id="ftzl" style="min-width:42px;text-align:center">${Math.round(FTZ*100)}%</span>${btn("+","",()=>ftZoom(1.2)).replace('class="btn"','class="zb" title="Zoom in"')}${btn("⤢","",()=>ftZoom(0)).replace('class="btn"','class="zb" title="Reset zoom"')}
-  <span class="lin">Showing the bloodline of <b>${focus.name}</b>${isR?", the reigning monarch":""}: ${nb} blood relative${nb===1?"":"s"} in the tree, lit up. Click anyone to see their bloodline. Drag to move around; Ctrl + scroll to zoom.</span>
-  ${isR?"":btn("Back to the monarch","",()=>{ FTFOCUS=null; render(); })}</div>`;
- { const blood=bloodOf(ruler()), ins=[]; for(const id of blood){ const p=person(id); if(!p || p.inlaw) continue; for(const x of p.spouses.map(person)) if(x && (!blood.has(x.id) || x.house!==S.dynasty && !x.father && !x.mother || x.house!==S.dynasty && x.inlawsDone) && x.house!==S.dynasty && !ins.includes(x)) ins.push(x); }
-  if(person(FTVIEW) && !ins.includes(person(FTVIEW))) ins.push(person(FTVIEW));
-  const rk=x=>{ const L=relLabel(x); return x.spouses.includes(S.rulerId)?0:/^(son|daughter)'s/.test(L)?1:/^(brother|sister)'s/.test(L)?2:/^(nephew|niece|grandson|granddaughter)'s/.test(L)?3:4; };
-  ins.sort((a,b)=>rk(a)-rk(b) || a.born-b.born);
-  if(ins.length){ const cur=person(FTVIEW);
-   h += `<div class="ftsel"><label for="ftsel">Family tree shown</label><select id="ftsel"><option value="">House ${S.dynasty} · our own house</option>${ins.map(x=>`<option value="${x.id}"${FTVIEW && (FTVIEW===x.id || topAncestor(person(FTVIEW))===topAncestor(x)) && !ins.slice(0,ins.indexOf(x)).some(y=>topAncestor(y)===topAncestor(x)) ?" selected":""}>House ${x.house} · the family of ${x.name}, ${relLabel(x)}${living(x)?"":" (late)"}${x.realm&&S.realms[x.realm]?` · ${S.realms[x.realm].name}`:""}</option>`).join("")}</select>${cur?btn("Back to our own house","",()=>{ FTFOCUS=null; render(); }).replace('class="btn"','class="btn mini"'):""}</div>`; }
- }
- const view=person(FTVIEW), root = view ? topAncestor(view) : (person(S.elderId) || person(S.founderId));
- FTRESET = FTROOT!==root?.id; FTROOT=root?.id;
- h += pedigree(focus);
- h += `<div class="tree lineage" id="ftree"><ul style="zoom:${FTZ}">${treeNode(root)}</ul></div>`;
+  <span class="lin">${house?`The whole house, from the eldest ancestors down. Blood relatives of <b>${focus.name}</b> are lit up.`:`Showing the family of <b>${focus.name}</b>.`} Click anyone to see their family. Drag to move around; Ctrl + scroll to zoom.</span>
+  ${isR?"":btn("Back to the monarch","",()=>{ FTFOCUS=null; FTMODE="person"; render(); })}${btn(house?`Family of ${focus.name}`:`Whole house of ${S.dynasty}`,"",()=>{ FTMODE=house?"person":"house"; render(); })}</div>`;
+ const key=FTMODE+":"+focus.id; FTRESET = FTROOT!==key; FTROOT=key;
+ h += house ? `<div class="tree lineage" id="ftree"><ul style="zoom:${FTZ}">${treeNode(person(S.elderId) || person(S.founderId))}</ul></div>`
+            : `<div class="tree lineage pedtree" id="ftree"><div class="ped" style="zoom:${FTZ}">${familyOf(focus)}</div></div>`;
  const hh=heir(), law=S.law||"primo", named=person(S.heirId), byLaw=naturalLine()[0], lawWait=16-(turn()-(S.lawT??-99));
  h += `<h4>The succession</h4><div class="person" style="border:1px solid #b8892d"><b>${CROWN_SVG.replace('<svg','<svg style="width:18px;height:12px;vertical-align:-1px"')} The heir: ${hh?`${hh.name}, ${relLabel(hh)}, aged ${age(hh)}`:"none"}</b>
   <div class="meta">${!hh?"No one of the blood remains to inherit: the dynasty ends with this reign.":living(named)&&hh===named&&named!==byLaw?`Named by the sovereign. By law the crown would go to ${byLaw?.name||"no one"}.`:`Heir by the law of ${LAWS[law].name.toLowerCase()}.`}</div>
@@ -3021,7 +3059,7 @@ document.addEventListener("keydown", e=>{ if(e.key!=="Escape" || $("modalbg").st
 document.addEventListener("click", e=>{
  const b=e.target.closest("[data-b]"); if(b && BTN[b.dataset.b] && !b.disabled){ BTN[b.dataset.b](); return; }
  const wn=e.target.closest(".web .wn"); if(wn){ if(WEBDRAG){ WEBDRAG=false; return; } WEBFOCUS = WEBFOCUS===wn.dataset.id ? null : wn.dataset.id; render(); return; }
- const pc=e.target.closest("#ftree .pc[data-pid], .pedi .pd[data-pid]"); if(pc){ if(FTDRAG){ FTDRAG=false; return; } FTFOCUS=pc.dataset.pid; FTKEEP=true; render(); return; }
+ const pc=e.target.closest("#ftree .pc[data-pid]"); if(pc){ if(FTDRAG){ FTDRAG=false; return; } FTFOCUS=pc.dataset.pid; FTMODE="person"; render(); return; }
  if(e.target.closest("#card .x")){ ROUTE=null; if(COLONY_PICK && !String(selected||"").startsWith("col:")) COLONY_PICK=null; selected=null; render(); }
 });
 $("endyear").onclick = endSeason;
