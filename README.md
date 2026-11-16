@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.5.1**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.5.2**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -72,3 +72,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.4.9 — zoomed out, the map shows only the names of the kingdoms: city names, town markers, building icons and district names disappear once the view is wider than 600 map units, and each kingdom's name is written over its largest stretch of land, sized to the realm and nudged so names never overlap each other or the sea names. Our own kingdom's name is in dark red. Zooming back in brings the cities and icons back.
 - v0.4.10 — an assassin joins the royal court. Once appointed, the assassin can be sent against any known foreign monarch for 10,000 gold and a deed; the blow falls by season's end. The chance (shown before sending) rises with the assassin's skill and with a secret held over that kingdom, and falls behind strong walls and castles. A killed monarch's crown passes to an heir, or to one of our blood if we hold a claim. A murder traced to us, or a failed attempt that is uncovered, enrages that kingdom (it will likely declare war), breaks any alliance with it, and lowers every court's opinion of us; a failed assassin may be caught and executed.
 - v0.5.1 (renamed from v0.4.11) — the dead are shown on black cards in every family tree, and every person has a drawn family tree: the Family page opens on the monarch's own tree, and clicking anyone redraws it as theirs — father's line on the left and mother's on the right, up through grandparents, great-grandparents and great-great-grandparents, with their brothers and sisters alongside and their spouse and children below. Missing ancestors are filled in as you explore. The ancestry strip and the house list at the top are gone; a button switches to the whole house of the dynasty and back.
+- v0.5.2 — the dead are shown with a soft dark tint over their card rather than solid black, and the family tree's lines now run unbroken from card to card: each couple's line drops straight from between the two cards to their children, and the line to a married person's children starts from the couple.
