@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.4.9**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.4.10**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -70,3 +70,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.4.7 — the Family page follows whoever is clicked: an ancestry strip above the tree shows their parents, grandparents and great-grandparents (click any of them to move up a generation), and clicking someone who married into the family switches the tree to their own family automatically; clicking anyone of our blood brings our own house back. In-law ancestors now get realistic lifespans.
 - v0.4.8 — map fix: the Gaillimh town marker sat just off its own tile on the Galway Bay coast; the map generator now moves any town marker that falls outside its tile just inside it (only Gaillimh moved, by under 2px; tiles are unchanged, so saves still load). The coastline audit now fails, rather than warns, when a town marker is off its tile.
 - v0.4.9 — zoomed out, the map shows only the names of the kingdoms: city names, town markers, building icons and district names disappear once the view is wider than 600 map units, and each kingdom's name is written over its largest stretch of land, sized to the realm and nudged so names never overlap each other or the sea names. Our own kingdom's name is in dark red. Zooming back in brings the cities and icons back.
+- v0.4.10 — an assassin joins the royal court. Once appointed, the assassin can be sent against any known foreign monarch for 10,000 gold and a deed; the blow falls by season's end. The chance (shown before sending) rises with the assassin's skill and with a secret held over that kingdom, and falls behind strong walls and castles. A killed monarch's crown passes to an heir, or to one of our blood if we hold a claim. A murder traced to us, or a failed attempt that is uncovered, enrages that kingdom (it will likely declare war), breaks any alliance with it, and lowers every court's opinion of us; a failed assassin may be caught and executed.

@@ -317,7 +317,7 @@ const TERRAIN="ccmmscccccmmsscacmmmcccccmmccccccmmcmmffcccmmmmmmmccccmmmmmcccccm
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.4.9";
+const VERSION = "pre-alpha v0.4.10";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -1413,11 +1413,16 @@ function claimants(rid){ return Object.values(S.people).filter(p=>living(p) && p
 function aiRulersSeason(summary){
  for(const r of Object.values(S.realms)){ if(!r.alive || r.id===S.player || !r.ruler) continue;
   if(Math.random() >= deathChance(r.ruler.age)) continue;
-  const dead=r.ruler, cl=claimants(r.id);
-  if(cl.length && Math.random()<0.5){ unite(r.id, cl.sort((a,b)=>a.born-b.born)[0], dead, summary); continue; }
-  r.ruler = randomRuler(Math.random()<0.75 ? dead.house : null); r.ruler.age = RI(18,45);
-  if(known(r.id)) log(`${dead.gender==="m"?"King":"Queen"} ${dead.name} of ${r.name} has died; ${r.ruler.name} of House ${r.ruler.house} takes the throne.`);
+  aiRulerDies(r, summary);
  }
+}
+function aiRulerDies(r, summary, how="has died"){   // returns the claimant who inherited, if one did
+ const dead=r.ruler, cl=claimants(r.id);
+ for(const p of Object.values(S.people)) if(p.ruledRealm===r.id && living(p) && p.ruled && p.ruled[1]==null){ p.died=S.year; p.ruled[1]=S.year; }
+ if(cl.length && Math.random()<0.5){ const c=cl.sort((a,b)=>a.born-b.born)[0]; unite(r.id, c, dead, summary); return c; }
+ r.ruler = randomRuler(Math.random()<0.75 ? dead.house : null); r.ruler.age = RI(18,45);
+ if(known(r.id)) log(`${dead.gender==="m"?"King":"Queen"} ${dead.name} of ${r.name} ${how}; ${r.ruler.name} of House ${r.ruler.house} takes the throne.`);
+ return null;
 }
 function unite(rid, claimant, dead, summary){
  const r=S.realms[rid];
@@ -1705,8 +1710,37 @@ function renderNations(){
 const OFFICES = {
  spymaster:{name:"Spymaster", blurb:"Sends agents into other kingdoms to bring back secrets: leverage for treaties, trade and marriages."},
  chancellor:{name:"Chancellor", blurb:"Our lead diplomat: every treaty and match is likelier, and diplomats win more goodwill."},
- jester:{name:"Jester", blurb:"Keeps the court laughing: the consort's affection and the knights' loyalty hold better."}
+ jester:{name:"Jester", blurb:"Keeps the court laughing: the consort's affection and the knights' loyalty hold better."},
+ assassin:{name:"Assassin", blurb:"A blade in the dark: can be sent to kill a foreign monarch, for a hefty price."}
 };
+/* The assassin: for 10,000 gold and a deed, sent against a foreign sovereign. The deed is done (or botched) by season's end.
+   Success kills the monarch and their kingdom passes to an heir, or to one of our blood if we hold a claim. A botched attempt,
+   or a murder traced back to us, enrages the victim's kingdom and may start a war. */
+const ASSASSIN_COST = 10000;
+const assassinChance = (p, rid) => { const cap=owned(rid).find(q=>q.capital); return clamp(25 + p.skill*5 + ((S.secrets?.[rid]||[]).length?10:0) - (cap?(cap.fort-1)*4 + (cap.bld?.castle||0)*3:0), 10, 80); };
+function actAssassinate(rid){ const a=officer("assassin"), r=S.realms[rid]; if(!a || !r?.alive || rid===S.player || S.over || S.gold<ASSASSIN_COST || S.plot || !useAP()) return;
+ S.gold-=ASSASSIN_COST; S.plot={rid, eta:turn()+1, target:r.ruler.name, chance:assassinChance(a,rid)};
+ log(`${a.name} rides out in secret, bound for the court of ${r.name}.`); toast(`${a.name} slips away towards ${r.name}. The deed will be done, or botched, by season's end.`); after(); }
+function resolvePlot(summary){ const m=S.plot; if(!m || turn()<m.eta) return; S.plot=null; const r=S.realms[m.rid], a=officer("assassin");
+ if(!r?.alive){ summary.push(`Our assassin returns: ${r?.name||"the kingdom"} has fallen, and there is no one left to kill.`); return; }
+ if(r.ruler.name!==m.target){ summary.push(`Our assassin returns from ${r.name}: ${m.target} was already dead. The gold is spent.`); return; }
+ const title=`${r.ruler.gender==="f"?"Queen":"King"} ${r.ruler.name} of ${r.name}`, sk=a?a.skill:3, ally=!!S.allies[m.rid];
+ const outrage = (rel, why) => { r.rel=clamp((r.rel||0)-rel,-100,100); if(ally){ delete S.allies[m.rid]; why+=` Our alliance with ${r.name} is broken.`; }
+  for(const o of Object.values(S.realms)) if(o.alive && o.id!==S.player && o.id!==m.rid && known(o.id)) o.rel=clamp((o.rel||0)-8,-100,100);
+  let war=""; if(!atWar(S.player,m.rid) && Math.random()<0.6){ setWar(S.player, m.rid); war=` <b>${r.name} declares war on us.</b>`; callAllies(m.rid, summary); }
+  return why+war; };
+ if(Math.random()*100 < m.chance){
+  const heirOurs = aiRulerDies(r, summary, "has been murdered");
+  log(`${title} is found dead. Our assassin's work.`, true);
+  let txt=`<b>${title} is dead.</b> Our assassin struck in the night${heirOurs?"":`, and ${r.ruler.name} of House ${r.ruler.house} now takes the throne`}.`;
+  if(Math.random() < 0.45 - sk*0.035){ txt += " " + outrage(60, `But the trail leads back to us: ${r.name} knows who paid for the knife, and every court is appalled.`); log(`The murder of ${m.target} is traced to our court.`, true); }
+  else txt += ` No one suspects our hand.`;
+  summary.push(txt); return; }
+ let txt=`<b>The assassination of ${title} has failed.</b>`;
+ if(a && Math.random()<0.5){ a.died=S.year; S.court.assassin=null; txt+=` ${a.name} was taken and executed; the office of assassin is vacant.`; } else txt+=` ${a?a.name:"Our assassin"} escaped with their life.`;
+ if(Math.random()<0.7){ txt += " " + outrage(40, `${r.name} has learned who sent the killer.`); log(`Our assassin fails in ${r.name}, and the plot is uncovered.`, true); }
+ else { txt += ` No one traced the attempt to us.`; log(`Our assassin fails in ${r.name}.`, true); }
+ summary.push(txt); }
 const SECRET_BONUS = 35, SPY_COST = 40, HIRE_COST = 50;
 const SECRETS = ["letters proving the king's debts to Lombard bankers","word of a secret mistress kept at a hunting lodge","a plot among the barons to depose the crown","proof the treasury is all but empty","the heir's true father is not the king","bribes paid to a cardinal","a hidden Protestant chaplain at court","the queen's secret correspondence with a rival court","the army's pay is three seasons behind","forged charters for the royal forests","a murdered envoy buried in the castle grounds","plans to raise taxes on the guilds"];
 const JESTS = ["“Why did the bishop cross the moat? To tithe the other side.”","The jester juggles three turnips and a goblet, and drops only the goblet.","A song about the chancellor's beard sets the hall roaring.","The jester wears the crown for a moment, and nobody laughs harder than the sovereign.","“A knight, a monk and a tax collector walk into a tavern. Only two walk out richer.”","A mock tourney with brooms and buckets ends in applause."];
@@ -1714,7 +1748,7 @@ const officer = k => { const p=person((S.court||{})[k]); return living(p) ? p : 
 const chancellorBonus = () => { const c=officer("chancellor"); return c ? c.skill*2 : 0; };
 function useSecretIf(rid){ if(!NATSECRET) return false; const L=(S.secrets||{})[rid]; if(!L?.length) return false; const sec=L.shift(); const r=S.realms[rid]; r.rel=clamp((r.rel||0)-10,-100,100); log(`We hold ${sec} over ${r.name}.`); NATSECRET=false; return true; }
 function courtCandidates(k){ S.courtCands ||= {}; const C=S.courtCands[k]; if(C && turn()-C.t<4 && C.list.every(id=>person(id))) return C.list.map(person).filter(p=>living(p) && !Object.values(S.court||{}).includes(p.id));
- const list=[]; for(let n=0;n<3;n++){ const g=Math.random()<(k==="jester"?0.85:0.75)?"m":"f"; const p=newPerson({name:pick(g==="m"?MALE:FEMALE), gender:g, born:S.year-RI(22,55), house:pick(NOBLE_HOUSES), origin:"noble", noble:true, courtier:true, skill:RI(2,9)}); list.push(p.id); }
+ const list=[]; for(let n=0;n<3;n++){ const g=Math.random()<(k==="jester"?0.85:k==="assassin"?0.7:0.75)?"m":"f"; const p=newPerson({name:pick(g==="m"?MALE:FEMALE), gender:g, born:S.year-RI(22,55), house:pick(NOBLE_HOUSES), origin:"noble", noble:true, courtier:true, skill:RI(2,9)}); list.push(p.id); }
  S.courtCands[k]={t:turn(), list}; return list.map(person); }
 function actAppointOfficer(k, pid){ const p=person(pid); if(!living(p) || S.over || S.gold<HIRE_COST) return; S.gold-=HIRE_COST; p.skill ??= RI(3,8);
  for(const o in (S.court||={})) if(S.court[o]===pid) S.court[o]=null; S.court[k]=pid; COURTPICK=null; if(S.courtCands?.[k]) S.courtCands[k].list=S.courtCands[k].list.filter(x=>x!==pid);
@@ -1770,6 +1804,15 @@ function renderCourt(){
    h += `</div>`;
    const held=Object.entries(S.secrets||{}).filter(([k2,v])=>v.length && S.realms[k2]?.alive);
    if(held.length) h += `<div class="meta" style="margin-top:4px">Secrets held:</div>` + held.map(([k2,v])=>`<div class="row"><span>${S.realms[k2].name}</span><span style="max-width:70%">${v.join("; ")}</span></div>`).join("");
+   h += `</div>`; }
+  if(k==="assassin" && p){
+   h += `<div style="margin:-4px 0 10px 14px;padding-left:10px;border-left:2px solid #6b4a1e55"><div class="meta">Send the assassin against a foreign sovereign: ${ASSASSIN_COST.toLocaleString()} gold and 1 deed, done by season's end. The odds rise with the assassin's skill and with a secret held over that kingdom, and fall behind strong walls and castles. If the murder is traced to us, or the attempt fails and is uncovered, that kingdom is enraged and will likely go to war, an alliance with it is broken, and every court thinks less of us. A kingdom whose monarch dies may pass to one of our blood if we hold a claim to it.</div>`;
+   if(S.plot){ const t=S.realms[S.plot.rid]; h += `<div class="row"><span>On the road</span><span>${p.name} is bound for ${t?.name}, to kill ${S.plot.target} · ${S.plot.chance}% chance</span></div>`; }
+   else { const ks=Object.values(S.realms).filter(o=>o.alive && o.id!==S.player && known(o.id) && o.ruler).sort((a,b)=>a.name.localeCompare(b.name));
+    h += `<div class="spykings">`;
+    for(const o of ks){ const c=assassinChance(p,o.id), cl=claimants(o.id).length;
+     h += btn(`${flagSVG(o.id,20)} ${o.ruler.gender==="f"?"Queen":"King"} ${o.ruler.name} of ${o.name}`, `aged ${o.ruler.age} · ${c}% chance${S.allies[o.id]?" · our ally":""}${atWar(S.player,o.id)?" · at war with us":""}${cl?` · we hold a claim (${cl})`:""}`, ()=>modal({title:"Send the assassin?", body:`<p>${p.name} will ride for ${o.name} to kill ${o.ruler.gender==="f"?"Queen":"King"} ${o.ruler.name}. The price is <b>${ASSASSIN_COST.toLocaleString()} gold</b>, paid whether or not the blade finds its mark. The chance of success is about ${c}%.</p>`, choices:[{label:"Send the assassin", red:true, fn:()=>actAssassinate(o.id)},{label:"Not yet"}]}), !canAct()||S.gold<ASSASSIN_COST); }
+    h += `</div>`; if(S.gold<ASSASSIN_COST) h += `<p class="note">The treasury holds ${Math.floor(S.gold).toLocaleString()} gold; an assassination costs ${ASSASSIN_COST.toLocaleString()}.</p>`; }
    h += `</div>`; } }
  h += `<h4>Dukes and duchesses</h4>`;
  const D=(S.districts||[]).filter(d=>living(person(d.duke)));
@@ -2492,7 +2535,7 @@ function endSeason(){
  S.season++;
  if(S.season>3){ S.season=0; S.year++; for(const r of Object.values(S.realms)) if(r.ruler) r.ruler.age++; }
  for(const p of owned(S.player)) if(p.keel!=null && turn()>=p.keel){ p.fleet=(p.fleet||0)+1; p.keel=null; summary.push(`A new ship is launched at ${p.name}: ${p.fleet} at its quays.`); }
- resolveExpeditions(summary); resolveDiplomats(summary); resolveSpies(summary); courtSeasonOfficers(summary);
+ resolveExpeditions(summary); resolveDiplomats(summary); resolveSpies(summary); resolvePlot(summary); courtSeasonOfficers(summary);
  for(const r of Object.values(S.realms)) if(r.rel){ if(S.allies[r.id] && r.rel<50) r.rel++; else r.rel -= Math.sign(r.rel); }
  if(!winter && Math.random()<0.3) S.events.push({kind:pick(["plague","harvest","envoy"])});
  S.ap = apMax(); S.marches = maxMarches();
