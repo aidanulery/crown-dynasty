@@ -68,7 +68,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .cell.sel{stroke:#fff;stroke-width:2}
 .cell.tgt{stroke:#8a1f1f;stroke-width:1.6}
 .cell.rt{stroke:#fff;stroke-width:2;stroke-dasharray:4 3}
-#map.clean #devs,#map.clean #routes,#map.clean .place circle,#map.clean .place path{display:none}
+#map.clean #devs,#map.clean #routes,#map.clean #eroutes,#map.clean .place circle,#map.clean .place path{display:none}
 #zclean .slash{display:none}#zclean[aria-pressed=true] .slash{display:inline}
 .cell.dsel{stroke:#f6e7b8;stroke-width:1.6}
 .cell.dadd{stroke:#f6e7b8;stroke-width:1.4;stroke-dasharray:3 3}
@@ -292,7 +292,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.4.1";
+const VERSION = "pre-alpha v0.4.2";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -413,7 +413,8 @@ function armyOf(rid){
  const rally = clamp(ks.reduce((s,k)=>s + k.pop*(k.loy<4?0.5:1), 0)/(10*KNIGHT_SLOTS) + CB.rally, 0, 1);
  const quality = 1 + ks.reduce((s,k)=>s + k.int + 0.6*k.str, 0)/(16*KNIGHT_SLOTS) + CB.quality;
  const troops = Math.round(max*rally);
- return {people, max, troops, rally, quality, strength: Math.round(troops*quality*(rid===S.player ? 1 : (S.realms[rid]?.might ?? 1)))};
+ const sup = 1 - 0.6*cutShareOf(rid);   // soldiers in cut-off towns cannot reach the army
+ return {people, max, troops:Math.round(troops*sup), rally, quality, strength: Math.round(troops*sup*quality*(rid===S.player ? 1 : (S.realms[rid]?.might ?? 1)))};
 }
 const strength = rid => armyOf(rid).strength;
 /* Power: every other kingdom is dealt a random might (army strength and wealth) and temper (appetite for war). */
@@ -669,7 +670,11 @@ function routeHub(i){ const t=TOWNAT.get(i); if(t!=null) return [S.places[t].x, 
 function renderRoutes(){ const el=$("routes"); if(!el) return; cellInit();
  let d=""; for(const [a,b] of liveRoutes()){ const m=routeMid(a,b), A=routeHub(a), B=routeHub(b);
   d += `M${A[0].toFixed(1)} ${A[1].toFixed(1)}L${m[0].toFixed(1)} ${m[1].toFixed(1)}L${B[0].toFixed(1)} ${B[1].toFixed(1)}`; }
- el.setAttribute("d", d); }
+ el.setAttribute("d", d);
+ // the trade routes of kingdoms at war with us, so they can be cut
+ let e=""; for(const w of pr().atWar){ if(!S.realms[w]?.alive) continue; for(const [a,b] of liveRoutes(w)){ if(!S.seen[a] && !S.seen[b]) continue; const m=routeMid(a,b), A=routeHub(a), B=routeHub(b);
+  e += `M${A[0].toFixed(1)} ${A[1].toFixed(1)}L${m[0].toFixed(1)} ${m[1].toFixed(1)}L${B[0].toFixed(1)} ${B[1].toFixed(1)}`; } }
+ $("eroutes")?.setAttribute("d", e); }
 const income = rid => economy(rid).gold;   // per season
 const atWar = (a,b) => S.realms[a].atWar.includes(b);
 function setWar(a,b){
@@ -687,7 +692,7 @@ function setPeace(a,b){
 }
 const truce = (a,b) => (S.realms[a].truce[b]||0) > S.year;
 // a town defends with its walls, its size and a share of its realm's militants; an attacker needs a clear edge to take it
-const defenseOf = place => (owned(place.owner).length===1 ? 1.5 : 1)*(place.fort*250 + place.dev*60 + strength(place.owner)*0.75 + (place.capital?300:0) + (place.bld?.castle ? CASTLE[place.bld.castle].def : 0));   // a kingdom fights hardest for its last city
+const defenseOf = place => (unsupplied(place) ? 0.65 : 1)*(owned(place.owner).length===1 ? 1.5 : 1)*(place.fort*250 + place.dev*60 + strength(place.owner)*0.75 + (place.capital?300:0) + (place.bld?.castle ? CASTLE[place.bld.castle].def : 0));   // a kingdom fights hardest for its last city
 function battle(att, place){
  const def = place.owner, A=armyOf(att), D=armyOf(def);
  const win = A.strength*R(0.75,1.25) > defenseOf(place)*R(0.8,1.2);
@@ -1657,6 +1662,13 @@ function breakAway(d, why, summary){
  log(`${d.name} breaks away from ${pr().name} and becomes a kingdom.`, true);
 }
 /* Winter fuel: every 500 people burn one peat a winter season, or timber when the peat runs out; without either, the cold kills. */
+/* Supply: towns and villages cut off from their capital's trade network send no taxes and few soldiers, and their
+   walls go unsupplied. cutShare = the share of a realm's people living in cut-off networks. */
+function updateSupply(rid){ const T=tradeNets(rid), all=T.nets.reduce((a,n)=>a+n.people,0)||1, cut=T.nets.filter(n=>!n.royal);
+ const who = rid===S.player ? S : S.realms[rid]; who.cutShare = +(cut.reduce((a,n)=>a+n.people,0)/all).toFixed(3);
+ who.cutTowns = cut.flatMap(n=>n.members.filter(m=>m.town).map(m=>m.town.id)); return who.cutShare; }
+const cutShareOf = rid => (rid===S.player ? S.cutShare : S.realms[rid]?.cutShare) || 0;
+const unsupplied = p => ((p.owner===S.player ? S.cutTowns : S.realms[p.owner]?.cutTowns) || []).includes(p.id);
 function burnFuel(rid, people, summary){ const who = rid===S.player ? S : S.realms[rid], G=goodsOf(who); let need=Math.ceil(people/500);
  const p=Math.min(need,G.peat); G.peat-=p; need-=p; const t=Math.min(need,G.timber); G.timber-=t; need-=t;
  if(need>0 && rid!==S.player && who.gold>=need*GOODS.peat.price*2){ who.gold-=need*GOODS.peat.price*2; need=0; }
@@ -2164,13 +2176,13 @@ function actOccupy(i){
  const o=S.tiles[i];
  if(!o || !atWar(S.player,o) || TOWNAT.has(i) || !tileAdj(S.player,i) || S.marches<1) return;
  S.marches--; const foe=S.realms[o].name, home=S.places[S.homes[i]], where=home && home.owner===o ?`the fields outside ${home.name}`:`the borderlands of ${foe}`;
- const win=tileSkirmish(S.player,o), F=LASTFIGHT; if(win) seize(i, S.player);
+ const cutBefore=updateSupply(o), win=tileSkirmish(S.player,o), F=LASTFIGHT; if(win) seize(i, S.player); const cutAfter=updateSupply(o);
  log(win?`Battle in ${where}: we defeat ${foe} and occupy the land.`:`Battle in ${where}: ${foe} drives our army back.`);
  modal({title: win?"Victory in the Field":"Our Army Is Driven Back", body:`<p>Our soldiers march into ${where}, and ${foe} meets them in battle.</p>
   <div class="row"><span>Our army</span><span>${F.aT.toLocaleString()} men</span></div><div class="row"><span>${foe}'s army</span><span>${F.dT.toLocaleString()} men</span></div>
   <div class="row"><span>Our dead</span><span>${F.a.toLocaleString()}</span></div><div class="row"><span>Their dead</span><span>${F.d.toLocaleString()}</span></div>
   <div class="row"><span>War score</span><span>${warScore(S.player,o)>0?"+":""}${warScore(S.player,o)}</span></div>
-  <p class="note">${win?"The land is ours to hold for now. Whether we keep it will be decided when the war is settled.":"The land stays in enemy hands."}</p>`});
+  <p class="note">${win?"The land is ours to hold for now. Whether we keep it will be decided when the war is settled.":"The land stays in enemy hands."}</p>${win && cutAfter>cutBefore ? `<p><b>We have severed ${foe}'s trade routes.</b> ${Math.round(cutAfter*100)}% of its people are now cut off from their capital: their taxes and soldiers no longer reach it, its cut-off cities defend at two-thirds strength, and they will starve if their own farms cannot feed them.</p>`:""}`});
  after();
 }
 function actClaim(i){
@@ -2187,7 +2199,7 @@ function endSeason(){
  if(!S || S.over) return;
  const summary = [], me = pr(), winter = S.season===3, popBefore = economy(S.player).people;
  const E = economy(S.player), starvedLast = S.starving>0;
- const inc = starvedLast ? Math.round(E.gold/2) : E.gold;
+ const inc = Math.round((starvedLast ? E.gold/2 : E.gold) * (1 - 0.5*cutShareOf(S.player)));
  S.gold += inc; for(const k of GOOD_KEYS) goodsOf(S)[k] += (E.goods?.[k]||0); S.food += E.netFood;
  if(winter) burnFuel(S.player, E.people, summary);
  if(relief() && S.gold<0){ S.gold+=relief(); S.food-=E.reliefFood; S.relief=0; summary.push("The treasury could not pay for food relief, and the bread queues end."); }
@@ -2202,7 +2214,7 @@ function endSeason(){
    else summary.push(`<b>Famine!</b> The granaries are empty and the people go hungry.`); }
   summary.push("Taxes will bring in only half while the people starve. Build farms or fisheries.");
  } else S.starving = 0;
- starveCutNets(S.player, E.nets, summary);
+ starveCutNets(S.player, E.nets, summary); updateSupply(S.player);
  villagesSeason(summary);
  districtSeason(summary);
  housingSeason(summary);
@@ -2215,11 +2227,11 @@ function endSeason(){
   if(!r.alive || r.id===S.player) continue;
   const M=r.might??1, T=r.temper??1, EA=economy(r.id);
   r.food ??= 80; if(!r.goods){ const o=r.res||60; r.goods={timber:Math.round(o*.4),stone:Math.round(o*.25),iron:Math.round(o*.1),salt:Math.round(o*.15),peat:Math.round(o*.1)}; } r.ap = DEEDS_PER_SEASON; let marches = maxMarches();
-  r.gold += Math.round(EA.gold*M*(r.starving?0.5:1)); for(const k of GOOD_KEYS) goodsOf(r)[k] += (EA.goods?.[k]||0); r.food += EA.netFood; if(winter) burnFuel(r.id, EA.people);
+  r.gold += Math.round(EA.gold*M*(r.starving?0.5:1)*(1-0.5*cutShareOf(r.id))); for(const k of GOOD_KEYS) goodsOf(r)[k] += (EA.goods?.[k]||0); r.food += EA.netFood; if(winter) burnFuel(r.id, EA.people);
   if(r.food<0){ r.food=0; r.starving=(r.starving||0)+1; killPeople(r.id, EA.people*R(0.03,0.06)*Math.min(3,r.starving));
    const vil=Object.keys(S.devs).filter(k=>S.devs[k].village && S.tiles[+k]===r.id); if(vil.length) delDev(+pick(vil),"village"); }
   else r.starving=0;
-  starveCutNets(r.id, EA.nets);
+  starveCutNets(r.id, EA.nets); updateSupply(r.id);
   for(const e of [...r.atWar]){
    if(!S.realms[e]?.alive || !r.alive) continue;
    if(r.ap>0 && Math.random()<(winter?0.05:0.10+0.10*T)){ r.ap--;
@@ -2241,7 +2253,8 @@ function endSeason(){
   { const front=[], wild=[];
     for(let i=0;i<S.tiles.length;i++){ const t=S.tiles[i]; if(t===r.id || TOWNAT.has(i) || !tileAdj(r.id,i)) continue; if(t===null) wild.push(i); else if(atWar(r.id,t)) front.push(i); }
     let lostHere=0; const tries = winter ? 0 : 1 + (Math.random()<0.5?1:0) + (M>=1.12?1:0);
-    let fellHere=0; for(let n=0;n<tries && front.length && marches>0;n++){ marches--; const i=front.splice(Math.floor(Math.random()*front.length),1)[0], d=S.tiles[i]; const w=tileSkirmish(r.id,d); if(d===S.player) fellHere+=LASTFIGHT.d; if(w){ seize(i, r.id); if(d===S.player) lostHere++; } }
+    const onRoute = i => liveRoutes(S.tiles[i]).some(([a,b])=>a===i||b===i);   // armies go for the enemy's trade routes first
+    let fellHere=0; for(let n=0;n<tries && front.length && marches>0;n++){ marches--; const rt=front.filter(onRoute), i = rt.length && Math.random()<0.6 ? (front.splice(front.indexOf(pick(rt)),1)[0]) : front.splice(Math.floor(Math.random()*front.length),1)[0], d=S.tiles[i]; const w=tileSkirmish(r.id,d); if(d===S.player) fellHere+=LASTFIGHT.d; if(w){ seize(i, r.id); if(d===S.player) lostHere++; } }
     if(lostHere || fellHere) summary.push(`${lostHere?`${r.name} occupied ${lostHere} of our lands. `:`We held our borders against ${r.name}. `}${fellHere} of our people died in the fighting.`);
     let grab = (winter?0.3:1)*(0.10+0.18*M); while(wild.length && marches>0 && r.gold>=10 && Math.random()<grab){ S.tiles[wild.splice(Math.floor(Math.random()*wild.length),1)[0]]=r.id; marches--; r.gold-=10; grab*=0.5; }
     aiCityWorks(r);
@@ -2406,7 +2419,7 @@ function renderPanel(){
  }
  if(page==="war"){
   { const A=armyOf(S.player); h += `<h2>War Council</h2><div class="row"><span>Our militants</span><span>${A.troops.toLocaleString()} of ${A.max.toLocaleString()} who could serve</span></div><div class="row"><span>Fighting quality</span><span>×${A.quality.toFixed(2)} · strength ${A.strength.toLocaleString()}</span></div>`; }
-  h += `<p class="note">Declare war, then march into bordering enemy lands (outlined red) to give battle, and assault towns ringed in red with deeds. Land taken is only occupied until the war is settled: the peace treaty decides who keeps what. A kingdom down to its last city fights hardest for it and surrenders when it falls, unless we have overrun it: if nothing is left to it but its capital, or we have a war score of 60 or more and hold as much of its land as it still holds, taking the last city conquers the kingdom.</p>`;
+  h += `<p class="note">Declare war, then march into bordering enemy lands (outlined red) to give battle. Enemy trade routes show as red dashes: occupying land they cross cuts them off from their capital, so their cut-off towns pay no taxes, send few soldiers, defend weakly and may starve. and assault towns ringed in red with deeds. Land taken is only occupied until the war is settled: the peace treaty decides who keeps what. A kingdom down to its last city fights hardest for it and surrenders when it falls, unless we have overrun it: if nothing is left to it but its capital, or we have a war score of 60 or more and hold as much of its land as it still holds, taking the last city conquers the kingdom.</p>`;
   const NB = neighbours(S.player);
   const others = Object.values(S.realms).filter(o=>o.alive && o.id!==S.player && known(o.id)).sort((a,b)=>owned(b.id).length-owned(a.id).length);
   if(!others.length) h += `<p class="note">Your scouts have found no other realm yet.</p>`;
@@ -2417,6 +2430,7 @@ function renderPanel(){
    if(o.atWar.length) h += `<div class="meta">Fighting: ${o.atWar.map(x=>S.realms[x].name).join(", ")}</div>`;
    h += `</div>`;
    if(w && owned(o.id).length===1){ const oc=occupiedBy(S.player,o.id).length, rem=tileCount(o.id), sc=warScore(S.player,o.id); h += `<div class="meta">${canAnnex(S.player,o.id)?`<b style="color:#2f5a1a">If their last city falls, ${o.name} is conquered.</b>`:`Down to its last city: storming it forces a surrender. To conquer ${o.name} outright, take every land around its capital, or win a war score of ${ANNEX_SCORE} (now ${sc}) while holding at least as much of its land as it still holds (we hold ${oc}, it holds ${rem}).`}</div>`; }
+   if(w && cutShareOf(o.id)>0) h += `<div class="meta" style="color:#2f5a1a">Their trade routes are severed: ${Math.round(cutShareOf(o.id)*100)}% of their people are cut off from their capital.</div>`;
    h += `<div class="meta">Relations: ${relName(o)}${w?` · war score ${warScore(S.player,o.id)>0?"+":""}${warScore(S.player,o.id)} · we occupy ${occupiedBy(S.player,o.id).length} of their lands, they occupy ${occupiedBy(o.id,S.player).length} of ours`:""}</div>`;
    if(w) h += btn(`Offer terms of peace to ${o.name}`, "Choose the terms · 1 deed", ()=>actPeace(o.id), !ap);
    else if(S.allies[o.id]) h += `<p class="note">Allied to us by marriage.</p>`;
@@ -2513,7 +2527,8 @@ function renderCard(){
      h += btn(`Build a ${D.name.toLowerCase()}`, why || `${costText(D.g,D.r,D.kind)} · 1 deed · ${D.blurb}`, ()=>actBuild(i,t), !canAct()||!!why||!canPay(D.g,D.r,D.kind)); }
    }
   }
-  else if(atWar(S.player,o)) h += btn("Occupy this land", adj?"1 march":"Must border lands we hold", ()=>actOccupy(i), !ap||!adj, true);
+  else if(atWar(S.player,o)){ const nr=liveRoutes(o).filter(([a,b])=>a===i||b===i).length; if(nr) h += `<p class="note">${S.realms[o].name}'s trade route runs through here (red dashes). Taking this land cuts it.</p>`;
+   h += btn("Occupy this land", adj?"1 march":"Must border lands we hold", ()=>actOccupy(i), !ap||!adj, true); }
   else h += `<p class="note">We are at peace with ${S.realms[o].name}.</p>`;
   c.innerHTML=h; c.style.display="block"; return; }
  const p=S.places.find(x=>x.id===selected);
@@ -2589,6 +2604,7 @@ function buildMap(){
  <g transform="translate(78,92)" opacity=".75"><circle r="34" fill="none" stroke="#d6e6dd"/><path d="M0,-40 L6,0 0,40 -6,0Z" fill="#d6e6dd"/><path d="M-40,0 L0,6 40,0 0,-6Z" fill="#d6e6dd" opacity=".6"/><text y="-45" text-anchor="middle" font-family="IM Fell English" font-size="14" fill="#d6e6dd">N</text></g>
  <path id="allyb2" fill="none" stroke="#0f3311" stroke-width="7" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity=".55" pointer-events="none"/>
  <path id="allyb" fill="none" stroke="#62d866" stroke-width="3.6" stroke-linecap="round" vector-effect="non-scaling-stroke" pointer-events="none"/>
+  <path id="eroutes" fill="none" stroke="#ff9a8a" stroke-opacity=".75" stroke-width="1.6" stroke-dasharray="3 2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>
   <path id="routes" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>
  <g id="devs"></g>
  <g id="places"></g>
