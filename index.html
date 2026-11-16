@@ -302,7 +302,7 @@ const TERRAIN="ccmmscccccmmsscacmmmcccccmmccccccmmcmmffcccmmmmmmmccccmmmmmcccccm
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.4.0";
+const VERSION = "pre-alpha v0.4.1";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -2091,7 +2091,7 @@ const SEGS = [];
 function tileSegs(i){ if(SEGS[i]) return SEGS[i]; const set=new Set(); for(const ring of CELLS[i][0].split("M").slice(1)){ const pts=[...ring.matchAll(/(-?[\d.]+) (-?[\d.]+)/g)].map(m=>m[1]+","+m[2]); for(let k=0;k<pts.length;k++){ const a=pts[k], b=pts[(k+1)%pts.length]; set.add(a<b?a+"|"+b:b+"|"+a); } } return SEGS[i]=set; }
 function renderAllyBorders(){
  const el=$("allyb"); if(!el) return; let d="";
- const allies=S.allies||{}; if(!Object.keys(allies).length){ el.setAttribute("d",""); return; }
+ const allies=S.allies||{}; if(!Object.keys(allies).length){ el.setAttribute("d",""); $("allyb2").setAttribute("d",""); return; }
  for(let i=0;i<S.tiles.length;i++){ if(S.tiles[i]!==S.player) continue;
   for(const j of NEI[i]){ const o=S.tiles[j]; if(!o || !allies[o]) continue; const A=tileSegs(i), B=tileSegs(j);
    for(const k of A) if(B.has(k)){ const [a,b]=k.split("|"); d+=`M${a.replace(","," ")}L${b.replace(","," ")}`; } } }

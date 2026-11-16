@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.4.0**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.4.1**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -61,3 +61,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.3.8 — a village must stand for 16 seasons before it can become a market village, and a market village 16 more before it can be chartered as a city (was 6 and 8), for every kingdom.
 - v0.3.9 — goods from terrain: each wild land yields the good of its terrain (plains grain straight into the granary, forest timber, mountain stone, coast salt, marsh peat, swamp bog iron), replacing generic resources; each good has its own counter. Buildings cost gold plus goods (farms and villages timber, fisheries timber and salt, mines timber and iron, ships timber and iron, development and charters stone and timber, walls and castles stone, blacksmiths iron, barracks timber and iron, mills and harbours timber and stone, chapels stone); colonies need salt and timber in store. Winter burns peat (1 per 500 people), or timber when it runs out, or people die of cold. Goods can be bought from trading partners or at the royal market on the Treasury page (dear to buy, cheap to sell). Other kingdoms pay in goods too, buying any shortfall with gold. Older saves have their resources shared out into goods. A new city must stand at least 2 lands from another, and a kingdom can support one city per 15 lands (applies to everyone; keeps new cities to about one a year across Europe). The land info card is wider, scrolls, and stops above the End Season bar so nothing covers its buttons.
 - v0.4.0 — a kingdom left with nothing but its capital is conquered when the capital falls, whatever the war score.
+- v0.4.1 — fix: when your last alliance ended (for example an allied kingdom uniting with your crown by blood), the dark outline of the green ally border stayed on the map. It now clears with the border.
