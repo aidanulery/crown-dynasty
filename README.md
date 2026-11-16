@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.4.3**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.4.4**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -64,3 +64,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.4.1 — fix: when your last alliance ended (for example an allied kingdom uniting with your crown by blood), the dark outline of the green ally border stayed on the map. It now clears with the border.
 - v0.4.2 — severed trade routes now cripple a kingdom: the people of towns and villages cut off from their capital's network pay no taxes to the crown (up to half the income lost), send few soldiers (up to 60% of the army), and their cities defend at two-thirds strength, on top of starving if their own farms fall short. The trade routes of kingdoms at war with you show as red dashes on the map; the land card says when a route crosses it, the battle report says when you have severed one, and the War page shows how much of an enemy is cut off. Enemy armies aim for your trade routes too. The same rules apply to every kingdom.
 - v0.4.3 — farms and fisheries now have levels like gold mines: they open at level IV (+5 food a season) and can be improved to III (+10), II (+15) and I (+25), at the same gold prices as mine levels (timber for farms, timber and salt for fisheries), one deed per step. Their level shows on the map icon. Existing farms and fisheries count as level IV. Other kingdoms improve their farms when food runs short.
+- v0.4.4 — choose the heir: the Family page shows every royal child with the eldest as heir by default; pick any child, or return the crown to the eldest. Children under sixteen can now be betrothed, through a suitor on the Romance page or from the International Relations page; the wedding (and any alliance) follows on their sixteenth birthday, and the betrothal is void if their kingdom falls or goes to war with us, or can be broken off at a cost in relations. The Family page can switch to the family tree of whoever the monarch marries: their parents, siblings and grandparents, linked to the ruling house of their kingdom.
