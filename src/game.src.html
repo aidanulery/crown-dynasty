@@ -97,6 +97,11 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .treebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 8px}
 .treebar .zb{width:34px;height:34px;padding:0;border:1px solid #6b4a1e;border-radius:6px;background:rgba(255,240,205,.5);font:400 20px/1 serif;color:#3a240e;cursor:pointer}
 .treebar .zb:hover{background:rgba(255,240,205,.85)}
+.btn.mini{display:inline-block;width:auto;min-height:0;margin:0 0 0 6px;padding:3px 10px;font-size:13px;vertical-align:middle}
+.sline{margin:6px 0 10px;border:1px solid #6b4a1e55;border-radius:6px;max-height:420px;overflow:auto}
+.srow{display:flex;align-items:center;gap:8px;padding:5px 8px;border-bottom:1px solid #6b4a1e22}
+.srow.heir{background:rgba(232,192,96,.25)}.srow .sn{width:26px;color:var(--muted)}.srow .sp{flex:1}.srow .sb{white-space:nowrap}
+.ftsel{display:flex;align-items:center;gap:8px;margin:0 0 8px}.ftsel select{flex:1;max-width:640px;padding:6px;font:inherit;background:rgba(255,240,205,.6);border:1px solid #6b4a1e;border-radius:6px}
 .cityrow .btnrow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 @media (max-width:700px){.cityrow .btnrow{grid-template-columns:1fr}}
 .spykings{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 14px}
@@ -292,7 +297,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.4.5";
+const VERSION = "pre-alpha v0.4.6";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -365,7 +370,7 @@ function newGame(realmId, name, gender, dyn){
   tax:"fair", relief:0, trade:{}, homes:CELLS.map(c=>c[1]),
   explored:{}, seen:[], expeditions:[], log:[], over:false, nextId:1, places:[], realms:{}, events:[]};
  const me = newPerson({name, gender, born:1500-20, house:dyn, origin:realmId, ruled:[1500,null]});
- S.rulerId = S.founderId = me.id; createElders(me, realmId);
+ S.rulerId = S.founderId = me.id; createElders(me, realmId); growKin();
  S.places = PLACES_RAW.map((p,k) => ({id:p.id,name:p.name,x:p.x,y:p.y,owner:p.realm,dev:1,base:p.capital?CAPITAL_PEOPLE:CITY_PEOPLE,fort:1,port:!!p.port,capital:!!p.capital,tile:TOWNCELL[k]}));
  S.tiles = CELLS.map(c => c[4] && c[1]>=0 ? PLACES_RAW[c[1]].realm : null);
  S.seen = CELLS.map(()=>0);
@@ -977,12 +982,44 @@ const person = id => id==null ? null : S.people[id];
 const living = p => !!p && p.died==null;
 const spouse = () => living(person(S.spouseId)) ? person(S.spouseId) : null;
 function newPerson(o){ const id="p"+(S.nextId++); S.people[id] = {id, died:null, father:null, mother:null, spouses:[], children:[], claims:[], ...o}; return S.people[id]; }
-/* Line of succession: the proclaimed heir, then the sovereign's other children eldest first, then their children by the eldest line. */
-function successionLine(){ const r=ruler(); if(!r) return []; const L=[], by=(a,b)=>a.born-b.born, kids=r.children.map(person).filter(Boolean).sort(by);
- const h=person(S.heirId); if(living(h) && r.children.includes(h.id)) L.push(h);
- for(const c of kids) if(living(c) && !L.includes(c)) L.push(c);
- for(const c of kids) for(const g of c.children.map(person).filter(living).sort(by)) L.push(g);
- return L; }
+/* Line of succession, by the realm's succession law:
+   primo     – primogeniture: the sovereign's eldest child and that child's line first, then the next child, and so on;
+               then brothers and sisters and their lines, then uncles, aunts and cousins
+   male      – the same, but sons and their lines come before daughters
+   seniority – the eldest living member of the blood inherits, whatever branch they belong to
+   A named heir goes to the head of the line; disinherited kin are passed over. */
+const LAWS = {primo:{name:"Primogeniture", sub:"the eldest child and their line inherit first, sons and daughters alike"},
+ male:{name:"Male-preference primogeniture", sub:"sons and their lines before daughters, eldest first"},
+ seniority:{name:"Seniority", sub:"the eldest living member of the royal blood inherits"}};
+const LAW_COST = 120;
+const kinOrder = law => (a,b) => (law==="male" ? (a.gender==="m"?0:1)-(b.gender==="m"?0:1) : 0) || a.born-b.born;
+const bloodParent = x => { const f=person(x.father), m=person(x.mother); return f && (f.house===S.dynasty || f.ruled && !f.ruledRealm) ? f : m && (m.house===S.dynasty || m.ruled && !m.ruledRealm) ? m : f || m; };
+function naturalLine(){ const r=ruler(); if(!r) return []; const law=S.law||"primo", ord=kinOrder(law), out=[], seen=new Set([r.id]), dis=S.disinherited||{};
+ const down=p=>{ for(const c of p.children.map(person).filter(Boolean).sort(ord)){ if(seen.has(c.id)) continue; seen.add(c.id); if(living(c) && !dis[c.id] && !c.inlaw) out.push(c); down(c); } };
+ down(r);
+ for(let x=r, n=0; n<6; n++){ const par=bloodParent(x); if(!par || seen.has(par.id)) break; seen.add(par.id); if(living(par) && !dis[par.id] && !par.inlaw && par.house===S.dynasty) out.push(par);
+  for(const c of par.children.map(person).filter(Boolean).sort(ord)){ if(seen.has(c.id)) continue; seen.add(c.id); if(living(c) && !dis[c.id] && !c.inlaw) out.push(c); down(c); }
+  x=par; }
+ if(law==="seniority") out.sort((a,b)=>a.born-b.born);
+ return out; }
+function successionLine(){ const L=naturalLine(), h=person(S.heirId); if(living(h) && L.includes(h)) return [h, ...L.filter(x=>x!==h)]; return L; }
+/* How someone is related to the reigning sovereign. */
+function relLabel(p){ const r=ruler(); if(!p || !r) return ""; if(p===r) return "the sovereign"; const M=p.gender==="m";
+ const par=x=>[person(x?.father),person(x?.mother)].filter(Boolean), isPar=(a,b)=>par(b).includes(a), sib=(a,b)=>a!==b && par(a).some(x=>par(b).includes(x));
+ if(r.spouses.includes(p.id)) return M?"consort":"consort";
+ if(isPar(p,r)) return M?"father":"mother";
+ if(par(r).some(x=>isPar(p,x))) return M?"grandfather":"grandmother";
+ if(isPar(r,p)) return M?"son":"daughter";
+ if(par(p).some(x=>isPar(r,x))) return M?"grandson":"granddaughter";
+ if(par(p).some(x=>par(x).some(y=>isPar(r,y)))) return M?"great-grandson":"great-granddaughter";
+ if(sib(p,r)) return M?"brother":"sister";
+ if(par(p).some(x=>sib(x,r))) return M?"nephew":"niece";
+ if(par(p).some(x=>par(x).some(y=>sib(y,r)))) return M?"great-nephew":"great-niece";
+ if(par(r).some(x=>sib(p,x))) return M?"uncle":"aunt";
+ if(par(r).some(x=>par(p).some(y=>sib(x,y)))) return "cousin";
+ if(par(p).some(x=>par(r).some(y=>par(x).some(z=>sib(z,y))))) return "cousin's "+(M?"son":"daughter");
+ const sp=p.spouses.map(person).find(x=>x && !x.inlaw && x.house===S.dynasty || x && x.kinBlood); if(sp){ const l=relLabel(sp); if(l && l!=="kin") return `${l}'s ${M?"husband":"wife"}`; }
+ return "kin"; }
 function heir(){ return successionLine()[0] || null; }
 const deathChance = a => a<40 ? 0.002 : (a-38)*0.0025;   // per season
 
@@ -1146,7 +1183,15 @@ function marry(s){
 const SPOUSE_ACT = { evening:{label:"Spend an evening together", g:0, gain:[5,10]}, gift:{label:"Give a gift", g:40, gain:[8,14]}, ride:{label:"Ride out together", g:20, gain:[6,12]} };
 function actSpouse(kind){ const sp=spouse(), A=SPOUSE_ACT[kind]; if(!sp || S.over || S.acts[kind]===turn() || S.gold<A.g) return;
  S.gold-=A.g; S.acts[kind]=turn(); if(kind==="evening") S.togetherT=turn(); const g=RI(...A.gain); S.spouseAff=clamp(S.spouseAff+g,0,100); toast(`${sp.name} smiles (+${g} affection).`); after(); }
-function actNameHeir(id){ const c=person(id); if(!living(c) || !ruler().children.includes(id) || S.over) return; S.heirId=id; log(`${c.name} is proclaimed heir to the throne.`, true); after(); }
+function actNameHeir(id){ const c=person(id); if(!living(c) || !naturalLine().includes(c) || S.over) return; S.heirId=id; log(`${c.name}, the sovereign's ${relLabel(c)}, is proclaimed heir to the throne.`, true); after(); }
+function actClearHeir(){ if(S.over) return; S.heirId=null; const h=heir(); log(`The named heir is set aside; ${h?`${h.name} is heir by law`:"the line follows the law"}.`, true); after(); }
+function actDisinherit(id, back){ const c=person(id); if(!c || S.over) return; S.disinherited ||= {};
+ if(back){ delete S.disinherited[id]; log(`${c.name} is restored to the line of succession.`, true); }
+ else { S.disinherited[id]=S.year; if(S.heirId===id) S.heirId=null; log(`${c.name} is disinherited and struck from the line of succession.`, true); S.knights.forEach(k=>{ if(k && Math.random()<0.3) k.loy=Math.max(1,k.loy-1); }); }
+ after(); }
+function actSetLaw(law){ if(S.over || (S.law||"primo")===law || S.gold<LAW_COST || turn()-(S.lawT??-99)<16 || !useAP()) return; S.gold-=LAW_COST; S.law=law; S.lawT=turn();
+ S.knights.forEach(k=>{ if(k) k.loy=Math.max(1,k.loy-1); }); log(`A new law of succession is proclaimed: ${LAWS[law].name.toLowerCase()}.`, true);
+ toast(`The law of succession is now ${LAWS[law].name.toLowerCase()}. Heir: ${heir()?.name||"none"}.`); after(); }
 function actArrangeMatch(id){
  const c=person(id); if(!living(c) || age(c)<16 || c.spouses.some(x=>living(person(x))) || S.over || S.gold<60) return;
  const opts=Object.values(S.realms).filter(r=>r.alive && r.id!==S.player && !atWar(S.player,r.id) && known(r.id)); S.gold-=60;
@@ -1172,10 +1217,57 @@ function createElders(me, rid){
  const f=newPerson({name:pick(MALE), gender:"m", born:fb, house:me.house, origin:rid, ruled:[1500-RI(12,30),1500], died:1500, elder:true});
  const m=newPerson({name:pick(FEMALE), gender:"f", born:mb, house:mh, origin:"noble", elder:true, died: Math.random()<0.5 ? null : 1500-RI(1,12)});
  f.spouses.push(m.id); m.spouses.push(f.id); me.father=f.id; me.mother=m.id;
- const kids=[me]; for(let k=RI(0,2);k>0;k--){ const g=Math.random()<0.5?"m":"f", b=clamp(me.born+RI(-6,9), mb+17, 1499);
+ const kids=[me]; for(let k=RI(1,3);k>0;k--){ const g=Math.random()<0.5?"m":"f", b=clamp(me.born+RI(-6,9), mb+17, 1499);
   const sib=newPerson({name:pick(g==="m"?MALE:FEMALE), gender:g, born:b, house:me.house, origin:rid, father:f.id, mother:m.id, elder:true, died: Math.random()<0.25 ? b+RI(1,12) : null});
   if(sib.died!=null && sib.died>1500) sib.died=null; kids.push(sib); }
  kids.sort((a,b)=>a.born-b.born); f.children=kids.map(x=>x.id); m.children=[...f.children]; S.elderId=f.id; S.eldersDone=true;
+}
+/* The wider royal family: grandparents, uncles, aunts and cousins before the game began, and the brothers, sisters,
+   nephews and nieces of the sovereign, who marry into noble houses and have children of their own as the years pass. */
+function kinMarry(p, year){ const g=p.gender==="m"?"f":"m", born=Math.min(year-16, p.born+RI(-4,5));
+ const sp=newPerson({name:pick(g==="m"?MALE:FEMALE), gender:g, born, house:pick(NOBLE_HOUSES), origin:"noble", wed:year, kinSpouse:true});
+ if(p.died!=null && sp.born+RI(45,70)<S.year) sp.died=Math.min(S.year, sp.born+RI(45,70));
+ p.spouses.push(sp.id); sp.spouses.push(p.id); return sp; }
+function kinChild(p, sp, born){ const mo=p.gender==="f"?p:sp, fa=p.gender==="f"?sp:p, g=Math.random()<0.5?"m":"f";
+ const k=newPerson({name:pick(g==="m"?MALE:FEMALE), gender:g, born, house:fa.house, origin:p.origin, father:fa.id, mother:mo.id, claims:[...(p.claims||[])]});
+ fa.children.push(k.id); mo.children.push(k.id);
+ if(born<S.year && Math.random()<0.12) k.died=Math.min(S.year, born+RI(0,6)); return k; }
+function oldAge(p){ if(p.died==null && age(p)>=50){ const end=p.born+RI(50,78); if(end<=S.year) p.died=Math.max(end, p.wed||0, ...p.children.map(c=>person(c)?.born||0)); } }
+function fillFamily(p, depth){   // give someone of the past generation a spouse and children, born before the game
+ if(!p || p.filled) return; p.filled=true; const end=p.died ?? S.year; if(end-p.born<18) return;
+ if(!p.spouses.length){ if(Math.random()>0.85) return; const wy=p.born+RI(17,26); if(wy>=end || wy>=S.year) return; kinMarry(p, wy); }
+ const sp=person(p.spouses[0]); if(!sp) return;
+ if(!p.children.length){ const mo=p.gender==="f"?p:sp, first=Math.max((sp.wed||p.born+20)+1, mo.born+17), last=Math.min(mo.born+40, end, S.year-1);
+  let y=first; for(let n=RI(0,4); n>0 && y<=last; n--){ kinChild(p, sp, y); y+=RI(1,4); } }
+ oldAge(p); oldAge(sp);
+ if(depth>0) for(const c of p.children.map(person)) if(c && c.house===p.house || depth>1) fillFamily(c, depth-1);
+}
+function growKin(){
+ if(!S?.people || S.kinV>=1) return; S.kinV=1;
+ const f=person(S.elderId);
+ if(f && !f.father){   // the old sovereign's parents and brothers and sisters, with their families
+  const gf=newPerson({name:pick(MALE), gender:"m", born:f.born-RI(22,32), house:f.house, origin:f.origin, ruled:[(f.ruled?.[0]??S.year)-RI(14,30), f.ruled?.[0]??S.year], filled:true});
+  gf.died=gf.ruled[1]; const gm=newPerson({name:pick(FEMALE), gender:"f", born:gf.born+RI(-2,8), house:pick(NOBLE_HOUSES), origin:"noble", filled:true}); oldAge(gm);
+  gf.spouses.push(gm.id); gm.spouses.push(gf.id); f.father=gf.id; const mo=person(f.mother); if(!f.mother) f.mother=gm.id;
+  const kids=[f]; for(let n=RI(1,3); n>0; n--){ const g=Math.random()<0.5?"m":"f", b=clamp(f.born+RI(-8,10), gm.born+17, gm.born+40);
+   const k=newPerson({name:pick(g==="m"?MALE:FEMALE), gender:g, born:b, house:f.house, origin:f.origin, father:gf.id, mother:gm.id}); if(Math.random()<0.1) k.died=b+RI(0,10); oldAge(k); kids.push(k); }
+  kids.sort((a,b)=>a.born-b.born); gf.children=kids.map(x=>x.id); gm.children=[...gf.children];
+  for(const k of kids) if(k!==f) fillFamily(k, 2);
+  S.elderId=gf.id; }
+ if(f) for(const c of f.children.map(person)) if(c && c.id!==S.rulerId && c.id!==S.founderId && !c.ruled) fillFamily(c, 1);
+}
+/* the wider family lives on: kin marry, have children and die */
+function kinSeason(summary){
+ const r=ruler(); if(!r) return; const skip=new Set([r.id, ...r.children, ...r.spouses]); const blood=bloodOf(r), line=successionLine(), near=p=>line.indexOf(p)>=0 && line.indexOf(p)<5;
+ const close=["brother","sister","father","mother","nephew","niece","grandson","granddaughter","uncle","aunt","cousin","great-nephew","great-niece","great-grandson","great-granddaughter"];
+ for(const id of blood){ const p=person(id); if(!living(p) || skip.has(id) || p.inlaw) continue;
+  const rel=relLabel(p);
+  if(Math.random() < (age(p)<5?0.006:deathChance(age(p)))){ p.died=S.year; const t=`${p.name}, the sovereign's ${rel}, has died, aged ${age(p)}.`; if(near(p) || ["brother","sister","father","mother"].includes(rel)) summary.push(t); log(t); continue; }
+  if(!close.includes(rel)) continue;
+  const sp=p.spouses.map(person).find(living);
+  if(!sp && !p.betrothed && age(p)>=18 && age(p)<=34 && Math.random()<0.035){ const s2=kinMarry(p, S.year); const t=`${p.name}, the sovereign's ${rel}, weds ${s2.name} of House ${s2.house}.`; log(t); if(near(p)) summary.push(t); continue; }
+  if(sp){ const mo=p.gender==="f"?p:sp; if(age(mo)>=17 && age(mo)<=42 && turn()-(p.lastBirthT??-99)>=4 && Math.random()<0.045){ const k=kinChild(p, sp, S.year); p.lastBirthT=turn(); const t=`A ${k.gender==="m"?"son":"daughter"}, ${k.name}, is born to ${p.name}, the sovereign's ${rel}.`; log(t); if(near(p)) summary.push(t); } } }
+ for(const id of blood){ const p=person(id); if(!p || skip.has(id)) continue; for(const s2 of p.spouses.map(person)) if(living(s2) && !skip.has(s2.id) && !blood.has(s2.id) && Math.random()<deathChance(age(s2))){ s2.died=S.year; log(`${s2.name}, ${relLabel(s2)||"of the family"}, has died, aged ${age(s2)}.`); if(person(r.father)?.spouses.includes(s2.id)||person(r.mother)?.spouses.includes(s2.id)) summary.push(`${s2.name}, the sovereign's ${s2.gender==="f"?"mother":"father"}, has died, aged ${age(s2)}.`); } }
 }
 /* Courting on behalf of the royal children: each unwed child has suitors of their own who can be won over
    season by season; a match can be proposed once the child is sixteen. */
@@ -1276,7 +1368,7 @@ function courtSeason(summary){
    summary.push(`<b>Heartbreak.</b> ${sp.name} has left the court and returned to ${sp.realm?S.realms[sp.realm].name:"House "+sp.house}.${sp.realm?" The alliance is broken.":""}`); log(`${sp.name} leaves ${r.name}. The marriage is over.`, true); }
   else if(Math.random()<deathChance(age(sp))){ sp.died=S.year; S.spouseId=null; summary.push(`<b>${sp.name} has died.</b> The court is draped in black.`); log(`${sp.name}, royal consort, has died.`, true); }
  }
- for(const p of Object.values(S.people)) if(p.elder && living(p) && Math.random()<deathChance(age(p))){ p.died=S.year; summary.push(`${p.name}, ${p.gender==="f"?(p.spouses.length&&person(p.spouses[0])?.ruled?"the queen mother":"sister of the sovereign"):"brother of the sovereign"}, has died, aged ${age(p)}.`); log(`${p.name} has died, aged ${age(p)}.`); }
+ kinSeason(summary);
  for(const d of S.districts||[]){ const p=person(d.duke); if(p && p.noble && living(p) && Math.random()<deathChance(age(p))) p.died=S.year; if(p && d.duke && !living(p)){ summary.push(`${p.name}, ${dukeTitle(p)} of ${d.name}, has died. The district has no ${p.gender==="f"?"duchess":"duke"}.`); log(`${p.name}, ${dukeTitle(p)} of ${d.name}, dies.`); d.duke=null; } }
  betrothalSeason(summary);
  for(const c of r.children.map(person)){ if(!living(c) || !childWed(c)) continue; const sp=c.spouses.map(person).find(living), mo=c.gender==="f"?c:sp;
@@ -1291,10 +1383,10 @@ function succession(summary, cause){
  const old=ruler(); old.died=S.year; old.ruled[1]=S.year; const h=heir();
  log(`${rulerTitle()} ${old.name} ${cause}, aged ${age(old)}.`, true);
  if(!h){ gameOver(`${old.name} ${cause}, leaving no heir. House ${S.dynasty} is extinct, and the great lords carve up ${pr().name}.`); return; }
- S.rulerId=h.id; h.ruled=[S.year,null]; S.heirId=null;
+ const wasRel=relLabel(h); S.rulerId=h.id; h.ruled=[S.year,null]; S.heirId=null; if(S.disinherited) delete S.disinherited[h.id];
  S.spouseId = h.spouses.find(x=>living(person(x))) || null; S.spouseAff = S.spouseId ? 55 : 0; S.suitors=[];
  log(`Long live ${rulerTitle()} ${h.name}!`, true);
- summary.push(`<b>${old.name} ${cause}. The crown passes to ${h.name}, aged ${age(h)}.</b>${age(h)<16?" A regency council will rule until the sovereign comes of age.":""}`);
+ summary.push(`<b>${old.name} ${cause}. The crown passes to ${h.name}, ${wasRel==='son'||wasRel==='daughter'?'':`the late sovereign's ${wasRel}, `}aged ${age(h)}.</b>${age(h)<16?" A regency council will rule until the sovereign comes of age.":""}`);
 }
 /* ---------- foreign rulers age, die, and their crowns may pass to our blood ---------- */
 function claimants(rid){ return Object.values(S.people).filter(p=>living(p) && p.house===S.dynasty && (p.claims||[]).includes(rid)); }
@@ -1802,6 +1894,7 @@ function ftZoom(f){ const t=$("ftree"); if(!t) return; const ul=t.firstElementCh
  const cx=(t.scrollLeft+t.clientWidth/2)/old, cy=(t.scrollTop+t.clientHeight/2)/old;
  ul.style.zoom=FTZ; t.scrollLeft=cx*FTZ-t.clientWidth/2; t.scrollTop=cy*FTZ-t.clientHeight/2; $("ftzl").textContent=Math.round(FTZ*100)+"%"; }
 function bindTree(prev){
+ { const sel=$("ftsel"); if(sel) sel.onchange=e=>{ FTVIEW=e.target.value||null; FTFOCUS=FTVIEW; render(); }; }
  const t=$("ftree"); if(!t) return;
  if(prev){ t.scrollLeft=prev[0]; t.scrollTop=prev[1]; }
  else { const f=t.querySelector(".pc.focus"); if(f){ const a=f.getBoundingClientRect(), b=t.getBoundingClientRect(); t.scrollLeft+=a.left+a.width/2-(b.left+b.width/2); } }
@@ -1838,7 +1931,7 @@ function ensureInLaws(sp){
  for(const pp of parents) pp.children.sort((a,b)=>person(a).born-person(b).born);
 }
 const topAncestor = p => { let x=p, n=0; while(n++<6){ const up=person(x.father)||person(x.mother); if(!up) break; x=up; } return x; };
-let FTVIEW = null;   // null: our own house; otherwise the id of a spouse whose family is shown
+let FTVIEW = null, FTLINEALL = false;   // null: our own house; otherwise the id of a spouse whose family is shown
 function renderFamily(){
  SLINE = successionLine();
  const focus = person(FTFOCUS) || ruler(); FTFOCUS_ID = focus?.id; BLOOD = focus ? bloodOf(focus) : new Set();
@@ -1847,22 +1940,36 @@ function renderFamily(){
  h += `<div class="treebar">${btn("−","",()=>ftZoom(1/1.2)).replace('class="btn"','class="zb" title="Zoom out"')}<span id="ftzl" style="min-width:42px;text-align:center">${Math.round(FTZ*100)}%</span>${btn("+","",()=>ftZoom(1.2)).replace('class="btn"','class="zb" title="Zoom in"')}${btn("⤢","",()=>ftZoom(0)).replace('class="btn"','class="zb" title="Reset zoom"')}
   <span class="lin">Showing the bloodline of <b>${focus.name}</b>${isR?", the reigning monarch":""}: ${nb} blood relative${nb===1?"":"s"} in the tree, lit up. Click anyone to see their bloodline. Drag to move around; Ctrl + scroll to zoom.</span>
   ${isR?"":btn("Back to the monarch","",()=>{ FTFOCUS=null; render(); })}</div>`;
- const sps=r.spouses.map(person).filter(p=>p && p.house!==S.dynasty);
- if(sps.length){ h += `<div class="btnrow" style="margin:0 0 6px">` + btn(`${!FTVIEW?"● ":""}House ${S.dynasty}`, "our own house", ()=>{ FTVIEW=null; FTFOCUS=null; render(); }) + sps.map(p=>btn(`${FTVIEW===p.id?"● ":""}House ${p.house}`, `the family of ${p.name}${living(p)?"":" (late)"}${p.realm&&S.realms[p.realm]?`, ${S.realms[p.realm].name}`:""}`, ()=>{ FTVIEW=p.id; FTFOCUS=p.id; render(); })).join("") + `</div>`; }
+ { const blood=bloodOf(ruler()), ins=[]; for(const id of blood){ const p=person(id); if(!p || p.inlaw) continue; for(const x of p.spouses.map(person)) if(x && (!blood.has(x.id) || x.house!==S.dynasty && !x.father && !x.mother || x.house!==S.dynasty && x.inlawsDone) && x.house!==S.dynasty && !ins.includes(x)) ins.push(x); }
+  if(person(FTVIEW) && !ins.includes(person(FTVIEW))) ins.push(person(FTVIEW));
+  const rk=x=>{ const L=relLabel(x); return x.spouses.includes(S.rulerId)?0:/^(son|daughter)'s/.test(L)?1:/^(brother|sister)'s/.test(L)?2:/^(nephew|niece|grandson|granddaughter)'s/.test(L)?3:4; };
+  ins.sort((a,b)=>rk(a)-rk(b) || a.born-b.born);
+  if(ins.length){ const cur=person(FTVIEW);
+   h += `<div class="ftsel"><label for="ftsel">Family tree shown</label><select id="ftsel"><option value="">House ${S.dynasty} · our own house</option>${ins.map(x=>`<option value="${x.id}"${FTVIEW===x.id?" selected":""}>House ${x.house} · the family of ${x.name}, ${relLabel(x)}${living(x)?"":" (late)"}${x.realm&&S.realms[x.realm]?` · ${S.realms[x.realm].name}`:""}</option>`).join("")}</select>${cur?btn("Back to our own house","",()=>{ FTVIEW=null; FTFOCUS=null; render(); }).replace('class="btn"','class="btn mini"'):""}</div>`; }
+  const fp=person(FTFOCUS); if(!FTVIEW && fp && ins.includes(fp)) h += `<p class="note" style="margin:0 0 6px">${fp.name} married into the family. ${btn(`Show the family of House ${fp.house}`,"",()=>{ FTVIEW=fp.id; render(); }).replace('class="btn"','class="btn mini"')}</p>`; }
  const view=person(FTVIEW); if(view) ensureInLaws(view);
  h += `<div class="tree lineage" id="ftree"><ul style="zoom:${FTZ}">${treeNode(view ? topAncestor(view) : (person(S.elderId) || person(S.founderId)))}</ul></div>`;
- h += `<div class="row"><span>${CROWN_SVG.replace('<svg','<svg style="width:18px;height:12px;vertical-align:-1px"')} Line of succession</span><span>${SLINE.length ? SLINE.slice(0,6).map((p,k)=>`${k+1}. ${p.name}`).join(" · ") + (SLINE.length>6?" …":"") : "none: the dynasty ends with this reign"}</span></div>`;
- const kids=r.children.map(person).filter(living), hh=heir();
+ const hh=heir(), law=S.law||"primo", named=person(S.heirId), byLaw=naturalLine()[0], lawWait=16-(turn()-(S.lawT??-99));
+ h += `<h4>The succession</h4><div class="person" style="border:1px solid #b8892d"><b>${CROWN_SVG.replace('<svg','<svg style="width:18px;height:12px;vertical-align:-1px"')} The heir: ${hh?`${hh.name}, ${relLabel(hh)}, aged ${age(hh)}`:"none"}</b>
+  <div class="meta">${!hh?"No one of the blood remains to inherit: the dynasty ends with this reign.":living(named)&&hh===named&&named!==byLaw?`Named by the sovereign. By law the crown would go to ${byLaw?.name||"no one"}.`:`Heir by the law of ${LAWS[law].name.toLowerCase()}.`}</div>
+  <div class="meta" style="margin-top:6px">Law of succession: <b>${LAWS[law].name}</b> · ${LAWS[law].sub}</div><div class="btnrow">`;
+ for(const [k,L] of Object.entries(LAWS)) if(k!==law) h += btn(`Adopt ${L.name.toLowerCase()}`, `${L.sub} · ${LAW_COST} gold · 1 deed · the knights grumble${lawWait>0?` · the last change was too recent: ${lawWait} more season${lawWait===1?"":"s"}`:""}`, ()=>actSetLaw(k), !canAct()||S.gold<LAW_COST||lawWait>0);
+ if(living(named) && named!==byLaw) h += btn("Set the named heir aside", `the crown follows the law again: ${byLaw?.name||"no one"}`, ()=>actClearHeir(), S.over);
+ h += `</div></div>`;
+ const showN = FTLINEALL ? SLINE.length : Math.min(12, SLINE.length);
+ if(SLINE.length){ h += `<div class="sline">`;
+  SLINE.slice(0,showN).forEach((p,k)=>{ h += `<div class="srow${p===hh?" heir":""}"><span class="sn">${k+1}.</span><span class="sp"><b>${p.name}</b> <span class="meta">${relLabel(p)} · aged ${age(p)}${p.gender==="m"?" · ♂":" · ♀"}${p.betrothed?` · betrothed to ${p.betrothed.name}`:p.spouses.some(x=>living(person(x)))?" · wed":""}</span></span><span class="sb">${
+   p===hh ? `<span class="tag heir">heir</span>` : btn("Name heir","",()=>actNameHeir(p.id),S.over).replace('class="btn"','class="btn mini"')}${btn("Disinherit","",()=>actDisinherit(p.id),S.over,true).replace('class="btn red"','class="btn mini red"')}${btn("Show","",()=>{ FTVIEW=null; FTFOCUS=p.id; FTKEEP=false; render(); }).replace('class="btn"','class="btn mini"')}</span></div>`; });
+  if(SLINE.length>12) h += btn(FTLINEALL?"Show only the first twelve":`Show all ${SLINE.length} in line`,"",()=>{ FTLINEALL=!FTLINEALL; render(); }).replace('class="btn"','class="btn mini"');
+  h += `</div>`; }
+ const dis=Object.keys(S.disinherited||{}).map(person).filter(living);
+ if(dis.length) h += `<div class="row"><span>Disinherited</span><span>${dis.map(p=>`${p.name} (${relLabel(p)}) `+btn("Restore","",()=>actDisinherit(p.id,true),S.over).replace('class="btn"','class="btn mini"')).join(" ")}</span></div>`;
+ const kids=r.children.map(person).filter(living);
  if(kids.length){ h += `<h4>The royal children</h4>`;
-  const eldest=kids.slice().sort((a,b)=>a.born-b.born)[0], named=person(S.heirId);
-  h += `<div class="person" style="border:1px solid #b8892d"><b>The heir: ${hh?.name||"none"}</b> <span class="meta">${hh && (!living(named) || !kids.includes(named)) ? "· the eldest child, by default" : hh ? "· chosen by the sovereign" : ""}</span><div class="meta">Choose which child will inherit the crown:</div><div class="btnrow">`;
-  for(const c of kids.slice().sort((a,b)=>a.born-b.born)) h += btn(`${c===hh?"♛ ":""}${c.name}`, `aged ${age(c)}${c===eldest?" · eldest":""}${c===hh?" · heir":""}`, ()=>actNameHeir(c.id), S.over||c===hh);
-  if(living(named) && kids.includes(named) && named!==eldest) h += btn("Return to the eldest", `${eldest.name} becomes heir again`, ()=>{ S.heirId=null; log(`${eldest.name}, the eldest, is again the heir.`, true); after(); }, S.over);
-  h += `</div></div>`;
   for(const c of kids){ const wed=c.spouses.some(x=>living(person(x)));
-   h += `<div class="row"><span>${c.name}, aged ${age(c)}</span><span>${c===hh?"heir":""}${c.betrothed?` · betrothed to ${c.betrothed.name}`:""}</span></div><div class="btnrow">`;
+   h += `<div class="row"><span>${c.name}, aged ${age(c)}</span><span>${c===hh?"heir":SLINE.includes(c)?`${ord(SLINE.indexOf(c)+1)} in line`:"disinherited"}${c.betrothed?` · betrothed to ${c.betrothed.name}`:""}</span></div><div class="btnrow">`;
    h += btn("Arrange a foreign match", wed?"Already wed":c.betrothed?"Already betrothed":age(c)<16?"Seek a betrothal from the International Relations page":"60 gold · a quick match with any court · or court suitors on the Romance page", ()=>actArrangeMatch(c.id), S.over||wed||!!c.betrothed||age(c)<16||S.gold<60) + `</div>`; }
- } else h += `<p class="note">${rulerTitle()} ${r.name} has no living children. Without an heir, the dynasty ends with this reign.</p>`;
+ } else h += `<p class="note">${rulerTitle()} ${r.name} has no living children.${hh?` The crown would pass to ${hh.name}, the sovereign's ${relLabel(hh)}.`:""}</p>`;
  const cl = Object.values(S.realms).filter(x=>x.alive && claimants(x.id).length);
  if(cl.length){ h += `<h4>Claims by blood</h4>`; for(const x of cl) h += `<div class="row"><span>${x.name}</span><span>${claimants(x.id).map(p=>p.name).join(", ")} · ruler aged ${x.ruler.age}</span></div>`; }
  return h;
@@ -2794,7 +2901,7 @@ function startScreen(){
   <label for="gd">Sovereign</label><select id="gd"><option value="m">King</option><option value="f">Queen</option></select>
   <label for="dy">Dynasty</label><input id="dy" value="${REALMS.albion.dyn}" maxlength="24">`,
   choices:[{label:"Take the throne", keep:true, fn:()=>{}},
-   ...(saved && !saved.over ? [{label:`Continue saved reign (${SEASONS[saved.season]} ${saved.year}, ${saved.realms[saved.player].name})`, fn:()=>{ S=saved; render(); goHome(false); }}] : [])],
+   ...(saved && !saved.over ? [{label:`Continue saved reign (${SEASONS[saved.season]} ${saved.year}, ${saved.realms[saved.player].name})`, fn:()=>{ S=saved; growKin(); render(); goHome(false); }}] : [])],
   onshow:()=>{
    $("rg").onclick=e=>{ const b=e.target.closest("button"); if(!b) return; choice=b.dataset.r; [...$("rg").children].forEach(x=>x.classList.toggle("on",x===b)); $("dy").value=REALMS[choice].dyn; };
    $("gd").onchange=e=>{ gender=e.target.value; $("nm").value = pick(gender==="m"?MALE:FEMALE); };
@@ -2830,7 +2937,7 @@ buildMap(); bindMap();
 $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
-$("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
+$("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; growKin(); $("title").classList.add("hide"); render(); goHome(false); };
 $("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have three <b>deeds</b> for work on the main map (building or upgrading a village, farm, fishery or mine, chartering a city, exploring, sending colonists, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields the <b>good</b> of its terrain: plains grain for the granary, forest <b>timber</b>, mountain <b>stone</b>, coast <b>salt</b>, marsh <b>peat</b> and swamp <b>iron</b>. Buildings need goods as well as gold, and peat or timber keeps your people warm in winter, so keep some land wild; anything you lack can be bought from trading partners or the royal market on the Treasury page. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b>. Farms, fisheries and mines all start at level IV and can be improved to level I: +5, +10, +15 and +25 a season (food for farms and fisheries, gold for mines). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Click one of your cities to walk its streets: build houses (every 25 people need one), a castle, blacksmiths, markets, mills and more, develop it and fortify its walls. Every building job inside a city takes a deed too. A port city builds ships at its quays; with a harbour it can keep a fleet, and a fleet of five with settlers, gold and resources stored in the city can sail off to found a colony on an unclaimed coast. <b>Trade routes</b>, the thin white lines on the map, join neighbouring lands into chains that link your cities and villages; each segment costs 5 gold and needs no deed. Farms, fisheries, mines and wild land send their goods to the nearest city or village within two tiles, and harbour cities are linked by sea. Only the network holding your capital fills the royal granary and stores: a city or village cut off from it lives on its own farms and goes hungry if they fall short. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Set taxes, feed the poor and trade with neighbours from the <b>Treasury</b>. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The whole map is known, but not what has been built beyond your borders until explorers have been there. Send scouts overland, or a ship from a port city over the sea; voyages take several seasons. On the International Relations page you can see what every kingdom thinks of you, send diplomats, trade, make war or peace, barter treaties, win the right to run your trade routes through their land, and seek marriages for your children. Press <b>End Season</b> to let time pass.</p>`});
 }
 </script>
