@@ -97,6 +97,10 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
 .treebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 8px}
 .treebar .zb{width:34px;height:34px;padding:0;border:1px solid #6b4a1e;border-radius:6px;background:rgba(255,240,205,.5);font:400 20px/1 serif;color:#3a240e;cursor:pointer}
 .treebar .zb:hover{background:rgba(255,240,205,.85)}
+#map #rlabels text{font-family:'IM Fell English',serif;text-anchor:middle;dominant-baseline:middle;fill:#2a1a0a;stroke:rgba(255,240,205,.8);stroke-width:2.6px;paint-order:stroke;stroke-linejoin:round;opacity:.9}
+#map #rlabels text.me{fill:#5a0e0e}
+#map.far #places, #map.far #devs, #map.far #dlabels{display:none}
+#map:not(.far) #rlabels{display:none}
 .pedi{display:flex;gap:10px;margin:0 0 8px;padding:8px;max-height:230px;overflow-y:auto;border:1px solid #6b4a1e55;border-radius:6px;background:rgba(255,240,205,.25);overflow-x:auto}
 .pedi .pcol{display:flex;flex-direction:column;justify-content:center;gap:3px;min-width:150px}.pedi .pcol.self{min-width:170px}
 .pedi .ph{font:400 14px 'IM Fell English',serif;color:var(--accent)}
@@ -313,7 +317,7 @@ const TERRAIN="ccmmscccccmmsscacmmmcccccmmccccccmmcmmffcccmmmmmmmccccmmmmmcccccm
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.4.8";
+const VERSION = "pre-alpha v0.4.9";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -2539,7 +2543,7 @@ function render(){
  $("ap").innerHTML = Array.from({length:apMax()},(_,i)=>`<i class="${i<S.ap?"":"used"}"></i>`).join("");
  $("mar").innerHTML = Array.from({length:maxMarches()},(_,i)=>`<i class="${i<S.marches?"":"used"}"></i>`).join("");
  $("endyear").disabled = S.over;
- renderCells(); renderAllyBorders(); renderDistricts(); renderRoutes(); renderDevs(); renderPlaces(); renderLegend(); renderNotches(); renderPanel(); renderCard(); renderCity();
+ renderCells(); renderAllyBorders(); renderDistricts(); renderRoutes(); renderDevs(); renderPlaces(); renderRealmLabels(); renderLegend(); renderNotches(); renderPanel(); renderCard(); renderCity();
 }
 const DEVICON = {
  farm:`<circle r="5" fill="#3a2a10" stroke="#e2c46a" stroke-width=".8"/><path d="M-2.6 2.6V-1.2M0 2.6V-2.4M2.6 2.6V-1.2" stroke="#f1d27a" stroke-width=".9"/><ellipse cx="-2.6" cy="-1.8" rx=".8" ry="1.3" fill="#f1d27a"/><ellipse cx="0" cy="-3" rx=".8" ry="1.3" fill="#f1d27a"/><ellipse cx="2.6" cy="-1.8" rx=".8" ry="1.3" fill="#f1d27a"/>`,
@@ -2580,6 +2584,33 @@ function lab(p,rad){ const k=LBL[p.id];
  if(k==="r") return `<text x="${rad+4}" y="4" text-anchor="start">${p.name}</text>`;
  if(k==="b") return `<text y="${rad+13}" text-anchor="middle">${p.name}</text>`;
  return `<text y="${-rad-4}" text-anchor="middle">${p.name}</text>`; }
+/* Zoomed out, the map shows only the names of the kingdoms, set over the heart of each one's largest stretch of land. */
+const FAR_W = 600;
+let RLKEY = "";
+function renderRealmLabels(){
+ const g=$("rlabels"); if(!g) return; cellInit();
+ const key=S.tiles.join(",")+"|"+Object.values(S.realms).map(r=>r.name+r.alive).join(","); if(key===RLKEY) return; RLKEY=key;
+ const by={}; S.tiles.forEach((o,i)=>{ if(o) (by[o] ||= []).push(i); });
+ const L=[];
+ for(const [rid,ts] of Object.entries(by)){ const r=S.realms[rid]; if(!r?.alive) continue;
+  const set=new Set(ts), seen=new Set(); let best=[];
+  for(const t of ts){ if(seen.has(t)) continue; const comp=[], q=[t]; seen.add(t); while(q.length){ const i=q.pop(); comp.push(i); for(const j of NEI[i]) if(set.has(j) && !seen.has(j)){ seen.add(j); q.push(j); } } if(comp.length>best.length) best=comp; }
+  let x=0, y=0; for(const i of best){ x+=+CELLC[i][0]; y+=+CELLC[i][1]; } x/=best.length; y/=best.length;
+  const spots=[[x,y], ...best.map(i=>[+CELLC[i][0], +CELLC[i][1]]).sort((p,q)=>Math.hypot(p[0]-x,p[1]-y)-Math.hypot(q[0]-x,q[1]-y)).slice(0,30)];
+  if(!best.some(i=>Math.hypot(CELLC[i][0]-x, CELLC[i][1]-y)<12)) spots.shift();
+  L.push({rid, n:ts.length, nm:r.name.toUpperCase(), spots}); }
+ L.sort((a,b)=>b.n-a.n);
+ const boxes=[], hit=bx=>boxes.some(o=>bx.x0<o.x1 && bx.x1>o.x0 && bx.y0<o.y1 && bx.y1>o.y0);
+ const SEA=[...document.querySelectorAll("#map .sealabel")].map(t=>{ const x=+t.getAttribute("x"), y=+t.getAttribute("y"), fs=+(t.getAttribute("font-size")||22), w=t.textContent.length*fs*0.5; return {x0:x-w/2,x1:x+w/2,y0:y-fs,y1:y+4}; }); boxes.push(...SEA);
+ let h="";
+ for(const l of L){ let fs=clamp(5.5+Math.sqrt(l.n)*1.35, 7, 20), done=null;
+  for(let tries=0; tries<3 && !done; tries++, fs*=0.85){ const w=l.nm.length*fs*0.66+fs*0.4;
+   for(const [x,y] of l.spots){ const bx={x0:x-w/2, x1:x+w/2, y0:y-fs*0.55, y1:y+fs*0.55}; if(!hit(bx)){ done={x,y,fs,bx}; break; } } }
+  if(!done){ const [x,y]=l.spots[0], w=l.nm.length*fs*0.66; done={x,y,fs, bx:{x0:x-w/2,x1:x+w/2,y0:y-fs/2,y1:y+fs/2}}; }
+  boxes.push(done.bx);
+  h += `<text x="${done.x.toFixed(1)}" y="${done.y.toFixed(1)}" font-size="${done.fs.toFixed(1)}" letter-spacing="${(done.fs*0.06).toFixed(2)}"${l.rid===S.player?' class="me"':""}>${l.nm}</text>`; }
+ g.innerHTML=h;
+}
 function renderLegend(){
  const alive = Object.values(S.realms).filter(r=>r.alive && known(r.id)).sort((a,b)=>owned(b.id).length-owned(a.id).length);
  $("legend").innerHTML = alive.map(r=>`<div><i style="background:${r.color}"></i>${r.name}${r.id===S.player?" (you)":""}${atWar(S.player,r.id)?" ⚔":""}</div>`).join("");
@@ -2834,6 +2865,7 @@ function buildMap(){
   <path id="routes" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" pointer-events="none"/>
  <g id="devs"></g>
  <g id="places"></g>
+ <g id="rlabels" pointer-events="none"></g>
  <rect x="-500" y="-500" width="2000" height="1800" fill="url(#vig)" pointer-events="none"/>`;
  CELLEL=[]; LODK=-1;
 }
@@ -2870,7 +2902,7 @@ function applyLive(){
  svg.style.transform=`translate(${tx}px,${ty}px) scale(${k})`;
 }
 function setVBsoon(delay=170){ applyLive(); clearTimeout(commitT); if(delay>=0) commitT=setTimeout(setVB, delay); }
-function setVB(){ clearTimeout(commitT); setLOD(); vbC={...vb}; $("map").style.transform=""; $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const k=PS(); for(const g of document.querySelectorAll("#places .place, #devs .dv")) g.setAttribute("transform",`translate(${g.dataset.x},${g.dataset.y}) scale(${k})`); $("dlabels")?.setAttribute("font-size", (8*k).toFixed(2)); }
+function setVB(){ clearTimeout(commitT); setLOD(); vbC={...vb}; $("map").classList.toggle("far", vb.w>FAR_W); $("map").style.transform=""; $("map").setAttribute("viewBox", `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); const k=PS(); for(const g of document.querySelectorAll("#places .place, #devs .dv")) g.setAttribute("transform",`translate(${g.dataset.x},${g.dataset.y}) scale(${k})`); $("dlabels")?.setAttribute("font-size", (8*k).toFixed(2)); }
 function aspect(){ const r=$("map").getBoundingClientRect(); return (r.width>10&&r.height>10)? r.width/r.height : 1.25; }
 const maxW = () => Math.max(1000, 800*aspect());
 function clampBox(b){ if(b.w>=1300) b.x=(1000-b.w)/2; else b.x=clamp(b.x,-150,1150-b.w); if(b.h>=1000) b.y=(800-b.h)/2; else b.y=clamp(b.y,-100,900-b.h); return b; }

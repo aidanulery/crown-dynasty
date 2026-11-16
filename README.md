@@ -2,7 +2,7 @@
 
 A historical strategy game set in fictional 1500s Europe. Rule a kingdom, wage war, marry, raise heirs, colonise the New World, and grow your realm into an empire.
 
-- `index.html` — latest build (currently **pre-alpha v0.4.8**). Open it in a browser.
+- `index.html` — latest build (currently **pre-alpha v0.4.9**). Open it in a browser.
 - `versions/` — every released version, one folder each.
 - `src/` — game source (`game.src.html`), map data (`mapdata.js`), town list (`places.json`) and the map generator (`gen.mjs`).
 - `tools/` — `build.mjs` (builds `index.html`), `audit-coast.mjs` (coastline audit), `coast-shots.mjs` (coastline screenshots).
@@ -69,3 +69,4 @@ python3 tools/terrain.py          # writes TERRAIN into src/mapdata.js
 - v0.4.6 — a fully drawn royal family: the tree now starts with the grandparents and shows uncles, aunts and cousins with their spouses and children, and the sovereign's brothers and sisters (one to three) with their own families. Kin marry into noble houses, have children and die as the years pass. Everyone who married into the family has a family tree of their own, chosen from a list on the Family page (or by clicking them in the tree). Succession: the line now runs through brothers, sisters, nephews, nieces, uncles, aunts and cousins, so a sovereign without children no longer ends the dynasty; any relative in the line can be named heir, disinherited or restored; and the realm can adopt primogeniture, male-preference primogeniture or seniority (120 gold, 1 deed, the knights grumble, once every four years).
 - v0.4.7 — the Family page follows whoever is clicked: an ancestry strip above the tree shows their parents, grandparents and great-grandparents (click any of them to move up a generation), and clicking someone who married into the family switches the tree to their own family automatically; clicking anyone of our blood brings our own house back. In-law ancestors now get realistic lifespans.
 - v0.4.8 — map fix: the Gaillimh town marker sat just off its own tile on the Galway Bay coast; the map generator now moves any town marker that falls outside its tile just inside it (only Gaillimh moved, by under 2px; tiles are unchanged, so saves still load). The coastline audit now fails, rather than warns, when a town marker is off its tile.
+- v0.4.9 — zoomed out, the map shows only the names of the kingdoms: city names, town markers, building icons and district names disappear once the view is wider than 600 map units, and each kingdom's name is written over its largest stretch of land, sized to the realm and nudged so names never overlap each other or the sea names. Our own kingdom's name is in dark red. Zooming back in brings the cities and icons back.
