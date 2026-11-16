@@ -292,7 +292,7 @@ header .ver{font:italic 13px "IM Fell English",serif;color:var(--muted)}
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.4.2";
+const VERSION = "pre-alpha v0.4.3";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -512,8 +512,8 @@ function killPeople(rid, n, place){
 function regrow(rid){ for(const t of owned(rid)){ if(t.hungryT===turn()) continue; const cap=Math.min(townPeople(t), t.houses!=null ? t.houses*PEOPLE_PER_HOUSE : Infinity); if(t.pop<cap) t.pop = Math.min(cap, t.pop + Math.ceil(townPeople(t)*(typeof regrowRate==='function'?regrowRate(t):REGROW)*(t.owner===S.player ? taxOf().regrow*(relief()?1.25:1) : 1))); } }
 const VILLAGE = [null, {name:"Village", people:150, grow:16, farms:1, up:{g:80,r:60,label:"Raise to a market village"}}, {name:"Market village", people:400, grow:16, farms:2, up:{g:150,r:100,label:"Found a new city"}}];
 const DEV = {
- farm:   {name:"Farm",      food:6, g:40, r:15, kind:"build", blurb:"+6 food a season · near a village or city"},
- fish:   {name:"Fishery",   food:5, g:30, r:12, kind:"fish", blurb:"+5 food a season · coast, near a village or city", coastal:true},
+ farm:   {name:"Farm",      food:5, g:MINE[4].g, r:MINE[4].r, kind:"build", blurb:`+${MINE[4].gold} food a season at level IV, up to +${MINE[1].gold} at level I · near a village or city`},
+ fish:   {name:"Fishery",   food:5, g:MINE[4].g, r:MINE[4].r, kind:"fish", blurb:`+${MINE[4].gold} food a season at level IV, up to +${MINE[1].gold} at level I · coast, near a village or city`, coastal:true},
  village:{name:"Village",   g:80, r:50, kind:"build", blurb:`+${VILLAGE[1].people} people (taxes +${VILLAGE[1].people/PEOPLE_PER_GOLD} gold) · needs a farm next to it · grows into a market village, then a city of ${CITY_PEOPLE}`},
  mine:   {name:"Gold mine", g:MINE[4].g, r:MINE[4].r, kind:"mine", blurb:`+${MINE[4].gold} gold a season at level IV, up to +${MINE[1].gold} at level I · near a village or city`}
 };
@@ -540,6 +540,11 @@ function supportSet(rid=S.player){
  while(q.length){ const i=q.shift(), d=dist.get(i); if(d>=SUPPORT_RANGE) continue; for(const j of NEI[i]) if(!dist.has(j)){ dist.set(j,d+1); q.push(j); } }
  SUPC[rid]={key,d:dist}; return dist;
 }
+/* Farms and fisheries climb the same ladder as gold mines: level IV yields 5, III 10, II 15, I 25 (food instead of gold),
+   at the same price in gold, with timber for farms and timber and salt for fisheries. */
+const WORK_KIND = {mine:"mine", farm:"build", fish:"fish"};
+const workLvl = d => d?.lvl || 4;
+const workYield = d => MINE[workLvl(d)].gold;
 const farmsNear = (i, owner) => NEI[i].filter(j=>S.tiles[j]===owner && devsAt(j).farm).length;
 const inSupport = i => supportSet().has(i);
 function whyNot(i,t,rid=S.player){   // reason a development can't be added here, or "" if it can (cost aside)
@@ -559,8 +564,8 @@ function economy(rid, withNets=true){
  E.townPeople = towns.reduce((s,p)=>s+(p.pop ?? townPeople(p)),0); E.capacity = towns.reduce((s,p)=>s+townPeople(p),0);
  for(const k in S.devs){ const i=+k, d=S.devs[k]; if(S.tiles[i]!==rid) continue;
   if(d.mine){ E.goldMines += MINE[d.mine.lvl].gold; E.mines++; }
-  if(d.farm){ E.food += DEV.farm.food; E.farms++; }
-  if(d.fish){ E.food += DEV.fish.food; E.fish++; }
+  if(d.farm){ E.food += workYield(d.farm); E.farms++; }
+  if(d.fish){ E.food += workYield(d.fish); E.fish++; }
   if(d.village){ E.villagePeople += VILLAGE[d.village.lvl].people; E.villages++; } }
  E.people = E.townPeople + E.villagePeople;
  const TM = rid===S.player ? taxOf().mult : 1;
@@ -620,7 +625,7 @@ function tradeNets(rid=S.player){
   let n = best.get(i)?.[2];
   if(n==null){ const h=S.places[S.homes?.[i]]; n = h && h.owner===rid && comp.has(h.tile) ? remap(comp.get(h.tile)) : royal.id; }
   const N = nets.get(n) || royal; tileNet.set(i, N.id); const d=S.devs[i];
-  if(d?.farm) N.food+=DEV.farm.food; if(d?.fish) N.food+=DEV.fish.food;
+  if(d?.farm) N.food+=workYield(d.farm); if(d?.fish) N.food+=workYield(d.fish);
   if(!TOWNAT.has(i) && !hasDevs(i) && !(rid===S.player && S.unint?.[i])){ const gk=tileGood(i); if(gk==="grain"){ N.grain+=RES_PER_WILD_TILE; N.food+=RES_PER_WILD_TILE; } else { N.goods[gk]+=RES_PER_WILD_TILE; N.res+=RES_PER_WILD_TILE; } } }
  for(const N of nets.values()) N.eat = Math.ceil(N.people/PEOPLE_PER_FOOD);
  return {nets:[...nets.values()], royal, tileNet};
@@ -1017,7 +1022,7 @@ function seedFarms(){   // every kingdom starts with two farms beside each town
 function aiPay(r, g, res, deed=true, kind="build"){ if(deed && r.ap<1) return false; const o=goodsCost(res,kind), G=goodsOf(r); let buy=0;
  for(const k in o){ const short=Math.max(0,o[k]-(G[k]||0)); buy += Math.ceil(short*GOODS[k].price*1.5); }
  if(r.gold < g+buy) return false; r.gold -= g+buy; for(const k in o){ G[k]=Math.max(0,(G[k]||0)-o[k]); } if(deed) r.ap--; return true; }
-function aiBuild(r, i, t){ const D=DEV[t]; if(whyNot(i,t,r.id) || !aiPay(r, D.g, D.r, true, D.kind)) return false; (S.devs[i] ||= {})[t] = t==="mine" ? {lvl:4} : t==="village" ? {lvl:1, grow:0} : {}; return true; }
+function aiBuild(r, i, t){ const D=DEV[t]; if(whyNot(i,t,r.id) || !aiPay(r, D.g, D.r, true, D.kind)) return false; (S.devs[i] ||= {})[t] = t!=="village" ? {lvl:4} : t==="village" ? {lvl:1, grow:0} : {}; return true; }
 function aiRoutes(r){   // a road crew (one deed) links a cut-off settlement to the capital's network, up to 8 segments
  const T=tradeNets(r.id); if(!T.royal) return false;
  const goal=new Set(T.royal.members.map(m=>m.tile)); const cut=T.nets.filter(n=>!n.royal).flatMap(n=>n.members);
@@ -1055,7 +1060,9 @@ function aiDevelop(r){
  // 2. link cut-off settlements to the capital
  if((E.cut||[]).length && Math.random()<0.8 && aiRoutes(r)) return true;
  // 3. more food when short
- if(E.netFood<3){ const c=mine.filter(i=>sup.has(i) && !devsAt(i).village && !devsAt(i).farm); if(c.length && aiBuild(r,pick(c),"farm")) return true; }
+ if(E.netFood<3){ const up=mine.filter(i=>{ const f=devsAt(i).farm||devsAt(i).fish; return f && workLvl(f)>1; });
+  if(up.length && Math.random()<0.5){ const i=pick(up), t=devsAt(i).farm?"farm":"fish", d=devsAt(i)[t]; d.lvl=workLvl(d); const nx=MINE[d.lvl-1]; if(aiPay(r,nx.g,nx.r,true,WORK_KIND[t])){ d.lvl--; return true; } }
+  const c=mine.filter(i=>sup.has(i) && !devsAt(i).village && !devsAt(i).farm); if(c.length && aiBuild(r,pick(c),"farm")) return true; }
  // 4. grow villages into market villages and cities
  for(const i of mine){ const v=devsAt(i).village; if(!v || (v.grow||0)<VILLAGE[v.lvl].grow || v.cutoff) continue;
   if(v.lvl===1){ if(aiPay(r, VILLAGE[1].up.g, VILLAGE[1].up.r, true, "market")){ v.lvl=2; v.grow=0; return true; } }
@@ -2143,12 +2150,14 @@ const canPay = (g,r,kind="build") => S.gold>=g && hasGoods(goodsCost(r,kind));
 function payCost(g,r,kind="build"){ S.gold-=g; spendGoods(goodsCost(r,kind)); }
 function actBuild(i,t){
  const d=DEV[t]; if(S.over || S.tiles[i]!==S.player || TOWNAT.has(i) || whyNot(i,t) || !canPay(d.g,d.r,d.kind) || !useAP()) return;
- payCost(d.g,d.r,d.kind); (S.devs[i] ||= {})[t] = t==="mine" ? {lvl:4} : t==="village" ? {lvl:1, grow:0} : {};
- toast(t==="mine" ? `A level IV gold mine opens: +${MINE[4].gold} gold a season.` : t==="village" ? `Families settle a new village: +${VILLAGE[1].people} people.` : `A new ${d.name.toLowerCase()} is built.`); after();
+ payCost(d.g,d.r,d.kind); (S.devs[i] ||= {})[t] = t==="village" ? {lvl:1, grow:0} : {lvl:4};
+ toast(t==="mine" ? `A level IV gold mine opens: +${MINE[4].gold} gold a season.` : t==="farm"||t==="fish" ? `A level IV ${DEV[t].name.toLowerCase()} opens: +${MINE[4].gold} food a season.` : t==="village" ? `Families settle a new village: +${VILLAGE[1].people} people.` : `A new ${d.name.toLowerCase()} is built.`); after();
 }
-function actUpgradeMine(i){
- const d=devsAt(i).mine; if(!d || d.lvl<=1 || S.tiles[i]!==S.player) return; const nx=MINE[d.lvl-1];
- if(!canPay(nx.g,nx.r,"mine") || !useAP()) return; payCost(nx.g,nx.r,"mine"); d.lvl--; toast(`The mine is dug deeper: level ${nx.lvl}, +${nx.gold} gold a season.`); after();
+function actUpgradeMine(i){ actUpgradeWork(i,"mine"); }
+function actUpgradeWork(i, t){
+ const d=devsAt(i)[t]; if(!d || workLvl(d)<=1 || S.tiles[i]!==S.player || S.over) return; d.lvl=workLvl(d); const nx=MINE[d.lvl-1], k=WORK_KIND[t];
+ if(!canPay(nx.g,nx.r,k) || !useAP()) return; payCost(nx.g,nx.r,k); d.lvl--;
+ toast(t==="mine" ? `The mine is dug deeper: level ${nx.lvl}, +${nx.gold} gold a season.` : `The ${DEV[t].name.toLowerCase()} grows to level ${nx.lvl}: +${nx.gold} food a season.`); after();
 }
 const CITY_A = ["Ash","Wex","Mar","Thorn","Hal","Brad","Kings","Ox","Rad","Wil","Elm","Stan","Lyn","Hart","Fen","Dun","Bel","Cor","Mont","Roche","Val","Beau","Gra","Sel","Ard","Hol","Ber","Lau","Fal","Wend"];
 const CITY_B = ["bury","ford","ham","wick","stead","mouth","ton","by","field","minster","gate","bridge","mere","haven","court","mont","ville","berg","dorf","holm","burgh","vale"];
@@ -2339,7 +2348,7 @@ function renderDevs(){
  $("devs").innerHTML = Object.keys(S.devs).filter(i=>S.seen[+i] && S.tiles[+i]).map(i=>{ const here=S.devs[i], [x,y]=CELLC[+i];
   const kinds = DEV_ORDER.filter(t=>here[t]), off = kinds.length===1?[0]:kinds.length===2?[-5.6,5.6]:[-11,0,11];
   const icons = kinds.map((t,n)=>{ const icon = t==="village" && here.village.lvl===2 ? DEVICON.market : DEVICON[t];
-   return `<g transform="translate(${off[n]},0)">${icon}${t==="mine"?`<text x="3.2" y="-3.6" font-size="4.6" font-weight="700" fill="#f0c040" stroke="#2a1d12" stroke-width="1.2" paint-order="stroke" font-family="Spectral,serif">${MINE[here.mine.lvl].lvl}</text>`:""}</g>`; }).join("");
+   return `<g transform="translate(${off[n]},0)">${icon}${t==="mine"||t==="farm"||t==="fish"?`<text x="3.2" y="-3.6" font-size="4.6" font-weight="700" fill="${t==="mine"?"#f0c040":"#b8e07a"}" stroke="#2a1d12" stroke-width="1.2" paint-order="stroke" font-family="Spectral,serif">${MINE[workLvl(here[t])].lvl}</text>`:""}</g>`; }).join("");
   return `<g class="dv" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${k})">${icons}</g>`; }).join("");
 }
 function renderPlaces(){
@@ -2506,6 +2515,9 @@ function renderCard(){
     if(t==="mine"){ const d=here.mine; h += `<div class="row"><span>Level ${MINE[d.lvl].lvl}</span><span>+${MINE[d.lvl].gold} gold a season</span></div>`;
      if(d.lvl>1){ const nx=MINE[d.lvl-1]; h += btn(`Dig deeper to level ${nx.lvl}`, `${costText(nx.g,nx.r,"mine")} · 1 deed · +${nx.gold} gold a season`, ()=>actUpgradeMine(i), !canAct()||!canPay(nx.g,nx.r,"mine")); }
      else h += `<p class="note">The richest vein: level I.</p>`; }
+    else if(t==="farm"||t==="fish"){ const d=here[t], L=workLvl(d); h += `<div class="row"><span>Level ${MINE[L].lvl}</span><span>+${workYield(d)} food a season</span></div>`;
+     if(L>1){ const nx=MINE[L-1]; h += btn(t==="farm"?`Enlarge the farm to level ${nx.lvl}`:`Expand the fishery to level ${nx.lvl}`, `${costText(nx.g,nx.r,WORK_KIND[t])} · 1 deed · +${nx.gold} food a season`, ()=>actUpgradeWork(i,t), !canAct()||!canPay(nx.g,nx.r,WORK_KIND[t])); }
+     else h += `<p class="note">${t==="farm"?"The finest fields in the land":"The richest fishing grounds"}: level I.</p>`; }
     else if(t==="village"){ const d=here.village, st=VILLAGE[d.lvl], g=Math.min(d.grow||0, st.grow), ready=g>=st.grow;
      h += `<div class="row"><span>${st.people} people</span><span>+${st.people/PEOPLE_PER_GOLD} gold a season</span></div>`;
      { const f=farmsNear(i,S.player), ok=f>=st.farms; h += `<div class="row"><span>Farms next to it</span><span style="color:${ok?'inherit':'#8a1f1f'}">${f} of ${st.farms} needed${ok?'':d.hungry?' · will be abandoned at season’s end':' · will go hungry'}</span></div>`; }
@@ -2742,7 +2754,7 @@ $("ver").textContent = VERSION; $("tver").textContent = VERSION;
 { const sv = load(); $("tcont").disabled = !(sv && !sv.over); }
 $("tnew").onclick = () => { $("title").classList.add("hide"); startScreen(); };
 $("tcont").onclick = () => { const sv=load(); if(!sv) return; S=sv; $("title").classList.add("hide"); render(); goHome(false); };
-$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have three <b>deeds</b> for work on the main map (building or upgrading a village, farm, fishery or mine, chartering a city, exploring, sending colonists, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields the <b>good</b> of its terrain: plains grain for the granary, forest <b>timber</b>, mountain <b>stone</b>, coast <b>salt</b>, marsh <b>peat</b> and swamp <b>iron</b>. Buildings need goods as well as gold, and peat or timber keeps your people warm in winter, so keep some land wild; anything you lack can be bought from trading partners or the royal market on the Treasury page. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b> you can dig from level IV (+5 gold) down to level I (+25). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Click one of your cities to walk its streets: build houses (every 25 people need one), a castle, blacksmiths, markets, mills and more, develop it and fortify its walls. Every building job inside a city takes a deed too. A port city builds ships at its quays; with a harbour it can keep a fleet, and a fleet of five with settlers, gold and resources stored in the city can sail off to found a colony on an unclaimed coast. <b>Trade routes</b>, the thin white lines on the map, join neighbouring lands into chains that link your cities and villages; each segment costs 5 gold and needs no deed. Farms, fisheries, mines and wild land send their goods to the nearest city or village within two tiles, and harbour cities are linked by sea. Only the network holding your capital fills the royal granary and stores: a city or village cut off from it lives on its own farms and goes hungry if they fall short. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Set taxes, feed the poor and trade with neighbours from the <b>Treasury</b>. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The whole map is known, but not what has been built beyond your borders until explorers have been there. Send scouts overland, or a ship from a port city over the sea; voyages take several seasons. On the International Relations page you can see what every kingdom thinks of you, send diplomats, trade, make war or peace, barter treaties, win the right to run your trade routes through their land, and seek marriages for your children. Press <b>End Season</b> to let time pass.</p>`});
+$("thow").onclick = () => modal({title:"How to Rule", body:`<p>The notches along the top open your pages: the map and spyglass for exploration, crossed swords for war, hearts for romance and the scroll for your chronicle. Each year has four seasons. Each season you have three <b>deeds</b> for work on the main map (building or upgrading a village, farm, fishery or mine, chartering a city, exploring, sending colonists, declaring war or peace, assaulting a town) and a few <b>marches</b> for claiming or occupying single tiles of land.</p><p>Every tile you hold pays 3 gold a season, and every 50 people pay 1 more. Land you leave wild yields the <b>good</b> of its terrain: plains grain for the granary, forest <b>timber</b>, mountain <b>stone</b>, coast <b>salt</b>, marsh <b>peat</b> and swamp <b>iron</b>. Buildings need goods as well as gold, and peat or timber keeps your people warm in winter, so keep some land wild; anything you lack can be bought from trading partners or the royal market on the Treasury page. Click one of your tiles to build a <b>village</b> (more people and taxes; it grows into a market village and then a new city), a <b>farm</b> or <b>fishery</b> (coast only) for food, or a <b>gold mine</b>. Farms, fisheries and mines all start at level IV and can be improved to level I: +5, +10, +15 and +25 a season (food for farms and fisheries, gold for mines). Farms, fisheries and mines must be within two tiles of one of your villages or cities, and one tile can hold several of them, but a village needs a tile to itself. Click one of your cities to walk its streets: build houses (every 25 people need one), a castle, blacksmiths, markets, mills and more, develop it and fortify its walls. Every building job inside a city takes a deed too. A port city builds ships at its quays; with a harbour it can keep a fleet, and a fleet of five with settlers, gold and resources stored in the city can sail off to found a colony on an unclaimed coast. <b>Trade routes</b>, the thin white lines on the map, join neighbouring lands into chains that link your cities and villages; each segment costs 5 gold and needs no deed. Farms, fisheries, mines and wild land send their goods to the nearest city or village within two tiles, and harbour cities are linked by sea. Only the network holding your capital fills the royal granary and stores: a city or village cut off from it lives on its own farms and goes hungry if they fall short. War and famine kill people, and towns only slowly refill. Every 100 people eat 1 food a season, and every village needs a farm beside it (a market village two) or it is abandoned; if the granaries run dry, your people starve.</p><p>Up to a third of your people can be called to war. Your three <b>knights</b> rally them — popular knights raise more militants, and intelligent, strong ones make them fight better. Set taxes, feed the poor and trade with neighbours from the <b>Treasury</b>. Court <b>suitors</b> on the Romance page: a match from another kingdom brings an alliance, and children of that blood may one day inherit its crown. The <b>family tree</b> follows your bloodline.</p><p>The whole map is known, but not what has been built beyond your borders until explorers have been there. Send scouts overland, or a ship from a port city over the sea; voyages take several seasons. On the International Relations page you can see what every kingdom thinks of you, send diplomats, trade, make war or peace, barter treaties, win the right to run your trade routes through their land, and seek marriages for your children. Press <b>End Season</b> to let time pass.</p>`});
 }
 </script>
 </body>
