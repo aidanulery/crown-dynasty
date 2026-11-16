@@ -39,7 +39,7 @@ if(CELLS[0].length>4){ const bad=[]; PLACES_RAW.forEach((p,k)=>{ if(CELLS[TOWNCE
   const cut=CELLS.map((c,i)=>i).filter(i=>CELLS[i][4]===1 && !reach[i]); if(cut.length) issues.push(`Starting-held tiles cut off from their kingdom: ${cut.length}`);
   console.log(`  starting borders: ${CELLS.filter(c=>c[4]===1).length} of ${CELLS.length} tiles held, the rest wild`); }
 // 4. towns sit on their own tile
-PLACES_RAW.forEach((p,k)=>{ const i=TOWNCELL[k]; if(i==null||i<0){ issues.push(`Town ${p.name} has no tile`); return; } if(tiles[i].home!==k) issues.push(`Town ${p.name}'s tile is not homed to it`); if(!inTile(p.x,p.y,tiles[i])){ const t=tiles[i]; const near=t.R.some(r=>r.some(([x,y])=>Math.hypot(x-p.x,y-p.y)<6)); (near?warn:issues).push(`Town ${p.name} marker is ${near?"just":"well"} outside its tile`); } });
+PLACES_RAW.forEach((p,k)=>{ const i=TOWNCELL[k]; if(i==null||i<0){ issues.push(`Town ${p.name} has no tile`); return; } if(tiles[i].home!==k) issues.push(`Town ${p.name}'s tile is not homed to it`); if(!inTile(p.x,p.y,tiles[i])){ const t=tiles[i]; const near=t.R.some(r=>r.some(([x,y])=>Math.hypot(x-p.x,y-p.y)<6)); issues.push(`Town ${p.name} marker is ${near?"just":"well"} outside its tile`); } });
 // 5. every tile connects (over land links) to a tile holding a town
 { const seen=new Uint8Array(tiles.length), q=[...TOWNCELL]; for(const i of q) seen[i]=1; while(q.length){ const i=q.pop(); for(const j of NEI[i]) if(!seen[j]){ seen[j]=1; q.push(j); } }
   const cut=tiles.map((t,i)=>i).filter(i=>!seen[i]); if(cut.length) issues.push(`Tiles cut off from every town (orphan islands): ${cut.length} — e.g. ${cut.slice(0,6).map(i=>`#${i} ${tiles[i].area.toFixed(0)}px²`).join(', ')}`); }

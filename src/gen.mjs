@@ -186,6 +186,18 @@ console.log('coastal tiles',CELLS.filter(c=>c[5]).length);
 const NEI=G.map(g=>[...g.adj]);
 const area=p=>Math.abs(sarea(p));
 function lod(eps,minA){ return rawRings.map(r=>{ if(area(r)<minA) return ''; const q=rdp(r,eps); if(q.length<3) return ''; return 'M'+q.map(v=>v[0].toFixed(1)+','+v[1].toFixed(1)).join('L')+'Z'; }).join(''); }
+// town markers: a town whose coordinate lies on the coastline/in the sea (outside every land unit) was given the nearest
+// tile by centroid; move its marker to the closest point that lies inside that tile with a small margin from its edge
+{ const segD=(px,py,a,b)=>{const dx=b[0]-a[0],dy=b[1]-a[1];let t=((px-a[0])*dx+(py-a[1])*dy)/(dx*dx+dy*dy||1);t=Math.max(0,Math.min(1,t));return Math.hypot(a[0]+t*dx-px,a[1]+t*dy-py);};
+  let moved=0;
+  places.forEach((p,t)=>{ const mps=G[townG[t]].mem.map(i=>units[i].mp); if(mps.some(mp=>inMP(p.x,p.y,mp))) return;
+   const rs=mps.flat(2); const edge=(x,y)=>{let d=1e9; for(const r of rs) for(let a=0,b=r.length-1;a<r.length;b=a++) d=Math.min(d,segD(x,y,r[a],r[b])); return d;};
+   let best=null,bd=1e9;
+   for(let rad=0.25;rad<=12&&!best;rad+=0.25) for(let k=0;k<48;k++){ const x=p.x+rad*Math.cos(k*Math.PI/24), y=p.y+rad*Math.sin(k*Math.PI/24);
+    if(mps.some(mp=>inMP(x,y,mp)) && edge(x,y)>=1.5 && rad<bd){ bd=rad; best=[x,y]; } }
+   if(best){ p.x=+best[0].toFixed(1); p.y=+best[1].toFixed(1); moved++; console.log('town marker moved onto its tile',p.name,bd.toFixed(2)+'px'); }
+   else console.log('WARNING: town marker could not be placed on its tile',p.name); });
+  console.log('town markers moved',moved); }
 const out=places.map(({m,...p})=>p);
 fs.writeFileSync('mapdata.js',`const LAND_PATH=${JSON.stringify(lod(0.08,0.05))};\nconst LAND_MID=${JSON.stringify(lod(0.25,0.6))};\nconst LAND_LO=${JSON.stringify(lod(0.7,4))};\nconst GRAT_PATH=${JSON.stringify(GRAT)};\nconst PLACES_RAW=${JSON.stringify(out)};\nconst CELLS=${JSON.stringify(CELLS)};\nconst TOWNCELL=${JSON.stringify(townG)};\nconst NEI=${JSON.stringify(NEI)};\nconst MAPMETA=${JSON.stringify({SP,NOM,REG,LAND_TOTAL:+LAND_TOTAL.toFixed(1)})};\n`);
 console.log('tiles',CELLS.length,'owned',CELLS.filter(c=>c[1]>=0).length,'bytes',fs.statSync('mapdata.js').size);
