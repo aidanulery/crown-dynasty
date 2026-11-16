@@ -302,7 +302,7 @@ const TERRAIN="ccmmscccccmmsscacmmmcccccmmccccccmmcmmffcccmmmmmmmccccmmmmmcccccm
    Removed for rebuilding: realm management, court & family, armies,
    prestige, stability, colonies. Look for "HOOK:" comments.
    ===================================================================== */
-const VERSION = "pre-alpha v0.4.4";
+const VERSION = "pre-alpha v0.4.5";
 const SAVE_KEY = "crown-dynasty-save-v12";
 const OLD_SAVE_KEYS = [];   // v0.1.3 reworked people, armies and the court; older saves do not carry over
 const $ = id => document.getElementById(id);
@@ -489,6 +489,7 @@ const GOLD_PER_TILE = 3, PEOPLE_PER_GOLD = 50, PEOPLE_PER_FOOD = 100, RES_PER_WI
    forest timber, mountain stone, coastal salt, marsh peat and swamp bog iron. Buildings cost gold and goods;
    peat (or timber, failing that) is burned for warmth in winter. Goods can be bought from trading partners
    or, dearer, at the royal market. */
+const TERRAIN_TYPES_NAME = {p:"plains", f:"forest", m:"mountain", c:"coastal", a:"marsh", s:"swamp"};
 const GOODS = {timber:{name:"Timber", terrain:"f", land:"forest", price:3}, stone:{name:"Stone", terrain:"m", land:"mountain", price:4},
  iron:{name:"Iron", terrain:"s", land:"swamp (bog iron)", price:6}, salt:{name:"Salt", terrain:"c", land:"coast", price:4}, peat:{name:"Peat", terrain:"a", land:"marsh", price:2}};
 const GOOD_KEYS = Object.keys(GOODS);
@@ -527,6 +528,17 @@ const DEV = {
  village:{name:"Village",   g:80, r:50, kind:"build", blurb:`+${VILLAGE[1].people} people (taxes +${VILLAGE[1].people/PEOPLE_PER_GOLD} gold) · needs a farm next to it · grows into a market village, then a city of ${CITY_PEOPLE}`},
  mine:   {name:"Gold mine", g:MINE[4].g, r:MINE[4].r, kind:"mine", blurb:`+${MINE[4].gold} gold a season at level IV, up to +${MINE[1].gold} at level I · near a village or city`}
 };
+/* A building for every terrain good. Each stands only on its own terrain and climbs the same levels IV→I as mines and farms. */
+const GOOD_YIELD = [null, 12, 8, 5, 3];   // goods a season by level (I richest); land left wild yields 1
+const GOOD_WORKS = { lumber:{name:"Lumber mill", good:"timber", terrain:"f", kind:"build", up:"Add saws and sheds", top:"The great sawmill"},
+ quarry:{name:"Quarry", good:"stone", terrain:"m", kind:"build", up:"Cut the quarry deeper", top:"The deepest quarry"},
+ ironworks:{name:"Bog-iron works", good:"iron", terrain:"s", kind:"build", up:"Build a bigger bloomery", top:"The great ironworks"},
+ saltworks:{name:"Salt works", good:"salt", terrain:"c", kind:"build", up:"Dig more salt pans", top:"The widest salt pans"},
+ peatcut:{name:"Peat cutting", good:"peat", terrain:"a", kind:"build", up:"Open new peat banks", top:"The richest peat banks"} };
+for(const [k,w] of Object.entries(GOOD_WORKS)) DEV[k] = {name:w.name, g:MINE[4].g, r:MINE[4].r, kind:w.kind, terrain:w.terrain, good:w.good,
+ blurb:`+${GOOD_YIELD[4]} ${GOODS[w.good].name.toLowerCase()} a season at level IV, up to +${GOOD_YIELD[1]} at level I · ${TERRAIN_TYPES_NAME[w.terrain]} only, near a village or city`};
+DEV.farm.blurb = DEV.farm.blurb.replace(" · near"," · any terrain, near");
+const goodWorkAt = i => Object.keys(GOOD_WORKS).find(k=>devsAt(i)[k]);
 const TOWNCOST = { develop:p=>({g:Math.round(100*Math.pow(2,p.dev-1)), r:Math.round(20*Math.pow(2,p.dev-1))}),   // doubles with every level
  fortify:p=>({g:90*p.fort, r:15*p.fort}), ships:{g:150, r:40} };
 const isCoastal = i => CELLS[i][5]===1;
@@ -536,7 +548,7 @@ const terrainOf = i => TERRAIN_TYPES[TERRAIN[i]];
 /* Developments: S.devs[tile] = {village:{lvl,grow}} or any mix of {farm:{}, fish:{}, mine:{lvl}}.
    A village stands alone on its tile; farms, fisheries and mines may share a tile (one of each)
    and must lie within SUPPORT_RANGE tiles of a village or city we own. */
-const SUPPORT_RANGE = 2, DEV_ORDER = ["village","farm","fish","mine"], WORKS = ["farm","fish","mine"];
+const SUPPORT_RANGE = 2, DEV_ORDER = ["village","farm","fish","mine","lumber","quarry","ironworks","saltworks","peatcut"], WORKS = ["farm","fish","mine","lumber","quarry","ironworks","saltworks","peatcut"];
 const devsAt = i => S.devs[i] || {};
 const hasDevs = i => !!S.devs[i] && Object.keys(S.devs[i]).length>0;
 function delDev(i,t){ if(!S.devs[i]) return; if(t) delete S.devs[i][t]; if(!t || !Object.keys(S.devs[i]).length) delete S.devs[i]; }
@@ -552,7 +564,7 @@ function supportSet(rid=S.player){
 }
 /* Farms and fisheries climb the same ladder as gold mines: level IV yields 5, III 10, II 15, I 25 (food instead of gold),
    at the same price in gold, with timber for farms and timber and salt for fisheries. */
-const WORK_KIND = {mine:"mine", farm:"build", fish:"fish"};
+const WORK_KIND = {mine:"mine", farm:"build", fish:"fish", lumber:"build", quarry:"build", ironworks:"mine", saltworks:"fish", peatcut:"build"};
 const workLvl = d => d?.lvl || 4;
 const workYield = d => MINE[workLvl(d)].gold;
 const farmsNear = (i, owner) => NEI[i].filter(j=>S.tiles[j]===owner && devsAt(j).farm).length;
@@ -564,6 +576,7 @@ function whyNot(i,t,rid=S.player){   // reason a development can't be added here
  if(t==="village") return hasDevs(i) ? "A village needs a tile to itself" : "";
  if(here.village) return "This tile holds a village";
  if(D.coastal && !isCoastal(i)) return "Only on coastal tiles";
+ if(D.terrain && TERRAIN[i]!==D.terrain) return `Only on ${TERRAIN_TYPES_NAME[D.terrain]} land`;
  if(!supportSet(rid).has(i)) return `Must be within ${SUPPORT_RANGE} tiles of one of our villages or cities`;
  return "";
 }
@@ -636,6 +649,7 @@ function tradeNets(rid=S.player){
   if(n==null){ const h=S.places[S.homes?.[i]]; n = h && h.owner===rid && comp.has(h.tile) ? remap(comp.get(h.tile)) : royal.id; }
   const N = nets.get(n) || royal; tileNet.set(i, N.id); const d=S.devs[i];
   if(d?.farm) N.food+=workYield(d.farm); if(d?.fish) N.food+=workYield(d.fish);
+  if(d && !(rid===S.player && S.unint?.[i])) for(const k in GOOD_WORKS) if(d[k]){ const y=GOOD_YIELD[workLvl(d[k])]; N.goods[GOOD_WORKS[k].good]+=y; N.res+=y; }
   if(!TOWNAT.has(i) && !hasDevs(i) && !(rid===S.player && S.unint?.[i])){ const gk=tileGood(i); if(gk==="grain"){ N.grain+=RES_PER_WILD_TILE; N.food+=RES_PER_WILD_TILE; } else { N.goods[gk]+=RES_PER_WILD_TILE; N.res+=RES_PER_WILD_TILE; } } }
  for(const N of nets.values()) N.eat = Math.ceil(N.people/PEOPLE_PER_FOOD);
  return {nets:[...nets.values()], royal, tileNet};
@@ -1081,6 +1095,11 @@ function aiDevelop(r){
  if(mine.some(i=>{ const v=devsAt(i).village; return v && v.lvl===2 && (v.grow||0)>=VILLAGE[2].grow && !v.cutoff && !charterBlock(i, r.id); }) && r.gold < VILLAGE[2].up.g + VILLAGE[2].up.r*GOODS.stone.price*1.5) return false;
  // 5. a new village beside an existing farm
  const nVil=mine.filter(i=>devsAt(i).village).length; if(nVil < Math.max(1, Math.floor(mine.length/8)) && Math.random()<0.4){ const c=mine.filter(i=>!hasDevs(i) && NEI[i].some(j=>S.tiles[j]===r.id && devsAt(j).farm)); if(c.length && aiBuild(r,pick(c),"village")) return true; }
+ // 5b. a resource building when a good runs low
+ if(Math.random()<0.3){ const G=goodsOf(r), low=GOOD_KEYS.filter(k=>(G[k]||0)<30);
+  for(const k of low){ const t=Object.keys(GOOD_WORKS).find(x=>GOOD_WORKS[x].good===k);
+   const up=mine.find(i=>devsAt(i)[t] && workLvl(devsAt(i)[t])>1); if(up!=null && Math.random()<0.4){ const d=devsAt(up)[t]; d.lvl=workLvl(d); const nx=MINE[d.lvl-1]; if(aiPay(r,nx.g,nx.r,true,WORK_KIND[t])){ d.lvl--; return true; } }
+   const c=mine.filter(i=>sup.has(i) && TERRAIN[i]===GOOD_WORKS[t].terrain && !devsAt(i).village && !devsAt(i)[t]); if(c.length && aiBuild(r,pick(c),t)) return true; } }
  // 6. dig a mine deeper, or open a new one
  if(Math.random()<0.35){ const m=mine.find(i=>devsAt(i).mine && devsAt(i).mine.lvl>1);
   if(m!=null && Math.random()<0.5){ const d=devsAt(m).mine, nx=MINE[d.lvl-1]; if(aiPay(r,nx.g,nx.r,true,"mine")){ d.lvl--; return true; } }
@@ -2210,13 +2229,13 @@ function payCost(g,r,kind="build"){ S.gold-=g; spendGoods(goodsCost(r,kind)); }
 function actBuild(i,t){
  const d=DEV[t]; if(S.over || S.tiles[i]!==S.player || TOWNAT.has(i) || whyNot(i,t) || !canPay(d.g,d.r,d.kind) || !useAP()) return;
  payCost(d.g,d.r,d.kind); (S.devs[i] ||= {})[t] = t==="village" ? {lvl:1, grow:0} : {lvl:4};
- toast(t==="mine" ? `A level IV gold mine opens: +${MINE[4].gold} gold a season.` : t==="farm"||t==="fish" ? `A level IV ${DEV[t].name.toLowerCase()} opens: +${MINE[4].gold} food a season.` : t==="village" ? `Families settle a new village: +${VILLAGE[1].people} people.` : `A new ${d.name.toLowerCase()} is built.`); after();
+ toast(GOOD_WORKS[t] ? `A level IV ${d.name.toLowerCase()} opens: +${GOOD_YIELD[4]} ${GOODS[d.good].name.toLowerCase()} a season.` : t==="mine" ? `A level IV gold mine opens: +${MINE[4].gold} gold a season.` : t==="farm"||t==="fish" ? `A level IV ${DEV[t].name.toLowerCase()} opens: +${MINE[4].gold} food a season.` : t==="village" ? `Families settle a new village: +${VILLAGE[1].people} people.` : `A new ${d.name.toLowerCase()} is built.`); after();
 }
 function actUpgradeMine(i){ actUpgradeWork(i,"mine"); }
 function actUpgradeWork(i, t){
  const d=devsAt(i)[t]; if(!d || workLvl(d)<=1 || S.tiles[i]!==S.player || S.over) return; d.lvl=workLvl(d); const nx=MINE[d.lvl-1], k=WORK_KIND[t];
  if(!canPay(nx.g,nx.r,k) || !useAP()) return; payCost(nx.g,nx.r,k); d.lvl--;
- toast(t==="mine" ? `The mine is dug deeper: level ${nx.lvl}, +${nx.gold} gold a season.` : `The ${DEV[t].name.toLowerCase()} grows to level ${nx.lvl}: +${nx.gold} food a season.`); after();
+ toast(GOOD_WORKS[t] ? `The ${DEV[t].name.toLowerCase()} grows to level ${nx.lvl}: +${GOOD_YIELD[d.lvl]} ${GOODS[DEV[t].good].name.toLowerCase()} a season.` : t==="mine" ? `The mine is dug deeper: level ${nx.lvl}, +${nx.gold} gold a season.` : `The ${DEV[t].name.toLowerCase()} grows to level ${nx.lvl}: +${nx.gold} food a season.`); after();
 }
 const CITY_A = ["Ash","Wex","Mar","Thorn","Hal","Brad","Kings","Ox","Rad","Wil","Elm","Stan","Lyn","Hart","Fen","Dun","Bel","Cor","Mont","Roche","Val","Beau","Gra","Sel","Ard","Hol","Ber","Lau","Fal","Wend"];
 const CITY_B = ["bury","ford","ham","wick","stead","mouth","ton","by","field","minster","gate","bridge","mere","haven","court","mont","ville","berg","dorf","holm","burgh","vale"];
@@ -2387,7 +2406,7 @@ function render(){
   {k:"People", v:E.people.toLocaleString(), d:S.popDelta?(S.popDelta>0?"+":"")+S.popDelta.toLocaleString():"", bad:(S.popDelta||0)<0, t:`${E.townPeople.toLocaleString()} in towns (room for ${E.capacity.toLocaleString()}; they regrow 3% a season while fed), ${E.villagePeople} in ${E.villages} village${E.villages===1?"":"s"}${S.dead?` · ${S.dead.toLocaleString()} lost to war, famine and plague this reign`:""}`},
   {k:"Towns", v:owned(S.player).length},
   {k:"Lands", v:E.tiles, t:`${E.wild} left wild: each yields the good of its land (plains grain, forest timber, mountain stone, coast salt, marsh peat, swamp iron)`},
-  ...GOOD_KEYS.map(k=>({k:GOODS[k].name, v:Math.round(goodsOf(S)[k]), d:"+"+(E.goods?.[k]||0), g:1, t:`${GOODS[k].name}: +${E.goods?.[k]||0} a season from wild ${GOODS[k].land} lands that trade with the capital's network${k==="peat"?" · burned for warmth in winter (1 per 500 people), timber if it runs out":""}`}))];
+  ...GOOD_KEYS.map(k=>({k:GOODS[k].name, v:Math.round(goodsOf(S)[k]), d:"+"+(E.goods?.[k]||0), g:1, t:`${GOODS[k].name}: +${E.goods?.[k]||0} a season from wild ${GOODS[k].land} lands and resource buildings that trade with the capital's network${k==="peat"?" · burned for warmth in winter (1 per 500 people), timber if it runs out":""}`}))];
  $("stats").innerHTML = st.map(x=>`<div class="stat${x.bad?" bad":""}${x.g?" good":""}" ${x.t?`title="${x.t}"`:""}><span>${x.k}</span><b>${x.v}</b>${x.d?`<small>${x.d}</small>`:""}</div>`).join("");
  updateSight();
  $("ap").innerHTML = Array.from({length:apMax()},(_,i)=>`<i class="${i<S.ap?"":"used"}"></i>`).join("");
@@ -2400,14 +2419,19 @@ const DEVICON = {
  fish:`<circle r="5" fill="#13303a" stroke="#9fd0d8" stroke-width=".8"/><path d="M-3.4 0 Q-.5 -2.6 2.2 0 Q-.5 2.6 -3.4 0Z M2.2 0 L3.8 -1.6 V1.6Z" fill="#cfeef2"/>`,
  village:`<circle r="5" fill="#3a1d10" stroke="#e8b08a" stroke-width=".8"/><path d="M-3 2.6V-.2L0 -3L3 -.2V2.6Z" fill="#f2cfa8"/><rect x="-.7" y=".6" width="1.4" height="2" fill="#3a1d10"/>`,
  market:`<circle r="5.6" fill="#3a1d10" stroke="#f0c040" stroke-width=".9"/><path d="M-4 3V.6L-2 -1.4L0 .6V3Z" fill="#f2cfa8"/><path d="M-.4 3V-.8L1.8 -3.4L4 -.8V3Z" fill="#f7dcb8"/><path d="M1.8 -3.4V-5" stroke="#f0c040" stroke-width=".7"/>`,
+ lumber:`<circle r="5" fill="#2a3414" stroke="#9ac46a" stroke-width=".8"/><path d="M0 -3.6 L2.6 .4 H1 L3 3 H-3 L-1 .4 H-2.6Z" fill="#9ac46a"/><rect x="-.5" y="3" width="1" height="1.2" fill="#b07a3a"/>`,
+ quarry:`<circle r="5" fill="#2a2a2a" stroke="#c8c8c0" stroke-width=".8"/><path d="M-3.2 2.6 L-1.2 -1.6 L.6 .6 L2 -2.4 L3.4 2.6Z" fill="#c8c8c0"/><rect x="-1.4" y=".9" width="2" height="1.4" fill="#8a8a82"/>`,
+ ironworks:`<circle r="5" fill="#2a1a14" stroke="#c87a4a" stroke-width=".8"/><path d="M-2.6 3 V-.6 L-1 -2.6 H1 L2.6 -.6 V3Z" fill="#7a4a30"/><path d="M-.9 3 V1 Q0 -.2 .9 1 V3Z" fill="#f0a040"/><path d="M0 -2.6 V-4" stroke="#c8c8c0" stroke-width=".7"/>`,
+ saltworks:`<circle r="5" fill="#1a2a34" stroke="#e8eef0" stroke-width=".8"/><rect x="-3.2" y=".4" width="6.4" height="2.4" fill="#5a8aa0"/><path d="M-2.2 .4 L-1.2 -2 L-.2 .4Z M.6 .4 L1.6 -2.6 L2.6 .4Z" fill="#f4f6f6"/>`,
+ peatcut:`<circle r="5" fill="#2a2010" stroke="#b08a5a" stroke-width=".8"/><rect x="-3" y="-.6" width="2.6" height="1.6" fill="#6a4a2a"/><rect x="-1.4" y="1.2" width="2.6" height="1.6" fill="#6a4a2a"/><rect x=".6" y="-.6" width="2.6" height="1.6" fill="#6a4a2a"/><path d="M1.6 -1 L3 -3.6" stroke="#c8c8c0" stroke-width=".7"/>`,
  mine:`<circle r="5" fill="#2a2414" stroke="#f0c040" stroke-width=".8"/><path d="M-3 -2.2 Q0 -4 3 -2.2" stroke="#d8dde0" stroke-width="1" fill="none"/><path d="M0 -3.1 L-2 3" stroke="#b07a3a" stroke-width="1"/>`
 };
 function renderDevs(){
  cellInit(); const k=PS();
  $("devs").innerHTML = Object.keys(S.devs).filter(i=>S.seen[+i] && S.tiles[+i]).map(i=>{ const here=S.devs[i], [x,y]=CELLC[+i];
-  const kinds = DEV_ORDER.filter(t=>here[t]), off = kinds.length===1?[0]:kinds.length===2?[-5.6,5.6]:[-11,0,11];
+  const kinds = DEV_ORDER.filter(t=>here[t]), off = kinds.length===1?[0]:kinds.length===2?[-5.6,5.6]:kinds.length===3?[-11,0,11]:kinds.map((_,n)=>(n-(kinds.length-1)/2)*11);
   const icons = kinds.map((t,n)=>{ const icon = t==="village" && here.village.lvl===2 ? DEVICON.market : DEVICON[t];
-   return `<g transform="translate(${off[n]},0)">${icon}${t==="mine"||t==="farm"||t==="fish"?`<text x="3.2" y="-3.6" font-size="4.6" font-weight="700" fill="${t==="mine"?"#f0c040":"#b8e07a"}" stroke="#2a1d12" stroke-width="1.2" paint-order="stroke" font-family="Spectral,serif">${MINE[workLvl(here[t])].lvl}</text>`:""}</g>`; }).join("");
+   return `<g transform="translate(${off[n]},0)">${icon}${WORKS.includes(t)?`<text x="3.2" y="-3.6" font-size="4.6" font-weight="700" fill="${t==="mine"?"#f0c040":GOOD_WORKS[t]?"#e8e0d0":"#b8e07a"}" stroke="#2a1d12" stroke-width="1.2" paint-order="stroke" font-family="Spectral,serif">${MINE[workLvl(here[t])].lvl}</text>`:""}</g>`; }).join("");
   return `<g class="dv" data-x="${x.toFixed(1)}" data-y="${y.toFixed(1)}" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${k})">${icons}</g>`; }).join("");
 }
 function renderPlaces(){
@@ -2568,6 +2592,7 @@ function renderCard(){
    h += `<div class="row"><span>Near a village or city</span><span>${inSupport(i)?"yes":"no"}</span></div>`;
    { const D=districtOf(i), du=D&&person(D.duke); h += S.unint?.[i] ? `<div class="row"><span>District</span><span style="color:#8a1f1f">conquered, not yet integrated</span></div><p class="note">Half taxes, no resources and no building until it is added to a district on the Districts page.</p>` : D ? `<div class="row"><span>District</span><span>${D.name}${living(du)?` · ${dukeTitle(du)} ${du.name}`:""}</span></div>` : ""; }
    { const gk=tileGood(i); h += `<div class="row"><span>Terrain</span><span>${terrainOf(i)} · yields ${gk==="grain"?"grain (food)":GOODS[gk].name.toLowerCase()}</span></div>`;
+    { const gw=Object.keys(GOOD_WORKS).find(k=>GOOD_WORKS[k].terrain===TERRAIN[i]); h += `<div class="row"><span>Resource building</span><span>${gw?DEV[gw].name.toLowerCase()+(here[gw]?" (built)":""):"none · farms do well here"}</span></div>`; }
     if(!kinds.length) h += `<div class="row"><span>Left wild</span><span>${S.unint?.[i]?"nothing until integrated":`+${RES_PER_WILD_TILE} ${gk==="grain"?"food":GOODS[gk].name.toLowerCase()} a season`}</span></div>`; }
    for(const t of kinds){
     h += `<h4 style="margin:10px 0 2px;font:400 17px 'IM Fell English',serif;color:var(--accent)">${t==="village"?VILLAGE[here.village.lvl].name:DEV[t].name}</h4>`;
@@ -2577,6 +2602,9 @@ function renderCard(){
     else if(t==="farm"||t==="fish"){ const d=here[t], L=workLvl(d); h += `<div class="row"><span>Level ${MINE[L].lvl}</span><span>+${workYield(d)} food a season</span></div>`;
      if(L>1){ const nx=MINE[L-1]; h += btn(t==="farm"?`Enlarge the farm to level ${nx.lvl}`:`Expand the fishery to level ${nx.lvl}`, `${costText(nx.g,nx.r,WORK_KIND[t])} · 1 deed · +${nx.gold} food a season`, ()=>actUpgradeWork(i,t), !canAct()||!canPay(nx.g,nx.r,WORK_KIND[t])); }
      else h += `<p class="note">${t==="farm"?"The finest fields in the land":"The richest fishing grounds"}: level I.</p>`; }
+    else if(GOOD_WORKS[t]){ const w=GOOD_WORKS[t], d=here[t], L=workLvl(d), gn=GOODS[w.good].name.toLowerCase(); h += `<div class="row"><span>Level ${MINE[L].lvl}</span><span>+${GOOD_YIELD[L]} ${gn} a season</span></div>`;
+     if(L>1){ const nx=MINE[L-1]; h += btn(`${w.up}: level ${nx.lvl}`, `${costText(nx.g,nx.r,WORK_KIND[t])} · 1 deed · +${GOOD_YIELD[L-1]} ${gn} a season`, ()=>actUpgradeWork(i,t), !canAct()||!canPay(nx.g,nx.r,WORK_KIND[t])); }
+     else h += `<p class="note">${w.top}: level I.</p>`; }
     else if(t==="village"){ const d=here.village, st=VILLAGE[d.lvl], g=Math.min(d.grow||0, st.grow), ready=g>=st.grow;
      h += `<div class="row"><span>${st.people} people</span><span>+${st.people/PEOPLE_PER_GOLD} gold a season</span></div>`;
      { const f=farmsNear(i,S.player), ok=f>=st.farms; h += `<div class="row"><span>Farms next to it</span><span style="color:${ok?'inherit':'#8a1f1f'}">${f} of ${st.farms} needed${ok?'':d.hungry?' · will be abandoned at season’s end':' · will go hungry'}</span></div>`; }
@@ -2591,7 +2619,7 @@ function renderCard(){
     if(N) h += `<div class="row"><span>Its goods go to</span><span style="color:${N.royal?"inherit":"#8a1f1f"}">${N.royal?"the capital's network":"a network cut off from the capital"}</span></div>`;
     h += btn("Lay trade routes from here", `${ROUTE_COST} gold a segment · no deed needed`, ()=>actHireCrew(i), S.over);
     if(nr) h += btn("Abandon the routes through here", "", ()=>actClearRoutes(i), S.over, true); }
-   const options = DEV_ORDER.filter(t=>!here[t] && !(t==="village" && kinds.length));
+   const options = DEV_ORDER.filter(t=>!here[t] && !(t==="village" && kinds.length) && !(DEV[t].terrain && DEV[t].terrain!==TERRAIN[i]));
    if(options.length && !here.village){
     h += `<h4 style="margin:12px 0 2px;font:400 17px 'IM Fell English',serif;color:var(--accent)">${kinds.length?"Add to this land":"Develop this land"}</h4>${kinds.length?"":`<p class="note" style="margin:0 0 4px">Building here ends its yield of ${tileGood(i)==="grain"?"grain":GOODS[tileGood(i)].name.toLowerCase()}.</p>`}`;
     for(const t of options){ const D=DEV[t], why=whyNot(i,t);
